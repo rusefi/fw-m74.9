@@ -1,6 +1,7 @@
 package com.rusefi.m749;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -64,19 +65,33 @@ final class M749Monitor {
         String detail = channels.isEmpty() ? "Connect a PCAN adapter to begin." : channels.toString();
         view.detection(!channels.isEmpty(), detail);
         reportScan(channels.isEmpty() ? "PCAN not detected" : "PCAN detected: " + detail);
-        PcanDevice.Channel selected = channels.stream().filter(c -> c.available).findFirst().orElse(null);
-        if (selected == null || (!retry && attempted.contains(selected.handle.name()))) {
+        List<PcanDevice.Channel> candidates = new ArrayList<>();
+        for (PcanDevice.Channel channel : channels) {
+            if (channel.available && (retry || !attempted.contains(channel.handle.name()))) {
+                candidates.add(channel);
+            }
+        }
+        if (candidates.isEmpty()) {
             return;
         }
-        attempted.add(selected.handle.name());
         view.busy(true);
-        view.message("Querying M74.9 via " + selected.handle + " at 500 kbit/s (7E0 / 7E8)");
         try {
-            backend.identify(selected, view::message);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } catch (IOException | RuntimeException | LinkageError e) {
-            view.message("Identification stopped: " + e.getMessage() + ". Use Scan / query again to retry.");
+            // The driver can report phantom channels (e.g. ISA with no driver), so
+            // keep trying until one yields an ECU.
+            for (PcanDevice.Channel selected : candidates) {
+                attempted.add(selected.handle.name());
+                view.message("Querying M74.9 via " + selected.handle + " at 500 kbit/s (7E0 / 7E8)");
+                try {
+                    backend.identify(selected, view::message);
+                    return;
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                } catch (IOException | RuntimeException | LinkageError e) {
+                    view.message("Identification via " + selected.handle + " failed: " + e.getMessage());
+                }
+            }
+            view.message("No channel produced an M74.9 identification. Use Scan / query again to retry.");
         } finally {
             view.busy(false);
         }

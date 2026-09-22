@@ -5,8 +5,10 @@ import peak.can.basic.TPCANHandle;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -15,7 +17,9 @@ class M749MonitorTest {
     private static final class Harness implements M749Monitor.Backend, M749Monitor.View {
         final M749Monitor monitor = new M749Monitor(this, this);
         final List<String> messages = new ArrayList<>();
+        final List<TPCANHandle> opened = new ArrayList<>();
         List<PcanDevice.Channel> channels = Collections.emptyList();
+        Set<TPCANHandle> dead = Collections.emptySet();
         boolean detected;
         boolean busy;
         boolean failQuery;
@@ -35,8 +39,9 @@ class M749MonitorTest {
 
         public void identify(PcanDevice.Channel channel, Consumer<String> messages) throws IOException {
             assertTrue(busy);
-            assertEquals(TPCANHandle.PCAN_USBBUS2, channel.handle);
+            opened.add(channel.handle);
             queries++;
+            if (dead.contains(channel.handle)) throw new IOException("Open " + channel.handle + ": PCAN_ERROR_NODRIVER");
             if (failQuery) throw new IOException("ECU timeout");
             messages.accept("VIN result");
         }
@@ -78,6 +83,22 @@ class M749MonitorTest {
         assertEquals(1, h.queries);
         assertTrue(h.messages.stream().anyMatch(s -> s.contains("ECU timeout")));
         h.monitor.poll(true);
+        assertEquals(2, h.queries);
+    }
+
+    @Test
+    void phantomChannelFailsOverToWorkingAdapterWithoutReattempting() {
+        Harness h = new Harness();
+        h.channels = Arrays.asList(
+                new PcanDevice.Channel(TPCANHandle.PCAN_ISABUS1, true),
+                new PcanDevice.Channel(TPCANHandle.PCAN_USBBUS1, true));
+        h.dead = Collections.singleton(TPCANHandle.PCAN_ISABUS1);
+        h.monitor.poll(false);
+        assertEquals(Arrays.asList(TPCANHandle.PCAN_ISABUS1, TPCANHandle.PCAN_USBBUS1), h.opened);
+        assertTrue(h.messages.stream().anyMatch(s -> s.contains("PCAN_ERROR_NODRIVER")));
+        assertTrue(h.messages.contains("VIN result"));
+        assertFalse(h.busy);
+        h.monitor.poll(false);
         assertEquals(2, h.queries);
     }
 

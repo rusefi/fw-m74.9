@@ -8,6 +8,19 @@ test {
     systemProperty 'java.awt.headless', 'true'
 }
 
+tasks.register('runM749Cli', JavaExec) {
+    group = 'Execution'
+    description = 'Query M74.9 identification over PCAN from the command line'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.rusefi.m749.M749Cli'
+    workingDir = rootProject.file('java_console')
+    systemProperty 'java.library.path', rootProject.file('java_console').absolutePath +
+            File.pathSeparator + System.getProperty('java.library.path')
+    if (project.hasProperty('m749Args')) {
+        args project.property('m749Args').toString().split(' ')
+    }
+}
+
 tasks.register('runM749Tab', JavaExec) {
     dependsOn testClasses
     group = 'Execution'
