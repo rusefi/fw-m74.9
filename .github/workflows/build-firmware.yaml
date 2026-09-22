@@ -10,6 +10,8 @@ on:
 jobs:
   build-firmware:
     runs-on: ubuntu-latest
+    env:
+      RUSEFI_CUSTOM_JAVA_UI_DIR: ${{ github.workspace }}/java-custom-ui
     steps:
       - uses: actions/checkout@v4
         with:

@@ -1,0 +1,20 @@
+dependencies {
+    implementation project(':ui')
+    implementation project(':ecu_io')
+    implementation project(':peak-can-basic')
+}
+
+test {
+    systemProperty 'java.awt.headless', 'true'
+}
+
+tasks.register('runM749Tab', JavaExec) {
+    dependsOn testClasses
+    group = 'Execution'
+    description = 'Open the standalone M74.9 custom tab with PCAN detection'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.rusefi.m749.M749TabSandbox'
+    workingDir = rootProject.file('java_console')
+    systemProperty 'java.library.path', rootProject.file('java_console').absolutePath +
+            File.pathSeparator + System.getProperty('java.library.path')
+}

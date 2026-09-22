@@ -24,6 +24,10 @@ jobs:
         shell: bash
         run: javac -version
 
+      - name: Test and package M74.9 Java UI
+        shell: bash
+        run: bash bin/java-ui.sh --console=plain :custom-java-ui:test :ui:shadowJar
+
       - name: Print Compiler version
         shell: bash
         run: gcc -v
