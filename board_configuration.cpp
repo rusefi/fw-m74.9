@@ -5,6 +5,7 @@
 #include "smart_gpio.h"
 #include "drivers/gpio/l9779.h"
 #include "ignition_controller.h"
+#include "firmware/bootloader_handoff.h"
 
 // PB14 is error LED, configured in board.mk
 Gpio getCommsLedPin() {
@@ -109,6 +110,10 @@ static void m74_9_boardConfigOverrides() {
 	//CAN 1 bus overwrites
 	engineConfiguration->canRxPin = Gpio::G0;
 	engineConfiguration->canTxPin = Gpio::G1;
+	engineConfiguration->canBaudRate = B500KBPS;
+	engineConfiguration->canReadEnabled = true;
+	engineConfiguration->canWriteEnabled = true;
+	engineConfiguration->can1ListenMode = false;
 	setupEtb();
 }
 
@@ -221,10 +226,9 @@ int getBoardMetaDcOutputsCount() {
     return 1;
 }
 void setup_custom_board_overrides() {
-	// MFS uses internal flash; even a bank-2 erase stalls the CPU.
-	custom_board_allowFlashNow = []() {
-		return engine->triggerCentral.directSelfStimulation || engine->rpmCalculator.isStopped();
-	};
+#if EFI_PROD_CODE
+	initM749BootloaderHandoff();
+#endif
 	custom_board_InitHardware = m74_9BoardInitHardware;
 	custom_board_DefaultConfiguration = m74_9_boardDefaultConfiguration;
 	custom_board_ConfigOverrides = m74_9_boardConfigOverrides;

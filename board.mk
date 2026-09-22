@@ -1,6 +1,16 @@
 # List of all the board related files.
 BOARDCPPSRC = $(BOARD_DIR)/board_configuration.cpp \
-  $(PROJECT_DIR)/config/boards/at_start_f435/board_storage.cpp
+  $(BOARD_DIR)/firmware/bootloader_handoff.cpp \
+  $(BOARD_DIR)/firmware/volatile_storage.cpp
+
+override LDSCRIPT = $(BOARD_DIR)/firmware/m749.ld
+ALLXASMSRC += $(BOARD_DIR)/firmware/m749_startup.S
+BOARD_IMAGE_SCRIPT = $(BOARD_DIR)/bin/m749_image.py
+BOARD_IMAGE_README = $(BOARD_DIR)/readme.md
+DO_NOT_BUNDLE_STM32_PROG = yes
+ifneq ($(filter yes,$(USE_OPENBLT)),)
+$(error M74.9 uses its resident OEM loader; OpenBLT replacement is forbidden)
+endif
 
 DDEFS += -DLED_CRITICAL_ERROR_BRAIN_PIN=Gpio::Unassigned
 
@@ -25,10 +35,11 @@ USE_FATFS = no
 # Configuration directorys
 CONFDIR = $(PROJECT_DIR)/hw_layer/ports/at32/at32f4/cfg
 
-# This board uses ChibiOS MFS driver on internal flash
-DDEFS += -DHAL_USE_EFL=TRUE
+# The generic AT32 MFS banks overlap the resident loader. No persistent writes
+# until a calibration-domain backend with the OEM CRC contract is implemented.
+DDEFS += -DHAL_USE_EFL=FALSE
 DDEFS += -DEFI_STORAGE_INT_FLASH=FALSE
-include $(PROJECT_DIR)/hw_layer/ports/stm32/use_higher_level_flash_api.mk
+DDEFS += -DEFI_STORAGE_MFS=FALSE
 
 DDEFS += -DFIRMWARE_ID=\"m74_9\"
 DDEFS += -DDEFAULT_ENGINE_TYPE=engine_type_e::MINIMAL_PINS
