@@ -1,7 +1,5 @@
 package com.rusefi.m749;
 
-import com.rusefi.uds.M74_9_SeedKeyCalculator;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -23,11 +21,13 @@ final class M749Uploader {
 
     private final Connection connection;
     private final Consumer<String> out;
+    private final M749ChecksumReader reader;
     private String phase = "preflight";
 
     M749Uploader(Connection connection, Consumer<String> out) {
         this.connection = connection;
         this.out = out;
+        reader = new M749ChecksumReader(connection);
     }
 
     void upload(M749Image image, boolean verifyBytes) throws IOException, InterruptedException {
@@ -39,22 +39,12 @@ final class M749Uploader {
             // The application acknowledges before its deferred reset into the loader.
             connection.pause(1_000);
             phase = "loader authentication";
-            byte[] response = request(bytes(0x27, 1, 0), bytes(0x67, 1));
-            exact(response, 6);
-            int seed = (response[2] & 255) << 24 | (response[3] & 255) << 16 |
-                    (response[4] & 255) << 8 | response[5] & 255;
-            if (seed != 0) {
-                int key = M74_9_SeedKeyCalculator.Uds_Security_CalcKey(
-                        M74_9_SeedKeyCalculator.BOOTLOADER_SECRET, seed, 0);
-                exact(request(bytes(0x27, 2, key >>> 24, key >>> 16, key >>> 8, key), bytes(0x67, 2)), 2);
-            }
+            reader.authenticate();
+            byte[] response;
             phase = "checking the I865 loader profile";
             // Compare individual bytes via FF01, where the sum cannot collide.
             // These are compatibility sentinels, not an integrity check of the whole loader.
-            sentinel(0x0822DFFC, "94b8b6d7");
-            sentinel(0x08201E2C, "2de9f04184b004460d4617461e4601f0");
-            sentinel(0x08201D84, "70b506460d46144601f024fd012801d0");
-            sentinel(0x08204B7C, "08b50a4b1b68fff7e7ff012807d0fff7");
+            reader.checkProfile();
             out.accept("I865 loader compatibility sentinels match; authentication accepted");
 
             phase = "activation preflight";
@@ -167,12 +157,6 @@ final class M749Uploader {
         }
     }
 
-    private void sentinel(int address, String hex) throws IOException, InterruptedException {
-        for (int i = 0; i < hex.length(); i += 2) {
-            checksum(address + i / 2, 1, Integer.parseInt(hex.substring(i, i + 2), 16));
-        }
-    }
-
     private void checksum(int address, int length, int sum) throws IOException, InterruptedException {
         if (!checksumMatches(address, length, sum)) {
             throw new IOException(String.format("Checksum mismatch at 0x%08X + 0x%X", address, length));
@@ -180,32 +164,11 @@ final class M749Uploader {
     }
 
     private boolean checksumMatches(int address, int length, int sum) throws IOException, InterruptedException {
-        byte[] request = addressed(bytes(0x31, 1, 0xFF, 1, 0x44), address, length, 2);
-        request[13] = (byte) (sum >>> 8);
-        request[14] = (byte) sum;
-        byte[] response = request(request, bytes(0x71, 1, 0xFF, 1));
-        exact(response, 5);
-        if (response[4] != 0 && response[4] != 1) {
-            throw new IOException("Unexpected checksum routine result");
-        }
-        return response[4] == 0;
+        return reader.matches(address, length, sum);
     }
 
     private int readWord(int address) throws IOException, InterruptedException {
-        // Four bytes of the retained domain's CRC; never infer byte equality
-        // from a multi-byte additive checksum. Bounded at 1024 requests.
-        int word = 0;
-        for (int i = 0; i < 4; i++) {
-            int value = 0;
-            while (value < 256 && !checksumMatches(address + i, 1, value)) {
-                value++;
-            }
-            if (value == 256) {
-                throw new IOException("Cannot read retained CRC through FF01");
-            }
-            word |= value << (i * 8);
-        }
-        return word;
+        return reader.readWord(address);
     }
 
     private Map<Integer, byte[]> readMetadata() throws IOException, InterruptedException {
@@ -224,7 +187,7 @@ final class M749Uploader {
     }
 
     private int checkJournalSpace() throws IOException, InterruptedException {
-        // Native I865 NVM init selects the first record with bytes 0 and 8 FF.
+        // I865 NVM initialization selects the first record with bytes 0 and 8 FF.
         // Region 6 is an append-only 16-record page; the loader does not erase it.
         for (int slot = 0; slot < 16; slot++) {
             int address = 0x0824E000 + slot * 256;

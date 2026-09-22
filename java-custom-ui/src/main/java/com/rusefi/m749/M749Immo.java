@@ -49,6 +49,13 @@ final class M749Immo {
         }
     }
 
+    M749PairFile pairFile() throws IOException {
+        M749PairFile file = new M749PairFile();
+        for (int i = 0; i < key.length; i++) { file.put(i, key[i] & 255); }
+        for (int i = 0; i < reference.length; i++) { file.put(i + 16, reference[i] & 255); }
+        return file;
+    }
+
     void authorize(RawCanTransport transport, Consumer<String> out) throws IOException, InterruptedException {
         M749Identification.Timing clock = new M749Identification.Timing() {
             public long now() { return System.nanoTime() / 1_000_000; }

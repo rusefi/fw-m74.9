@@ -41,8 +41,8 @@ bootloader is not permission to overwrite its vectors, code, state, or NVM.
 ## Deployment artifacts and tools
 
 **Current status:** the [Java CLI](cli-uploader.md) implements I865 OEM CAN
-programming, verification and persistent application activation. Host tests and
-native ARM emulation pass; real PCAN flashing and physical cold-boot validation
+programming, verification and persistent application activation. Software checks pass;
+real PCAN flashing and physical cold-boot validation
 remain bench follow-ups. Direct MCU programming remains a separate bench route.
 
 ### Why there is no application `.bin`
@@ -278,7 +278,7 @@ complete activation. The [CLI activation sequence](cli-uploader.md) uses the
 loader metadata handshake to arm the SRAM return token. The application checks
 all CRC domains, restores the normal marker last and exposes status/CRC DIDs.
 The CLI confirms those values after a second reset with the SRAM token cleared.
-This has offline native coverage; electrical and power-cycle testing is pending.
+Software checks pass; electrical and power-cycle testing is pending.
 
 ## Writer requirements
 

@@ -68,5 +68,26 @@ class M749CliUploadTest {
                     assertNull(immo);
                 }, s -> {}));
         assertTrue(called[0]);
+        Path pairPath = directory.resolve("known bytes.pair");
+        M749PairFile pair = new M749PairFile(); pair.put(0, 0); pair.save(pairPath);
+        assertThrows(IOException.class, () -> M749Cli.execute(new String[]{"--upload", file.toString(),
+                "--calibration", "--dry-run", "--pair-file", pairPath.toString()},
+                noDevices, noUpload, s -> {}));
+        for (int i = 1; i < 24; i++) { pair.put(i, i); }
+        pair.save(pairPath);
+        assertEquals(0, M749Cli.execute(new String[]{"--upload", file.toString(),
+                "--calibration", "--dry-run", "--pair-file", pairPath.toString()},
+                noDevices, noUpload, s -> {}));
+        boolean[] withPair = {false};
+        assertEquals(0, M749Cli.execute(new String[]{"--upload", file.toString(), "--calibration",
+                "--channel", "PCAN_USBBUS1", "--pair-file", pairPath.toString()},
+                noDevices, (channel, image, verify, immo, out) -> {
+                    withPair[0] = true;
+                    assertNotNull(immo);
+                    for (int i = 0; i < 24; i++) { assertEquals(i, immo.pairFile().get(i)); }
+                }, s -> {}));
+        assertTrue(withPair[0]);
+        assertEquals(2, M749Cli.execute(new String[]{"--upload", file.toString(), "--calibration", "--dry-run",
+                "--pair-file", pairPath.toString(), "--immo-backup", "backup.bin"}, noDevices, noUpload, s -> {}));
     }
 }

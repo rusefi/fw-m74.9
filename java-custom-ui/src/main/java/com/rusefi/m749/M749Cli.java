@@ -2,6 +2,7 @@ package com.rusefi.m749;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -13,6 +14,11 @@ public final class M749Cli {
 
     interface UploadAction {
         void upload(String channel, M749Image image, boolean verifyBytes, M749Immo immo, Consumer<String> out)
+                throws IOException, InterruptedException;
+    }
+
+    interface ReadAction {
+        void read(String channel, Integer address, Path path, M749PairFile known, M749Immo immo, Consumer<String> out)
                 throws IOException, InterruptedException;
     }
 
@@ -35,6 +41,11 @@ public final class M749Cli {
 
     static int execute(String[] args, M749Monitor.Backend backend, UploadAction uploader, Consumer<String> out)
             throws IOException, InterruptedException {
+        return execute(args, backend, uploader, M749Cli::read, out);
+    }
+
+    static int execute(String[] args, M749Monitor.Backend backend, UploadAction uploader,
+                       ReadAction reader, Consumer<String> out) throws IOException, InterruptedException {
         boolean list = false;
         boolean dryRun = false;
         boolean calibration = false;
@@ -42,6 +53,7 @@ public final class M749Cli {
         String channel = null;
         String file = null;
         String immoBackup = null;
+        String pairFile = null, readPair = null, exportPair = null, readAddress = null;
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
             switch (arg) {
@@ -50,6 +62,18 @@ public final class M749Cli {
                 case "--dry-run": dryRun = true; break;
                 case "--calibration": calibration = true; break;
                 case "--verify-bytes": verifyBytes = true; break;
+                case "--pair-file":
+                    if (++i == args.length || pairFile != null) { usage(out); return 2; }
+                    pairFile = args[i]; break;
+                case "--read-pair":
+                    if (++i == args.length || readPair != null) { usage(out); return 2; }
+                    readPair = args[i]; break;
+                case "--export-pair":
+                    if (++i == args.length || exportPair != null) { usage(out); return 2; }
+                    exportPair = args[i]; break;
+                case "--read-byte":
+                    if (++i == args.length || readAddress != null) { usage(out); return 2; }
+                    readAddress = args[i]; break;
                 case "--immo-backup":
                     if (++i == args.length || immoBackup != null) { usage(out); return 2; }
                     immoBackup = args[i];
@@ -67,10 +91,44 @@ public final class M749Cli {
                     channel = arg;
             }
         }
-        if ((file == null && (dryRun || calibration || verifyBytes || immoBackup != null)) ||
-                (list && (file != null || channel != null)) || (file != null && !dryRun && channel == null)) {
+        int modes = (file != null ? 1 : 0) + (readPair != null ? 1 : 0) +
+                (readAddress != null ? 1 : 0) + (exportPair != null ? 1 : 0);
+        boolean readMode = readPair != null || readAddress != null;
+        if (modes > 1 || (file == null && (dryRun || calibration || verifyBytes)) ||
+                (pairFile != null && (file == null && !readMode || immoBackup != null)) ||
+                (immoBackup != null && file == null && !readMode && exportPair == null) ||
+                (list && (modes != 0 || channel != null)) ||
+                ((file != null && !dryRun || readPair != null || readAddress != null) && channel == null) ||
+                (exportPair != null && (immoBackup == null || channel != null))) {
             usage(out);
             return 2;
+        }
+        if (exportPair != null) {
+            M749PairFile source = M749Immo.load(Path.of(immoBackup)).pairFile();
+            Path path = Path.of(exportPair);
+            M749PairFile destination = Files.exists(path) ? M749PairFile.load(path) : new M749PairFile();
+            for (int i = 0; i < M749PairFile.SIZE; i++) { destination.put(i, source.get(i)); }
+            destination.save(path);
+            out.accept("Saved complete pair file (24 indexed bytes); no adapter opened");
+            return 0;
+        }
+        if (readPair != null) {
+            Path path = Path.of(readPair);
+            M749PairFile known = Files.exists(path) ? M749PairFile.load(path) : new M749PairFile();
+            reader.read(channel, null, path, known, loadCredential(pairFile, immoBackup), out);
+            return 0;
+        }
+        if (readAddress != null) {
+            int address;
+            try {
+                address = Integer.parseUnsignedInt(readAddress.replaceFirst("^0[xX]", ""), 16);
+                M749ChecksumReader.requireAddress(address);
+            } catch (IllegalArgumentException e) {
+                out.accept("Invalid flash address; use hexadecimal 0x08000000..0x083EFFFF");
+                return 2;
+            }
+            reader.read(channel, address, null, null, loadCredential(pairFile, immoBackup), out);
+            return 0;
         }
         if (file == null) {
             return run(channel, list, backend, out);
@@ -78,10 +136,10 @@ public final class M749Cli {
         // Parse all input and prove the complete CRC domain before native library/device access.
         M749Image image = M749Image.load(Path.of(file), calibration ? M749Image.Domain.CALIBRATION : M749Image.Domain.SOFTWARE);
         image.requireActivationSupport();
-        M749Immo immo = immoBackup == null ? null : M749Immo.load(Path.of(immoBackup));
+        M749Immo immo = loadCredential(pairFile, immoBackup);
         image.describe(out);
         if (immo != null) {
-            out.accept("Paired I865 IMMO backup validated; normal CAN authorization enabled");
+            out.accept("I865 IMMO credential loaded; normal CAN authorization enabled");
         }
         if (dryRun) {
             out.accept("Dry run complete; no adapter was opened. Target compatibility and retained-domain CRC remain device checks.");
@@ -91,7 +149,39 @@ public final class M749Cli {
         return 0;
     }
 
+    private static M749Immo loadCredential(String pairFile, String immoBackup) throws IOException {
+        return pairFile != null ? M749PairFile.load(Path.of(pairFile)).credential() :
+                immoBackup == null ? null : M749Immo.load(Path.of(immoBackup));
+    }
+
     private static void upload(String requested, M749Image image, boolean verifyBytes, M749Immo immo, Consumer<String> out)
+            throws IOException, InterruptedException {
+        withChannel(requested, out, transport -> {
+            if (immo != null) { immo.authorize(transport, out); }
+            new M749Uploader(new UdsClient(transport), out).upload(image, verifyBytes);
+        });
+    }
+
+    private static void read(String channel, Integer address, Path path, M749PairFile known, M749Immo immo, Consumer<String> out)
+            throws IOException, InterruptedException {
+        withChannel(channel, out, transport -> {
+            if (immo != null) { immo.authorize(transport, out); }
+            M749ChecksumReader reader = new M749ChecksumReader(new UdsClient(transport));
+            reader.prepareRead();
+            if (address != null) {
+                out.accept(String.format("0x%08X = %02X", address, reader.readByte(address)));
+            } else {
+                known.readMissing(reader, path, out);
+                out.accept("Pair file complete; no erase/download requests sent");
+            }
+        });
+    }
+
+    private interface ChannelAction {
+        void run(RawCanTransport transport) throws IOException, InterruptedException;
+    }
+
+    private static void withChannel(String requested, Consumer<String> out, ChannelAction action)
             throws IOException, InterruptedException {
         PcanDevice device = new PcanDevice();
         for (PcanDevice.Channel channel : device.scan()) {
@@ -99,12 +189,9 @@ public final class M749Cli {
                 if (!channel.available) {
                     throw new IOException("Channel " + requested + " is in use");
                 }
-                out.accept("Uploading through " + channel.handle + " at 500 kbit/s (7E0 / 7E8)");
+                out.accept("Connected through " + channel.handle + " at 500 kbit/s (7E0 / 7E8)");
                 try (RawCanTransport transport = device.open(channel)) {
-                    if (immo != null) {
-                        immo.authorize(transport, out);
-                    }
-                    new M749Uploader(new UdsClient(transport), out).upload(image, verifyBytes);
+                    action.run(transport);
                 }
                 return;
             }
@@ -158,7 +245,13 @@ public final class M749Cli {
         out.accept("       m749-cli --list                    list PCAN channels");
         out.accept("       m749-cli --upload FILE --dry-run   validate addressed HEX/SREC without hardware");
         out.accept("       m749-cli --upload FILE --channel PCAN_USBBUS1 [--calibration] [--verify-bytes]");
-        out.accept("                  [--immo-backup PAIRED_FULLFLASH.bin]");
+        out.accept("                  [--pair-file ECU.pair | --immo-backup PAIRED_FULLFLASH.bin]");
+        out.accept("       m749-cli --read-byte 0xADDRESS --channel PCAN_USBBUS1");
+        out.accept("       m749-cli --read-pair ECU.pair --channel PCAN_USBBUS1   read/resume 24 indexed bytes");
+        out.accept("                  [--pair-file KNOWN.pair | --immo-backup PAIRED_FULLFLASH.bin]   optional read authorization");
+        out.accept("       m749-cli --export-pair ECU.pair --immo-backup PAIRED_FULLFLASH.bin   offline conversion");
+        out.accept("Reads enter OEM session 02 (can reset the ECU) and authenticate. Rejected entry stops without flash writes.");
+        out.accept("Pair files checkpoint each byte; unknown indices are omitted.");
         out.accept("--immo-backup enables normal I865 CAN authorization; cycle bench power when the listener reports ready.");
         out.accept("Software requires the M749ACT1 activation ABI. Calibration is a separate complete CRC domain.");
         out.accept("--upload erases/programs the selected domain, preserves OEM programming metadata, and activates.");

@@ -16,8 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class M749ImmoTest {
     @TempDir Path directory;
-    // Synthetic inputs; expected ciphertext was produced by the original I865
-    // Thumb functions 080BC0C0/080BC300 under Unicorn, not the Java implementation.
+    // Fixed test inputs and expected proof, permission and stream values.
     private static final byte[] KEY = hex("000102030405060708090a0b0c0d0e0f");
     private static final byte[] NONCE = hex("08090a0b0c0d0e0f");
     private static final byte[] PEER = hex("1011121314151617");
@@ -93,7 +92,7 @@ class M749ImmoTest {
         new M749Immo(KEY, REFERENCE).authorize(bus, s -> {}, bus.clock, PEER, 1000);
     }
 
-    @Test void normalExchangeMatchesNativeProofsAndPermission() throws Exception {
+    @Test void normalExchangeMatchesExpectedProofsAndPermission() throws Exception {
         Bus bus = new Bus();
         authorize(bus);
         assertEquals(4, bus.sent.size());
@@ -151,7 +150,7 @@ class M749ImmoTest {
         assertTrue(assertThrows(IOException.class, () -> M749Immo.load(file)).getMessage().contains("does not match"));
     }
 
-    @Test void splitStreamsCrossTwoBlocksAndMatchNativeVectors() {
+    @Test void splitStreamsCrossTwoBlocksAndMatchExpectedBytes() {
         String[] expected = {
                 "d3b8847ef2d2b5f7383046f3c1e6b94ddbfe3d9b391428590d22575212bd22fd6e9a7c5129e0e34f3cecf4962cefb19b68232cc61273bba89228cebfda85d9836d75483b5178b2908dff8758fdbac9716b986107959f463918bf6c35d5bd33f965b852ee1b1631b85d13c740624cb5299cfd7a9f1398897c13cb6e394f9b05004445",
                 "c85db8f2951febcaaaa557cb1af4b27f24c184b6c03deda703513de82311a40d24bf049ba1095fdf2e72f3a2e6bed0f66989d34077c30e6089a1fcde0d7f7fd20f65960da22b67869832664208815252033c19ed813f9e0b28f72e42178f658a91f4711bfcb72a87fb146bb6b77900ad627891cc071f303e1342994b7641a51325e3"};

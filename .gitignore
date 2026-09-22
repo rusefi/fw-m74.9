@@ -1,2 +1,5 @@
 /.idea
 __pycache__/
+
+# Local ECU credentials
+*.pair

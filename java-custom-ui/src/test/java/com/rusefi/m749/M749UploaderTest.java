@@ -52,7 +52,7 @@ class M749UploaderTest {
                     if (q[1] == 1) {
                         result = zeroSeed ? bytes(0x67, 1, 0, 0, 0, 0) : bytes(0x67, 1, 0x4F, 0xBE, 0x76, 0xC7);
                     } else {
-                        assertArrayEquals(bytes(0x27, 2, 0x9B, 0xDE, 0x57, 0x52), q); // Native independent vector.
+                        assertArrayEquals(bytes(0x27, 2, 0x9B, 0xDE, 0x57, 0x52), q); // Expected loader key for this seed.
                         keySent = true;
                         result = bytes(0x67, 2);
                     }
