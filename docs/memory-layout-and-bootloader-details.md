@@ -38,6 +38,125 @@ For an application-only writer, the sole permitted destination window is
 require separate handling inside that window. Broad address acceptance by the
 bootloader is not permission to overwrite its vectors, code, state, or NVM.
 
+## Deployment artifacts and tools
+
+**Current status:** the build produces checked application payloads, but this
+repository does not yet provide a validated end-to-end device flashing tool.
+CAN programming/activation remains disabled until the loader's validity-state
+finalization sequence is implemented and tested. Direct MCU programming is a
+bench-development route that still requires validation on this ECU.
+
+### Why there is no application `.bin`
+
+A raw binary contains bytes without destination addresses. This application's
+software occupies two separated ranges with calibration between them. Flattening
+the software into one binary either fills that gap, risking calibration overwrite,
+or removes the gap and places the second segment at the wrong address when written
+as one contiguous block. A separate address manifest and a range-aware writer could
+make split binaries usable, but this build does not implement that format.
+
+Intel HEX and Motorola S-record files carry absolute addresses. Our `.hex` and
+`.srec` software outputs omit the calibration range entirely while including all
+bytes, including `0xFF` padding, inside the two software ranges. The writer must
+also preserve the gap when erasing; an addressed file alone cannot make a tool's
+mass-erase or whole-span erase operation safe.
+
+Consequently, raw application BIN, generic DFU, and replacement bootloader targets
+are disabled. Never use an old `rusefi.bin` from an earlier build, and never apply
+the generic rusEFI `rusefi.bin` upload address `0x08000000` to this ECU: that address
+belongs to the resident bootloader. The bundle excludes generic flash scripts and
+updater launchers that do not implement this layout.
+
+### Which artifact goes where
+
+Build from the repository root:
+
+```sh
+bash compile_firmware.sh
+```
+
+| Artifact | Device destination, inclusive | Purpose |
+| --- | --- | --- |
+| `ext/rusefi/firmware/build/rusefi.hex` | `0x08001000-0x0805FFFF` **and** `0x08080000-0x080FFFFF` | Intel HEX application software, with the application CRC already included at `0x080FFFFC`. |
+| `ext/rusefi/firmware/build/rusefi.srec` | The same two software ranges | Equivalent Motorola S-record payload. In bundles it is named `rusefi_update.srec`. Choose one format; do not program both. |
+| Separately generated `calibration.hex` or `calibration.srec` | `0x08060000-0x0807FFFF` only | An intentional calibration update, including its CRC at `0x0807FFFC`. Preserve existing calibration during a software-only update. |
+| `rusefi.elf`, `.map`, `.list` | No deployment destination | Link/debug artifacts. The ELF lacks the final CRC trailers; do not use debugger ELF auto-download as a substitute for the generated HEX/SREC payload. |
+| Full or autoupdate `.zip` | No deployment destination | Distribution containers. Extract the addressed payload; the archive name does not mean OEM activation is implemented. |
+
+The absolute addresses are already in HEX/SREC records: apply **no relocation or
+base-address offset**. `0x08080000` is the executable startup address, not the
+base at which to upload the entire file. Decode address records into bytes before
+UDS TransferData; do not send the HEX/SREC text itself as firmware data.
+
+For an uploader with explicit address/length fields, the software operation consists
+of these two separate erase/download ranges. Lengths include CRC/padding bytes:
+
+| Domain | Start address | Byte count | 4 KiB pages |
+| --- | --- | --- | --- |
+| Software, first range | `0x08001000` | `0x0005F000` (389,120) | 95 |
+| Software, second range, including CRC | `0x08080000` | `0x00080000` (524,288) | 128 |
+| Calibration, only when explicitly updating it | `0x08060000` | `0x00020000` (131,072) | 32 |
+
+Do not replace the first two rows with one erase/download spanning
+`0x08001000-0x080FFFFF`: that would include the retained calibration pages.
+
+To prepare calibration, supply every byte from `0x08060000-0x0807FFFB`, obtained
+from a complete retained or deliberately modified calibration image. This input
+is exactly 131,068 bytes, without the existing CRC word:
+
+```sh
+python3 bin/m749_image.py --calibration --format hex calibration.bin calibration.hex
+# Alternatively, generate S-records from the same input:
+python3 bin/m749_image.py --calibration --format srec calibration.bin calibration.srec
+```
+
+Here `calibration.bin` is a raw **input data domain**, not a whole application
+binary. The tool appends the new little-endian CRC and assigns the output addresses.
+It never substitutes blank calibration during a software build.
+
+### Toolsets and their current limits
+
+| Route/toolset | Input or interface | Current use |
+| --- | --- | --- |
+| `compile_firmware.sh` and Python 3 `bin/m749_image.py` | ELF for software; complete raw data for calibration | Offline image preparation and CRC/range checks. These tools do not communicate with an ECU. |
+| M74.9 Java tab or `bin/m749-cli.sh` / `.bat`, PEAK PCAN driver and native libraries | Physical CAN `0x7E0/0x7E8`, 500 kbit/s | Identification only. Neither the tab nor CLI has an upload command. |
+| OEM resident loader plus an M74.9-specific ISO-TP/UDS writer | Decoded software or calibration HEX/SREC ranges over CAN | Intended field-update route. The application handoff is implemented; the complete host writer and activation sequence are not available here yet. Generic rusEFI OpenBLT/BootCommander is not this OEM protocol. |
+| Artery AT-Link probe with Artery ICP Programmer over SWD | `rusefi.hex`; `calibration.hex` only for a separate calibration operation | Vendor toolset for evaluating direct MCU programming on the bench. No validated M74.9 programming profile, ECU connector pinout, or automatic activation procedure is supplied by this repository. |
+
+Artery provides the [AT-Link and ICP tools](https://www.arterychip.com/en/support/tools.jsp?index=4).
+Its [ICP Programmer manual](https://www.arterychip.com/download/TOOL/UM_ICP_Programmer_EN.pdf)
+documents device connection, file information, sector/block erase, download, and
+verification. The [AT-Link Console manual](https://arterychip.com/download/TOOL/UM_AT-Link_Console_Programmer_EN.pdf)
+also documents HEX input, verification, and downloading without automatic sector
+erase. These vendor capabilities do not establish that a default programming
+profile preserves this ECU's OEM memory layout.
+
+For a bench SWD evaluation, the required procedure is:
+
+1. Establish the ECU's actual SWD connections and confirm the MCU is
+   AT32F435ZMT7. Retain readable originals of software, calibration, and protected
+   regions before any erase. Do not unlock protection as part of this procedure.
+2. Load `rusefi.hex` and inspect the addresses against the two software rows above.
+   Configure explicit erasure of only those pages and disable further automatic
+   erasure during programming. If the tool cannot express or confirm those two
+   disjoint erase ranges, do not use that profile.
+3. Disable automatic reset/run and any serial-number, user-system-data,
+   protection, or boot-configuration writes. Do not request mass erase.
+4. Program the HEX records at their embedded addresses. Leave calibration and
+   all regions outside the software ranges untouched. A calibration change is
+   its own operation using only the calibration row above.
+5. Read back every programmed range and compare it byte-for-byte with the
+   decoded payload, including padding and CRC trailers. Validate the software
+   CRC over both segments and the retained or updated calibration CRC separately;
+   a generic programmer CRC display is not a substitute for these exact domains.
+6. Treat successful programming/verification as bench evidence only. It does not
+   finalize OEM validity state or prove that the resident loader will boot the
+   application. Do not manually write the validity marker to bypass the missing
+   activation sequence; keep activation disabled pending validation.
+
+There is therefore no supported one-command production upload to document yet.
+The CAN loader sequence below defines the work still required of that uploader.
+
 ## Main firmware
 
 The application software CRC covers two segments in this order:
