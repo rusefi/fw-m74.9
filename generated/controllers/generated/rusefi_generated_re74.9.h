@@ -58,8 +58,8 @@
 #define adc_channel_e_EFI_ADC_ERROR 50
 #define adc_channel_e_EFI_ADC_NONE 0
 #define adc_channel_e_EFI_ADC_TOTAL_CHANNELS 49
-#define adc_channel_e_enum 0="NONE",2="Analog Inputs 1 (A1)",11="Analog Inputs 10 (C0)",14="Analog Inputs 13 (C3)",15="Analog Inputs 14 (C4)",16="Analog Inputs 15 (C5)",3="Analog Inputs 2 (A2)",4="Analog Inputs 3 (A3)",5="Analog Inputs 4 (A4)",7="Analog Inputs 6 (A6)",8="Analog Inputs 7 (A7)",10="Analog Inputs 9 (B1)",9="On-board BARO (B0)",1="On-board Battery Sense (A0)",6="On-board MAP (A5)",12="Primary On-board O2 (C1)",13="Secondary On-board O2 (C2)"
-#define adc_channel_e_fullenum "NONE","On-board Battery Sense (A0)","Analog Inputs 1 (A1)","Analog Inputs 2 (A2)","Analog Inputs 3 (A3)","Analog Inputs 4 (A4)","On-board MAP (A5)","Analog Inputs 6 (A6)","Analog Inputs 7 (A7)","On-board BARO (B0)","Analog Inputs 9 (B1)","Analog Inputs 10 (C0)","Primary On-board O2 (C1)","Secondary On-board O2 (C2)","Analog Inputs 13 (C3)","Analog Inputs 14 (C4)","Analog Inputs 15 (C5)","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID"
+#define adc_channel_e_enum 0="NONE",13="ETB TPS position sensor 1 signal",14="ETB TPS position sensor 2 signal",2="MAF/MAP sensor signal",11="Pedal position sensor 1 signal PPS1",12="Pedal position sensor 2 signal PPS2"
+#define adc_channel_e_fullenum "NONE","INVALID","MAF/MAP sensor signal","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","Pedal position sensor 1 signal PPS1","Pedal position sensor 2 signal PPS2","ETB TPS position sensor 1 signal","ETB TPS position sensor 2 signal","INVALID"
 #define ADC_CHANNEL_NONE 0
 #define afr_sensor_s_size 20
 #define air_pressure_sensor_config_s_size 12
@@ -185,8 +185,8 @@
 #define boostType_e_auto_enum 0="OPEN_LOOP",1="CLOSED_LOOP"
 #define boostType_e_CLOSED_LOOP 1
 #define boostType_e_OPEN_LOOP 0
-#define brain_input_pin_e_enum 0="NONE",68="VR/Hall 1 (E2)",69="VR/Hall 2 (E3)",70="VR/Hall 3 (E4)"
-#define brain_input_pin_e_fullenum "NONE","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","VR/Hall 1 (E2)","VR/Hall 2 (E3)","VR/Hall 3 (E4)","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID"
+#define brain_input_pin_e_enum 0="NONE",27="Camshaft position sensor signal",90="Crank position sensor (pin A)",30="Vehicle speed sensor input"
+#define brain_input_pin_e_fullenum "NONE","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","Camshaft position sensor signal","INVALID","INVALID","Vehicle speed sensor input","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","Crank position sensor (pin A)","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID"
 #define brain_pin_diag_e_PIN_DRIVER_OFF 0x20
 #define brain_pin_diag_e_PIN_DRIVER_OVERTEMP 0x10
 #define brain_pin_diag_e_PIN_OK 0
@@ -1343,12 +1343,12 @@
 #define IDLE_VE_SIZE 4
 #define IDLE_VE_SIZE_RPM 4
 #define IGN_BLEND_COUNT 4
-#define ign_cyl_trim_s_size 64
+#define ign_cyl_trim_s_size 16
 #define IGN_LOAD_COUNT 16
 #define IGN_RPM_COUNT 16
 #define IGN_TRIM_1_NAME "Ignition trim cyl 1"
 #define IGN_TRIM_2_NAME "Ignition trim cyl 2"
-#define IGN_TRIM_SIZE 8
+#define IGN_TRIM_SIZE 4
 #define IGNITION_ADVANCE_MENU_NAME "Ignition advance"
 #define IGNITION_ADVANCE_TABLE_NAME "Ignition Table"
 #define ignition_mode_e_auto_enum 0="IM_ONE_COIL",1="IM_INDIVIDUAL_COILS",3="IM_TWO_COILS",2="IM_WASTED_SPARK"
@@ -1368,8 +1368,8 @@
 #define INDICATOR_NAME_BRAKE_DOWN "Brake switch"
 #define INDICATOR_NAME_CLUTCH_DOWN "Clutch: down"
 #define INDICATOR_NAME_CLUTCH_UP "Clutch: up"
-#define INJ_PHASE_LOAD_COUNT 16
-#define INJ_PHASE_RPM_COUNT 16
+#define INJ_PHASE_LOAD_COUNT 3
+#define INJ_PHASE_RPM_COUNT 3
 #define INJ_STAGING_COUNT 6
 #define INJ_STAGING_RPM_SIZE 6
 #define injection_mode_e_auto_enum 0="IM_SIMULTANEOUS",2="IM_BATCH",1="IM_SEQUENTIAL",3="IM_SINGLE_POINT"
@@ -1498,8 +1498,8 @@
 #define OUTPUT_CHANNEL_SD_LOGGING_INTERNAL "sd_logging_internal"
 #define OUTPUT_CHANNEL_SD_MSD "sd_msd"
 #define OUTPUT_CHANNEL_SD_PRESENT "sd_present"
-#define output_pin_e_enum 0="NONE",32="B14 Output"
-#define output_pin_e_fullenum "NONE","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","B14 Output","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID"
+#define output_pin_e_enum 0="NONE",267="Air compressor control",247="Coil 1 (< +2.5v) / Coils 1,4",248="Coil 2  (< +2.5v) (not populated)",249="Coil 3  (< +2.5v) / Coils 2,4",250="Coil 4  (< +2.5v) (not populated)",255="EVAP solenoid control",265="FAN 1 relay",266="FAN 2 relay",263="Fuel pump relay",254="Injector 1",253="Injector 2",252="Injector 3",251="Injector 4",256="Oxygen sensor 1 heater",257="Oxygen sensor 2 heater",264="Secondary starter relay",268="Unknown out (OUT18)"
+#define output_pin_e_fullenum "NONE","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","Coil 1 (< +2.5v) / Coils 1,4","Coil 2  (< +2.5v) (not populated)","Coil 3  (< +2.5v) / Coils 2,4","Coil 4  (< +2.5v) (not populated)","Injector 4","Injector 3","Injector 2","Injector 1","EVAP solenoid control","Oxygen sensor 1 heater","Oxygen sensor 2 heater","INVALID","INVALID","INVALID","INVALID","INVALID","Fuel pump relay","Secondary starter relay","FAN 1 relay","FAN 2 relay","Air compressor control","Unknown out (OUT18)","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID"
 #define PACK_ADD_TEMPERATURE 40
 #define PACK_MULT_AFR 1000
 #define PACK_MULT_AFR_CFG 10
@@ -1529,7 +1529,7 @@
 #define pedalSensor_NAME "Accelerator pedal"
 #define pedalToTpsTbl_NAME "ETB pedal target"
 #define PERCENT_TRIM_BYTE_PACKING_DIV 0.02
-#define persistent_config_s_size 17356
+#define persistent_config_s_size 16220
 #define pid_s_size 20
 #define pin_input_mode_e_auto_enum 0="PI_DEFAULT",4="PI_INVERTED_DEFAULT",6="PI_INVERTED_PULLDOWN",5="PI_INVERTED_PULLUP",2="PI_PULLDOWN",1="PI_PULLUP"
 #define pin_input_mode_e_PI_DEFAULT 0
@@ -1648,7 +1648,7 @@
 #define SentInput_NONE 0
 #define show_tcu_gauges false
 #define show_vvt_output_pin true
-#define SIGNATURE_HASH 1535800579
+#define SIGNATURE_HASH 2310677598
 #define SIMULATOR_TUNE_BIN_FILE_NAME "generated/simulator_tune_image.bin"
 #define SIMULATOR_TUNE_BIN_FILE_NAME_PREFIX "generated/simulator_tune_image"
 #define SIMULATOR_TUNE_BIN_FILE_NAME_SUFFIX ".bin"
@@ -1683,8 +1683,8 @@
 #define stft_state_e_stftDisabledTpsAccel 8
 #define stft_state_e_stftDisabledTuning 2
 #define stft_state_e_stftEnabled 0
-#define switch_input_pin_e_enum 0="NONE",68="VR/Hall 1 (E2)",69="VR/Hall 2 (E3)",70="VR/Hall 3 (E4)"
-#define switch_input_pin_e_fullenum "NONE","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","VR/Hall 1 (E2)","VR/Hall 2 (E3)","VR/Hall 3 (E4)","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID"
+#define switch_input_pin_e_enum 0="NONE",67="Air conditioner control input",92="Air conditioner pressure sensor (2 level)",27="Camshaft position sensor signal",87="ECT CLT Coolant Sensor Input",36="ETB TPS position sensor 1 signal",37="ETB TPS position sensor 2 signal",88="IAT Sensor Input",3="MAF/MAP sensor signal",85="Oxygen sensor 1 signal",34="Pedal position sensor 1 signal PPS1",35="Pedal position sensor 2 signal PPS2"
+#define switch_input_pin_e_fullenum "NONE","INVALID","INVALID","MAF/MAP sensor signal","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","Camshaft position sensor signal","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","Pedal position sensor 1 signal PPS1","Pedal position sensor 2 signal PPS2","ETB TPS position sensor 1 signal","ETB TPS position sensor 2 signal","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","Air conditioner control input","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","Oxygen sensor 1 signal","INVALID","ECT CLT Coolant Sensor Input","IAT Sensor Input","INVALID","INVALID","INVALID","Air conditioner pressure sensor (2 level)","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID"
 #define TABLE_2_LOAD_SIZE 8
 #define TABLE_2_RPM_SIZE 8
 #define TABLE_3_LOAD_SIZE 8
@@ -1732,7 +1732,7 @@
 #define torqueReductionActivationMode_e_TORQUE_REDUCTION_BUTTON 0
 #define torqueReductionActivationMode_e_TORQUE_REDUCTION_CLUTCH_DOWN_SWITCH 2
 #define torqueReductionActivationMode_e_TORQUE_REDUCTION_CLUTCH_UP_SWITCH 3
-#define TOTAL_CONFIG_SIZE 17356
+#define TOTAL_CONFIG_SIZE 16220
 #define TPS_2_BYTE_PACKING_MULT 100
 #define TPS_ACCEL_UNITS "ms/frac"
 #define TPS_PPS_TOO_HIGH_THRESHOLD 110
@@ -2005,7 +2005,7 @@
 #define TS_PAGE_CRC_CHECK "k%2i%2o%2c", "k%2i%2o%2c", "k%2i%2o%2c", "k%2i%2o%2c", "k%2i%2o%2c"
 #define TS_PAGE_IDENTIFIERS "\x00\x00", "\x00\x01", "\x00\x02", "\x00\x03", "\x00\x04"
 #define TS_PAGE_READ_COMMANDS "R%2i%2o%2c", "R%2i%2o%2c", "R%2i%2o%2c", "R%2i%2o%2c", "R%2i%2o%2c"
-#define TS_PAGE_SIZES 17356, 256, 2048, 1268, 8000
+#define TS_PAGE_SIZES 16220, 256, 2048, 1268, 8000
 #define TS_PAGE_VALUE_WRITE "C%2i%2o%2c%v", "C%2i%2o%2c%v", "C%2i%2o%2c%v", "C%2i%2o%2c%v", "C%2i%2o%2c%v"
 #define TS_PERF_TRACE_BEGIN '_'
 #define TS_PERF_TRACE_BEGIN_char _
@@ -2039,7 +2039,7 @@
 #define ts_show_air_conditioning true
 #define ts_show_alternator true
 #define ts_show_analog_diag false
-#define ts_show_analog_divider true
+#define ts_show_analog_divider false
 #define ts_show_analog_ego true
 #define ts_show_analog_input_settings true
 #define ts_show_analog_o2 true
@@ -2055,9 +2055,9 @@
 #define ts_show_brake_pedal_pin true
 #define ts_show_cam1 true
 #define ts_show_cam2 true
-#define ts_show_can2 true
+#define ts_show_can2 false
 #define ts_show_can_bitrate true
-#define ts_show_can_pins true
+#define ts_show_can_pins false
 #define ts_show_can_verbose true
 #define ts_show_can_wbo true
 #define ts_show_can_wbo_type true
@@ -2098,7 +2098,7 @@
 #define ts_show_disable_etb false
 #define ts_show_ecu_stimulator true
 #define ts_show_ego2 true
-#define ts_show_egt true
+#define ts_show_egt false
 #define ts_show_enableKnockSpectrogram true
 #define ts_show_engine_code true
 #define ts_show_engine_make true
@@ -2159,7 +2159,7 @@
 #define ts_show_gppwm_3 true
 #define ts_show_gppwm_4 true
 #define ts_show_grab_tps true
-#define ts_show_hardware_simulator true
+#define ts_show_hardware_simulator false
 #define ts_show_hbridge_function true
 #define ts_show_hd true
 #define ts_show_i2c false
@@ -2193,7 +2193,7 @@
 #define ts_show_jam_detection true
 #define ts_show_k_line false
 #define ts_show_knock_cylinder_mapping true
-#define ts_show_l9779 false
+#define ts_show_l9779 true
 #define ts_show_linear_thermistors true
 #define ts_show_live_data true
 #define ts_show_long_term_fuel_trim false
@@ -2214,7 +2214,7 @@
 #define ts_show_oil_sensors true
 #define ts_show_oil_temp_sensor true
 #define ts_show_onboard_accelerometer false
-#define ts_show_output_diag false
+#define ts_show_output_diag true
 #define ts_show_popular_vehicles true
 #define ts_show_primary_trigger true
 #define ts_show_reboot_to_dfu true
@@ -2224,7 +2224,7 @@
 #define ts_show_sd_pins true
 #define ts_show_second_bank true
 #define ts_show_sent true
-#define ts_show_software_knock false
+#define ts_show_software_knock true
 #define ts_show_sparkHardwareLatencyCorrection true
 #define ts_show_speedo_settings true
 #define ts_show_speedSensorCan true
@@ -2293,7 +2293,7 @@
 #define ts_show_wbo_canbus_index true
 #define ts_show_wbo_canbus_set_index true
 #define ts_show_wbo_canbus_set_type false
-#define TS_SIGNATURE "rusEFI main.2026.09.22.re74.9.1535800579"
+#define TS_SIGNATURE "rusEFI main.2026.09.22.re74.9.2310677598"
 #define TS_SIMULATE_CAN '>'
 #define TS_SIMULATE_CAN_char >
 #define TS_TEST_COMMAND 't'
