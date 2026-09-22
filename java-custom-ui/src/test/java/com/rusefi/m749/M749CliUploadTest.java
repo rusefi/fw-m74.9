@@ -16,11 +16,12 @@ class M749CliUploadTest {
         public List<PcanDevice.Channel> scan() { throw new AssertionError("Native access before preflight"); }
         public List<String> identify(PcanDevice.Channel c, Consumer<String> out) { throw new AssertionError("Unexpected identify"); }
     };
-    private final M749Cli.UploadAction noUpload = (c, i, v, o) -> { throw new AssertionError("Unexpected upload"); };
+    private final M749Cli.UploadAction noUpload = (c, i, v, a, o) -> { throw new AssertionError("Unexpected upload"); };
 
     @Test void malformedOptionsAndInputsNeverAccessHardware() throws Exception {
         for (String[] args : new String[][]{{"--upload"}, {"--upload", "missing.hex"},
-                {"--verify-bytes"}, {"--calibration"}, {"--list", "--upload", "x.hex"}, {"--channel"}}) {
+                {"--verify-bytes"}, {"--calibration"}, {"--list", "--upload", "x.hex"}, {"--channel"},
+                {"--immo-backup"}, {"--immo-backup", "backup.bin"}}) {
             assertEquals(2, M749Cli.execute(args, noDevices, noUpload, s -> {}));
         }
         Path file = directory.resolve("broken.hex");
@@ -49,16 +50,22 @@ class M749CliUploadTest {
             text.append('\n');
         }
         Files.writeString(file, text + "S70500000000FA\n");
+        Path invalidBackup = directory.resolve("wrong backup.bin");
+        Files.write(invalidBackup, new byte[0x3F0000]);
+        assertThrows(IOException.class, () -> M749Cli.execute(new String[]{"--upload", file.toString(),
+                "--calibration", "--dry-run", "--immo-backup", invalidBackup.toString()},
+                noDevices, noUpload, s -> {}));
         assertEquals(0, M749Cli.execute(new String[]{"--upload", file.toString(), "--calibration", "--dry-run"},
                 noDevices, noUpload, s -> {}));
         boolean[] called = {false};
         assertEquals(0, M749Cli.execute(new String[]{"--upload", file.toString(), "--calibration", "--channel", "PCAN_USBBUS2", "--verify-bytes"},
-                noDevices, (channel, image, verify, out) -> {
+                noDevices, (channel, image, verify, immo, out) -> {
                     called[0] = true;
                     assertEquals("PCAN_USBBUS2", channel);
                     assertEquals(M749Image.Domain.CALIBRATION, image.domain);
                     assertArrayEquals(record.data, image.ranges.get(0).bytes());
                     assertTrue(verify);
+                    assertNull(immo);
                 }, s -> {}));
         assertTrue(called[0]);
     }

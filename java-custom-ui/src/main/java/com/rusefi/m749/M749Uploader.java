@@ -32,6 +32,7 @@ final class M749Uploader {
 
     void upload(M749Image image, boolean verifyBytes) throws IOException, InterruptedException {
         image.requireActivationSupport();
+        boolean eraseRequested = false;
         try {
             phase = "entering programming session";
             exact(request(bytes(0x10, 2), bytes(0x50, 2)), 6);
@@ -75,6 +76,8 @@ final class M749Uploader {
                 for (int offset = 0; offset < data.length; offset += M749Image.PAGE) {
                     phase = String.format("erasing page 0x%08X", range.address + offset);
                     byte[] erase = addressed(bytes(0x31, 1, 0xFF, 0, 0x44), range.address + offset, M749Image.PAGE, 0);
+                    // A lost reply cannot establish whether the ECU performed the erase.
+                    eraseRequested = true;
                     response = request(erase, bytes(0x71, 1, 0xFF, 0));
                     routineSucceeded(response);
                 }
@@ -152,8 +155,15 @@ final class M749Uploader {
             verifyApplication(softwareCrc, calibrationCrc);
             out.accept("Upload complete: application reports valid software/calibration/loader CRCs and normal boot marker after reset.");
         } catch (IOException e) {
+            String hint = phase.equals("entering programming session") &&
+                    e instanceof UdsClient.NegativeResponse && ((UdsClient.NegativeResponse) e).code == 0x22
+                    ? " Programming entry conditions were not met; check the installed firmware and ECU operating state."
+                    : "";
             throw new IOException("Stopped while " + phase + ": " + e.getMessage() +
-                    ". No further writes or reset were sent; flash/activation may be incomplete.", e);
+                    (eraseRequested
+                            ? ". An erase request was sent; flash/activation may be incomplete."
+                            : ". No flash erase or programming requests were sent by this upload.") +
+                    " No recovery reset was sent." + hint, e);
         }
     }
 

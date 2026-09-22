@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "bootloader_handoff.h"
+#include "boot_activation.h"
 #include "board_overrides.h"
 #include "can.h"
 
@@ -57,6 +58,39 @@ static bool transmitCompleted(const CANTxFrame& frame) {
 }
 
 static void processDiagnosticRequest(size_t bus, const CANRxFrame& frame, efitick_t) {
+    if (bus == 0 && CAN_SID(frame) == 0x7E0 && !CAN_ISX(frame) && !CAN_ISRTR(frame) && frame.DLC >= 4 &&
+        frame.data8[0] == 3 && frame.data8[1] == 0x22 && frame.data8[2] == 0xF1 &&
+        frame.data8[3] >= 0xA0 && frame.data8[3] <= 0xA3) {
+        const auto did = frame.data8[3];
+        const uint32_t value = did == 0xA0 ? (m749ActivationReady() ? 0x4D740101 : 0x4D740100) :
+            did == 0xA1 ? m749SoftwareCrc() : did == 0xA2 ? m749CalibrationCrc() :
+            *reinterpret_cast<const volatile uint32_t*>(m749::MarkerAddress);
+        CANTxFrame response = {};
+        response.SID = 0x7E8;
+        response.DLC = 8;
+        const uint8_t data[8] = {7, 0x62, 0xF1, did, uint8_t(value >> 24), uint8_t(value >> 16),
+                                uint8_t(value >> 8), uint8_t(value)};
+        memcpy(response.data8, data, sizeof(data));
+        transmitCompleted(response);
+        return;
+    }
+    if (bus == 0 && CAN_SID(frame) == 0x7E0 && !CAN_ISX(frame) && !CAN_ISRTR(frame) && frame.DLC >= 3 &&
+        frame.data8[0] == 2 && frame.data8[1] == 0x11 && frame.data8[2] == 1) {
+        CANTxFrame response = {};
+        response.SID = 0x7E8;
+        response.DLC = 8;
+        const bool stopped = engine->rpmCalculator.isStopped();
+        const uint8_t data[8] = {uint8_t(stopped ? 2 : 3), uint8_t(stopped ? 0x51 : 0x7F),
+                                uint8_t(stopped ? 1 : 0x11), uint8_t(stopped ? 0 : 0x22), 0, 0, 0, 0};
+        memcpy(response.data8, data, sizeof(data));
+        if (transmitCompleted(response) && stopped) {
+            __disable_irq();
+            m749BootIntent = 0; // Prove normal-marker boot, independent of the return token.
+            __DSB();
+            NVIC_SystemReset();
+        }
+        return;
+    }
     m749::handleRequest(bus, CAN_SID(frame), CAN_ISX(frame), CAN_ISRTR(frame),
         frame.data8, frame.DLC, engine->rpmCalculator.isStopped(),
         [](const uint8_t* payload) {

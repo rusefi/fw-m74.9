@@ -23,6 +23,11 @@ old `.bin`/`.dfu` files left over from earlier builds. ELF files are debugging
 inputs, not ready-to-flash images: CRC trailers are added to HEX/SREC by
 `bin/m749_image.py`. Bundle builds include these addressed images.
 
+See [deployment artifacts and tools](docs/memory-layout-and-bootloader-details.md#deployment-artifacts-and-tools)
+for why a single `.bin` is unsuitable and the exact address/length of each upload
+range. The [Java PCAN uploader](docs/cli-uploader.md) implements the I865 OEM
+loader transaction and persistent activation. Live bench validation is still pending.
+
 Calibration must be handled separately. Given a complete, retained or deliberately
 modified dump of `0x08060000-0x0807FFFB` (131,068 bytes, without its CRC), generate
 its addressed payload with:
@@ -33,10 +38,9 @@ python3 bin/m749_image.py --calibration --format hex calibration.bin calibration
 
 The tool checks the write whitelist and complete page ranges and computes each
 CRC independently using CRC-32/MPEG-2. It performs no device writes or activation.
-The Java tab remains identification-only. There is no enabled CAN flash writer:
-the loader's validity-finalization sequence is still unknown. A future writer
-must verify every programmed range, both CRCs, activation, reset, and application
-startup before reporting success; transfer-exit alone is insufficient.
+The Java tab remains identification-only. The CLI validates both CRC domains,
+activation and application startup before reporting a completed upload;
+transfer-exit alone is insufficient. See [CLI usage and limitations](docs/cli-uploader.md).
 
 Physical CAN diagnostics use `0x7E0/0x7E8` at 500 kbit/s. With the engine stopped,
 ISO-TP single-frame `02 10 02` receives `06 50 02 00 32 01 F4 00`. Only after
@@ -68,7 +72,7 @@ communication errors. Other records retain their raw DID labels because their
 meaning and availability depend on ECU firmware and stored data.
 
 Identification uses physical CAN IDs 0x7E0/0x7E8, extended diagnostic session 03,
-selector-00 security access, and 26 individual ReadDataByIdentifier requests.
+selector-00 security access, and 17 individual ReadDataByIdentifier requests.
 It supports ISO-TP multi-frame responses and response-pending replies. A failed
 authentication or transport timeout stops the query. The adapter indicator
 reports PCAN presence even if the ECU does not respond. Use **Scan / query again**
@@ -80,8 +84,8 @@ the adapter also permits a new automatic query.
 Use Java 11 with the checked-in Gradle wrapper. From the repository root:
 
 ```sh
-# Tests and console JAR, including the custom tab
-bash bin/java-ui.sh
+# Tests and custom module JAR
+bash bin/java-ui.sh :custom-java-ui:test :custom-java-ui:jar
 
 # Open just the M74.9 tab
 bash bin/java-ui.sh :custom-java-ui:runM749Tab
@@ -110,6 +114,21 @@ The packaged console is `ext/rusefi/console/rusefi_console.jar`. Local bundle
 and CI builds also include the custom module through `RUSEFI_CUSTOM_JAVA_UI_DIR`.
 Closing the Sandbox or disposing the tab cancels the query and releases its
 PCAN channel.
+
+## Java PCAN uploader
+
+```sh
+# Validate the rebuilt software without opening a CAN adapter
+bash bin/m749-cli.sh --upload ext/rusefi/firmware/build/rusefi.hex --dry-run
+
+# Program via one explicitly selected adapter, then activate and check boot
+bash bin/m749-cli.sh --upload ext/rusefi/firmware/build/rusefi.hex --channel PCAN_USBBUS1
+```
+
+Use `bin\m749-cli.bat` on native Windows. Software must include the current
+`M749ACT1` activation ABI; calibration uses a separate `--calibration` upload.
+See [the uploader guide](docs/cli-uploader.md) for the required metadata handshake,
+verification choices, exit codes and pending hardware validation.
 
 ## Hardware
 

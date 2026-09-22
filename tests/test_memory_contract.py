@@ -134,6 +134,13 @@ class MemoryContractTest(unittest.TestCase):
                             "-o", str(executable)], check=True)
             subprocess.run([str(executable)], check=True)
 
+    def test_activation_contract(self):
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / "test_activation"
+            subprocess.run(["c++", "-std=c++17", "-Wall", "-Wextra", "-Werror",
+                            str(ROOT / "tests/test_boot_activation.cpp"), "-o", str(executable)], check=True)
+            subprocess.run([str(executable)], check=True)
+
 
 if __name__ == "__main__":
     unittest.main()

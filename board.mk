@@ -1,6 +1,7 @@
 # List of all the board related files.
 BOARDCPPSRC = $(BOARD_DIR)/board_configuration.cpp \
   $(BOARD_DIR)/firmware/bootloader_handoff.cpp \
+  $(BOARD_DIR)/firmware/boot_activation.cpp \
   $(BOARD_DIR)/firmware/volatile_storage.cpp
 
 override LDSCRIPT = $(BOARD_DIR)/firmware/m749.ld

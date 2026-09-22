@@ -22,7 +22,8 @@ MEMORY
 {
     boot_intent (rw) : org = 0x20000000, len = 4
     mstack (rw) : org = 0x20020000 - __main_stack_size__, len = __main_stack_size__
-    flash0 (rx) : org = 0x08001000, len = 0x5F000
+    flash0 (rx) : org = 0x08001000, len = 0x5EFE0
+    activation (rx) : org = 0x0805FFE0, len = 32
     flash1 (rx) : org = 0x08080000, len = 0x7FFFC
     flash2 (rx) : org = 0x00000000, len = 0
     flash3 (rx) : org = 0x00000000, len = 0
@@ -89,6 +90,7 @@ REGION_ALIAS("HEAP_RAM", ram0);
 SECTIONS {
     .boot_intent (NOLOAD) : { KEEP(*(.boot_intent)) } > boot_intent
     .m749_startup : { KEEP(*(.m749_startup)) } > flash1
+    .m749_activation : { KEEP(*(.m749_activation)) } > activation
 }
 
 /* Generic rules inclusion.*/
@@ -98,3 +100,4 @@ ASSERT(ADDR(.vectors) == 0x08001000, "M74.9 vectors moved")
 ASSERT(__main_stack_end__ == 0x20020000, "M74.9 initial SP moved")
 ASSERT((Reset_Handler & ~1) == 0x08080000, "M74.9 reset entry moved")
 ASSERT(SIZEOF(.boot_intent) == 4, "M74.9 boot intent must be reserved")
+ASSERT(SIZEOF(.m749_activation) == 32, "M74.9 activation descriptor missing")

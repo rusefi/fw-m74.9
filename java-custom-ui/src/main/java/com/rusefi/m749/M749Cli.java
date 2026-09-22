@@ -12,7 +12,7 @@ public final class M749Cli {
     }
 
     interface UploadAction {
-        void upload(String channel, M749Image image, boolean verifyBytes, Consumer<String> out)
+        void upload(String channel, M749Image image, boolean verifyBytes, M749Immo immo, Consumer<String> out)
                 throws IOException, InterruptedException;
     }
 
@@ -41,6 +41,7 @@ public final class M749Cli {
         boolean verifyBytes = false;
         String channel = null;
         String file = null;
+        String immoBackup = null;
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
             switch (arg) {
@@ -49,6 +50,10 @@ public final class M749Cli {
                 case "--dry-run": dryRun = true; break;
                 case "--calibration": calibration = true; break;
                 case "--verify-bytes": verifyBytes = true; break;
+                case "--immo-backup":
+                    if (++i == args.length || immoBackup != null) { usage(out); return 2; }
+                    immoBackup = args[i];
+                    break;
                 case "--upload":
                     if (++i == args.length || file != null) { usage(out); return 2; }
                     file = args[i];
@@ -62,7 +67,7 @@ public final class M749Cli {
                     channel = arg;
             }
         }
-        if ((file == null && (dryRun || calibration || verifyBytes)) ||
+        if ((file == null && (dryRun || calibration || verifyBytes || immoBackup != null)) ||
                 (list && (file != null || channel != null)) || (file != null && !dryRun && channel == null)) {
             usage(out);
             return 2;
@@ -73,16 +78,20 @@ public final class M749Cli {
         // Parse all input and prove the complete CRC domain before native library/device access.
         M749Image image = M749Image.load(Path.of(file), calibration ? M749Image.Domain.CALIBRATION : M749Image.Domain.SOFTWARE);
         image.requireActivationSupport();
+        M749Immo immo = immoBackup == null ? null : M749Immo.load(Path.of(immoBackup));
         image.describe(out);
+        if (immo != null) {
+            out.accept("Paired I865 IMMO backup validated; normal CAN authorization enabled");
+        }
         if (dryRun) {
             out.accept("Dry run complete; no adapter was opened. Target compatibility and retained-domain CRC remain device checks.");
             return 0;
         }
-        uploader.upload(channel, image, verifyBytes, out);
+        uploader.upload(channel, image, verifyBytes, immo, out);
         return 0;
     }
 
-    private static void upload(String requested, M749Image image, boolean verifyBytes, Consumer<String> out)
+    private static void upload(String requested, M749Image image, boolean verifyBytes, M749Immo immo, Consumer<String> out)
             throws IOException, InterruptedException {
         PcanDevice device = new PcanDevice();
         for (PcanDevice.Channel channel : device.scan()) {
@@ -91,7 +100,10 @@ public final class M749Cli {
                     throw new IOException("Channel " + requested + " is in use");
                 }
                 out.accept("Uploading through " + channel.handle + " at 500 kbit/s (7E0 / 7E8)");
-                try (DiagnosticTransport transport = device.open(channel)) {
+                try (RawCanTransport transport = device.open(channel)) {
+                    if (immo != null) {
+                        immo.authorize(transport, out);
+                    }
                     new M749Uploader(new UdsClient(transport), out).upload(image, verifyBytes);
                 }
                 return;
@@ -146,6 +158,8 @@ public final class M749Cli {
         out.accept("       m749-cli --list                    list PCAN channels");
         out.accept("       m749-cli --upload FILE --dry-run   validate addressed HEX/SREC without hardware");
         out.accept("       m749-cli --upload FILE --channel PCAN_USBBUS1 [--calibration] [--verify-bytes]");
+        out.accept("                  [--immo-backup PAIRED_FULLFLASH.bin]");
+        out.accept("--immo-backup enables normal I865 CAN authorization; cycle bench power when the listener reports ready.");
         out.accept("Software requires the M749ACT1 activation ABI. Calibration is a separate complete CRC domain.");
         out.accept("--upload erases/programs the selected domain, preserves OEM programming metadata, and activates.");
         out.accept("Default verification: per-block sum plus application-side CRCs; --verify-bytes adds slow byte comparisons.");

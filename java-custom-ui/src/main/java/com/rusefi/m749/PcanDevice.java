@@ -49,18 +49,21 @@ final class PcanDevice {
         return channels;
     }
 
-    DiagnosticTransport open(Channel channel) throws IOException {
+    RawCanTransport open(Channel channel) throws IOException {
         requireOk("Open " + channel.handle, api.Initialize(channel.handle,
                 TPCANBaudrate.PCAN_BAUD_500K, TPCANType.PCAN_TYPE_NONE, 0, (short) 0));
-        return new DiagnosticTransport() {
+        return new RawCanTransport() {
             @Override
-            public void send(byte[] frame) throws IOException {
-                requireOk("CAN write", api.Write(channel.handle, new TPCANMsg(0x7E0,
+            public void sendCan(int id, byte[] frame) throws IOException {
+                if (id < 0 || id > 0x7FF || frame.length > 8) {
+                    throw new IOException("Invalid standard CAN frame");
+                }
+                requireOk("CAN write", api.Write(channel.handle, new TPCANMsg(id,
                         TPCANMessageType.PCAN_MESSAGE_STANDARD.getValue(), (byte) frame.length, frame)));
             }
 
             @Override
-            public byte[] receive() throws IOException {
+            public Frame receiveCan() throws IOException {
                 // Bound each poll even on a saturated bus, so timeouts and cancellation still run.
                 for (int i = 0; i < 64; i++) {
                     TPCANMsg message = new TPCANMsg();
@@ -69,13 +72,12 @@ final class PcanDevice {
                         return null;
                     }
                     requireOk("CAN read", status);
-                    if (message.getID() == 0x7E8 &&
-                            message.getType() == TPCANMessageType.PCAN_MESSAGE_STANDARD.getValue()) {
+                    if (message.getType() == TPCANMessageType.PCAN_MESSAGE_STANDARD.getValue()) {
                         int length = message.getLength() & 0xFF;
                         if (length > 8 || message.getData() == null || message.getData().length < length) {
                             throw new IOException("Invalid CAN frame length");
                         }
-                        return Arrays.copyOf(message.getData(), length);
+                        return new Frame(message.getID(), Arrays.copyOf(message.getData(), length));
                     }
                 }
                 return null;

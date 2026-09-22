@@ -6,6 +6,7 @@
 #include "drivers/gpio/l9779.h"
 #include "ignition_controller.h"
 #include "firmware/bootloader_handoff.h"
+#include "firmware/boot_activation.h"
 
 // PB14 is error LED, configured in board.mk
 Gpio getCommsLedPin() {
@@ -228,6 +229,7 @@ int getBoardMetaDcOutputsCount() {
 void setup_custom_board_overrides() {
 #if EFI_PROD_CODE
 	initM749BootloaderHandoff();
+	custom_board_InitHardwareEarly = initM749BootActivation;
 #endif
 	custom_board_InitHardware = m74_9BoardInitHardware;
 	custom_board_DefaultConfiguration = m74_9_boardDefaultConfiguration;

@@ -40,11 +40,10 @@ bootloader is not permission to overwrite its vectors, code, state, or NVM.
 
 ## Deployment artifacts and tools
 
-**Current status:** the build produces checked application payloads, but this
-repository does not yet provide a validated end-to-end device flashing tool.
-CAN programming/activation remains disabled until the loader's validity-state
-finalization sequence is implemented and tested. Direct MCU programming is a
-bench-development route that still requires validation on this ECU.
+**Current status:** the [Java CLI](cli-uploader.md) implements I865 OEM CAN
+programming, verification and persistent application activation. Host tests and
+native ARM emulation pass; real PCAN flashing and physical cold-boot validation
+remain bench follow-ups. Direct MCU programming remains a separate bench route.
 
 ### Why there is no application `.bin`
 
@@ -81,7 +80,7 @@ bash compile_firmware.sh
 | `ext/rusefi/firmware/build/rusefi.srec` | The same two software ranges | Equivalent Motorola S-record payload. In bundles it is named `rusefi_update.srec`. Choose one format; do not program both. |
 | Separately generated `calibration.hex` or `calibration.srec` | `0x08060000-0x0807FFFF` only | An intentional calibration update, including its CRC at `0x0807FFFC`. Preserve existing calibration during a software-only update. |
 | `rusefi.elf`, `.map`, `.list` | No deployment destination | Link/debug artifacts. The ELF lacks the final CRC trailers; do not use debugger ELF auto-download as a substitute for the generated HEX/SREC payload. |
-| Full or autoupdate `.zip` | No deployment destination | Distribution containers. Extract the addressed payload; the archive name does not mean OEM activation is implemented. |
+| Full or autoupdate `.zip` | No deployment destination | Distribution containers. Extract the addressed payload; use the documented I865 CLI; archive naming does not establish hardware validation. |
 
 The absolute addresses are already in HEX/SREC records: apply **no relocation or
 base-address offset**. `0x08080000` is the executable startup address, not the
@@ -119,8 +118,8 @@ It never substitutes blank calibration during a software build.
 | Route/toolset | Input or interface | Current use |
 | --- | --- | --- |
 | `compile_firmware.sh` and Python 3 `bin/m749_image.py` | ELF for software; complete raw data for calibration | Offline image preparation and CRC/range checks. These tools do not communicate with an ECU. |
-| M74.9 Java tab or `bin/m749-cli.sh` / `.bat`, PEAK PCAN driver and native libraries | Physical CAN `0x7E0/0x7E8`, 500 kbit/s | Identification only. Neither the tab nor CLI has an upload command. |
-| OEM resident loader plus an M74.9-specific ISO-TP/UDS writer | Decoded software or calibration HEX/SREC ranges over CAN | Intended field-update route. The application handoff is implemented; the complete host writer and activation sequence are not available here yet. Generic rusEFI OpenBLT/BootCommander is not this OEM protocol. |
+| M74.9 Java tab or `bin/m749-cli.sh` / `.bat`, PEAK PCAN driver and native libraries | Physical CAN `0x7E0/0x7E8`, 500 kbit/s | Tab: identification. CLI: validated HEX/SREC upload, verification and activation; see [CLI guide](cli-uploader.md). |
+| OEM resident loader plus an M74.9-specific ISO-TP/UDS writer | Decoded software or calibration HEX/SREC ranges over CAN | Implemented I865-specific CLI and application activation, pending live bench validation. Generic rusEFI OpenBLT/BootCommander is not this OEM protocol. |
 | Artery AT-Link probe with Artery ICP Programmer over SWD | `rusefi.hex`; `calibration.hex` only for a separate calibration operation | Vendor toolset for evaluating direct MCU programming on the bench. No validated M74.9 programming profile, ECU connector pinout, or automatic activation procedure is supplied by this repository. |
 
 Artery provides the [AT-Link and ICP tools](https://www.arterychip.com/en/support/tools.jsp?index=4).
@@ -152,7 +151,7 @@ For a bench SWD evaluation, the required procedure is:
 6. Treat successful programming/verification as bench evidence only. It does not
    finalize OEM validity state or prove that the resident loader will boot the
    application. Do not manually write the validity marker to bypass the missing
-   activation sequence; keep activation disabled pending validation.
+   activation sequence. Use the documented CRC-gated application path and verify its status.
 
 There is therefore no supported one-command production upload to document yet.
 The CAN loader sequence below defines the work still required of that uploader.
@@ -275,9 +274,11 @@ The loader-side programming sequence is:
 
 Transfer exit confirms that no write is busy. It does not prove that the
 declared byte count arrived, validate the application/calibration CRCs, or
-complete activation. The exact safe command sequence that restores the normal
-validity marker is not part of the application programming contract yet. Keep
-activation disabled until that sequence is implemented and validated.
+complete activation. The [CLI activation sequence](cli-uploader.md) uses the
+loader metadata handshake to arm the SRAM return token. The application checks
+all CRC domains, restores the normal marker last and exposes status/CRC DIDs.
+The CLI confirms those values after a second reset with the SRAM token cleared.
+This has offline native coverage; electrical and power-cycle testing is pending.
 
 ## Writer requirements
 
@@ -292,3 +293,14 @@ activation disabled until that sequence is implemented and validated.
 - Read back or checksum every programmed range before activation.
 - Do not report a successful update until CRC validation, validity-state
   finalization, reset, and application startup all succeed.
+
+## Activation ABI
+
+The application reserves 32 bytes at 0x0805FFE0 for `M749ACT1`, pinned I865 boot
+CRC 0xD7B6B894 and protocol version 1. These bytes remain inside the software
+CRC domain. DIDs F1A0-F1A3 return, respectively, ready status 0x4D740101,
+software CRC, calibration CRC and the current persistent marker (big-endian).
+The validity-page operation is confined to 0x08200000-0x08200FFF and publishes
+0x43A0C212 only after CRC checks and restoration/verification of the page body.
+Generic AT32 MFS remains disabled. Loader-managed metadata writes are described
+in the [CLI guide](cli-uploader.md); they are never arbitrary payload ranges.

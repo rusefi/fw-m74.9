@@ -151,6 +151,44 @@ class M749UploaderTest {
         assertArrayEquals(Arrays.copyOfRange(original, 0x100000, original.length), Arrays.copyOfRange(ecu.flash, 0x100000, ecu.flash.length));
     }
 
+    @Test void rejectedProgrammingEntryStopsAfterOneRequestAndReportsNoFlashWrites() {
+        List<byte[]> requests = new ArrayList<>();
+        M749Uploader.Connection connection = new M749Uploader.Connection() {
+            public byte[] exchange(byte[] request, byte[] prefix, long timeout) throws IOException {
+                requests.add(request.clone());
+                throw new UdsClient.NegativeResponse(0x10, 0x22);
+            }
+            public void pause(long milliseconds) { fail("Rejected entry must not continue"); }
+        };
+        IOException failure = assertThrows(IOException.class, () -> new M749Uploader(connection, s -> { })
+                .upload(M749Image.validate(M749ImageTest.records(M749Image.Domain.SOFTWARE),
+                        M749Image.Domain.SOFTWARE), false));
+        assertEquals(1, requests.size());
+        assertArrayEquals(bytes(0x10, 2), requests.get(0));
+        assertTrue(failure.getMessage().contains("No flash erase or programming requests were sent"));
+        assertTrue(failure.getMessage().contains("Programming entry conditions were not met"));
+        assertFalse(failure.getMessage().contains("may be incomplete"));
+        assertInstanceOf(UdsClient.NegativeResponse.class, failure.getCause());
+    }
+
+    @Test void lostFirstEraseReplyStillReportsPossibleIncompleteFlash() {
+        Ecu ecu = new Ecu() {
+            public byte[] exchange(byte[] request, byte[] prefix, long timeout) throws IOException {
+                if (request[0] == 0x31 && request[3] == 0) {
+                    super.exchange(request, prefix, timeout); // Erase succeeds but its reply is lost.
+                    throw new IOException("Response timeout");
+                }
+                return super.exchange(request, prefix, timeout);
+            }
+        };
+        IOException failure = assertThrows(IOException.class, () -> ecu.run(M749Image.Domain.SOFTWARE));
+        assertEquals(1, ecu.erases.size());
+        assertEquals(0, ecu.writes);
+        assertEquals(0, ecu.resets);
+        assertTrue(failure.getMessage().contains("An erase request was sent; flash/activation may be incomplete"));
+        assertFalse(failure.getMessage().contains("No flash erase"));
+    }
+
     @Test void calibrationIsSeparateAndZeroSeedSkipsKey() throws Exception {
         Ecu ecu = new Ecu();
         byte[] original = ecu.flash.clone();
