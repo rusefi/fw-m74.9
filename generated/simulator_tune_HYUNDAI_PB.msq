@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <msq xmlns="http://www.msefi.com/:msq">
     <page/>
-    <page number="0" size="17356">
+    <page number="0" size="16220">
         <constant name="accelEnrichmentMode">"MS Adder"</constant>
         <constant name="accelerometerCsPin">"NONE"</constant>
         <constant name="accelerometerCsPinMode">"default"</constant>
@@ -2272,166 +2272,97 @@
         <constant name="ignKeyAdcChannel">"NONE"</constant>
         <constant digits="0" name="ignKeyAdcDivider" units="">0</constant>
         <constant name="ignOverrideMode">"None"</constant>
-        <constant cols="1" digits="0" name="ignTrimLoadBins" rows="8" units="{bitStringValue(ignLoadUnitLabels, ignLoadUnitIdx)}">
+        <constant cols="1" digits="0" name="ignTrimLoadBins" rows="4" units="{bitStringValue(ignLoadUnitLabels, ignLoadUnitIdx)}">
          20
-         31
-         42
-         54
-         65
-         77
-         88
+         50
+         80
          100
 </constant>
-        <constant cols="1" digits="0" name="ignTrimRpmBins" rows="8" units="rpm">
-         650
-         800
-         1700
-         2600
-         3500
-         4400
-         5300
+        <constant cols="1" digits="0" name="ignTrimRpmBins" rows="4" units="rpm">
+         1000
+         3000
+         5000
          7000
 </constant>
-        <constant cols="8" digits="1" name="ignTrims10_table" rows="8" units="">
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
+        <constant cols="4" digits="1" name="ignTrims10_table" rows="4" units="">
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
 </constant>
-        <constant cols="8" digits="1" name="ignTrims11_table" rows="8" units="">
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
+        <constant cols="4" digits="1" name="ignTrims11_table" rows="4" units="">
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
 </constant>
-        <constant cols="8" digits="1" name="ignTrims12_table" rows="8" units="">
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
+        <constant cols="4" digits="1" name="ignTrims12_table" rows="4" units="">
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
 </constant>
-        <constant cols="8" digits="1" name="ignTrims1_table" rows="8" units="">
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
+        <constant cols="4" digits="1" name="ignTrims1_table" rows="4" units="">
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
 </constant>
-        <constant cols="8" digits="1" name="ignTrims2_table" rows="8" units="">
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
+        <constant cols="4" digits="1" name="ignTrims2_table" rows="4" units="">
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
 </constant>
-        <constant cols="8" digits="1" name="ignTrims3_table" rows="8" units="">
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
+        <constant cols="4" digits="1" name="ignTrims3_table" rows="4" units="">
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
 </constant>
-        <constant cols="8" digits="1" name="ignTrims4_table" rows="8" units="">
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
+        <constant cols="4" digits="1" name="ignTrims4_table" rows="4" units="">
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
 </constant>
-        <constant cols="8" digits="1" name="ignTrims5_table" rows="8" units="">
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
+        <constant cols="4" digits="1" name="ignTrims5_table" rows="4" units="">
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
 </constant>
-        <constant cols="8" digits="1" name="ignTrims6_table" rows="8" units="">
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
+        <constant cols="4" digits="1" name="ignTrims6_table" rows="4" units="">
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
 </constant>
-        <constant cols="8" digits="1" name="ignTrims7_table" rows="8" units="">
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
+        <constant cols="4" digits="1" name="ignTrims7_table" rows="4" units="">
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
 </constant>
-        <constant cols="8" digits="1" name="ignTrims8_table" rows="8" units="">
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
+        <constant cols="4" digits="1" name="ignTrims8_table" rows="4" units="">
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
 </constant>
-        <constant cols="8" digits="1" name="ignTrims9_table" rows="8" units="">
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
-         0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
+        <constant cols="4" digits="1" name="ignTrims9_table" rows="4" units="">
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
+         0.0 0.0 0.0 0.0
 </constant>
         <constant name="imuType">"None"</constant>
         <constant digits="0" name="initialIgnitionCutPercent" units="%">0</constant>
         <constant name="injectionMode">"Sequential"</constant>
-        <constant cols="16" digits="0" name="injectionPhase" rows="16" units="deg">
-         -220 -220 -220 -220 -220 -220 -220 -220 -250 -250 -250 -240 -240 -240 -240 -240
-         -220 -220 -220 -220 -220 -220 -220 -220 -250 -250 -250 -240 -240 -240 -240 -240
-         -220 -220 -220 -220 -220 -220 -220 -220 -250 -250 -250 -240 -240 -240 -240 -240
-         -220 -220 -220 -220 -220 -220 -220 -220 -250 -250 -250 -240 -240 -240 -240 -240
-         -220 -220 -220 -220 -220 -220 -220 -220 -250 -250 -250 -240 -240 -240 -240 -240
-         -220 -220 -220 -220 -220 -220 -220 -220 -250 -250 -230 -200 -200 -200 -200 -200
-         -220 -220 -220 -220 -220 -220 -220 -220 -250 -250 -230 -200 -200 -200 -200 -200
-         -220 -220 -220 -220 -220 -220 -220 -220 -250 -250 -230 -200 -200 -200 -200 -200
-         -220 -220 -220 -220 -220 -220 -220 -220 -250 -250 -230 -200 -200 -200 -200 -200
-         -220 -220 -220 -220 -220 -220 -220 -220 -250 -250 -230 -200 -200 -200 -200 -200
-         -220 -220 -220 -220 -220 -220 -220 -220 -250 -250 -230 -200 -200 -200 -200 -200
-         -220 -220 -220 -220 -220 -220 -220 -220 -250 -250 -230 -200 -200 -200 -200 -200
-         -220 -220 -220 -220 -220 -220 -220 -220 -250 -250 -230 -200 -200 -200 -200 -200
-         -220 -220 -220 -220 -220 -220 -220 -220 -250 -250 -230 -180 -180 -180 -180 -180
-         -220 -220 -220 -220 -220 -220 -220 -220 -250 -250 -230 -180 -180 -180 -180 -180
-         -220 -220 -220 -220 -220 -220 -220 -220 -250 -250 -230 -180 -180 -180 -180 -180
+        <constant cols="3" digits="0" name="injectionPhase" rows="3" units="deg">
+         -200 -200 -200
+         -200 -200 -200
+         -200 -200 -200
 </constant>
         <constant name="injectionPinMode">"default"</constant>
         <constant name="injectionPins1">"NONE"</constant>
@@ -2545,40 +2476,14 @@
          0 0 0 0 0 0
          0 0 0 0 0 0
 </constant>
-        <constant cols="1" digits="0" name="injPhaseLoadBins" rows="16" units="{bitStringValue(pressureUnitsLabels, useMetricOnInterface)}">
+        <constant cols="1" digits="0" name="injPhaseLoadBins" rows="3" units="{bitStringValue(pressureUnitsLabels, useMetricOnInterface)}">
          10
-         20
-         30
-         40
-         50
-         60
-         70
-         80
-         90
-         100
-         110
-         120
-         130
-         140
-         150
+         85
          160
 </constant>
-        <constant cols="1" digits="0" name="injPhaseRpmBins" rows="16" units="RPM">
+        <constant cols="1" digits="0" name="injPhaseRpmBins" rows="3" units="RPM">
          650
          800
-         1100
-         1400
-         1700
-         2000
-         2300
-         2600
-         2900
-         3200
-         3500
-         3800
-         4100
-         4400
-         4700
          7000
 </constant>
         <constant name="invertCamVVTSignal">"Rising"</constant>
@@ -5328,7 +5233,7 @@
 </constant>
         <constant name="yesUnderstandLocking">"no"</constant>
     </page>
-    <versionInfo firmwareInfo="20260921" nPages="1" signature="rusEFI main.2026.09.22.re74.9.1535800579" version="5.0"/>
+    <versionInfo firmwareInfo="20260921" nPages="1" signature="rusEFI main.2026.09.22.re74.9.2310677598" version="5.0"/>
     <bibliography author="rusEFI 20260921" writeDate="date"/>
     <settings/>
     <userComments/>
