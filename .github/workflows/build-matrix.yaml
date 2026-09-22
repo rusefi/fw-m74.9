@@ -7,6 +7,8 @@ on:
 
 jobs:
   generate-matrix:
+    # Example-board matrix is disabled for M74.9.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -34,7 +36,7 @@ jobs:
     needs: [
       generate-matrix]
 
-    if: ${{ ! contains(needs.generate-matrix.outputs.matrix, '[]') }}
+    if: ${{ false }}
     strategy:
       # Let all builds finish even if one fails early
       fail-fast: false
