@@ -11,8 +11,7 @@
 #define HAL_USE_MMC_SPI FALSE
 #define EFI_FILE_LOGGING FALSE
 
-#include "ext/rusefi/firmware/config/stm32f4ems/efifeatures.h"
-
 /* This board has no USB wired out */
-#undef EFI_USB_SERIAL
 #define EFI_USB_SERIAL              FALSE
+
+#include "ext/rusefi/firmware/config/stm32f4ems/efifeatures.h"
