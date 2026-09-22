@@ -1,5 +1,11 @@
 Custom firmware for M74.9 ECUs
 
+Board configuration starts from rusEFI `firmware/config/boards/m74_9`
+for the AT32F435ZMT7 MCU and L9779 driver. The build entry point is
+`bash compile_firmware.sh`. The imported configuration requires
+`l9779_setPowerStage`, which is not yet provided by the checked-in rusEFI
+submodule; that driver dependency must be updated before building.
+
 See https://github.com/rusefi/rusefi/wiki/Custom-Firmware
 
 ## M74.9 Java UI
