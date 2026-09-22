@@ -6,8 +6,8 @@ DDEFS += -DLED_CRITICAL_ERROR_BRAIN_PIN=Gpio::Unassigned
 
 IS_AT32F435 = yes
 
-# board.c from this directory
-BOARD_C = $(BOARD_DIR)/board.c
+# Use a distinct filename so simulator VPATH cannot select the hardware board.c.
+BOARD_C = $(BOARD_DIR)/m74_9_board.c
 # board.h from this directory
 BOARDINC = $(BOARD_DIR)
 
