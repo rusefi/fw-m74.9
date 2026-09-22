@@ -61,3 +61,7 @@ The packaged console is `ext/rusefi/console/rusefi_console.jar`. Local bundle
 and CI builds also include the custom module through `RUSEFI_CUSTOM_JAVA_UI_DIR`.
 Closing the Sandbox or disposing the tab cancels the query and releases its
 PCAN channel.
+
+## Hardware
+
+We have some notes at https://github.com/rusefi/m74.9
