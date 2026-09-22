@@ -36,7 +36,7 @@ jobs:
       - uses: ./ext/rusefi/.github/workflows/custom-board-build
         with:
           new_tag: ${{steps.set-variables.outputs.release_date}}
-          artifacts: bin srec hex list map elf bundle autoupdate
+          artifacts: srec hex list map elf bundle autoupdate
           # see above about un-commenting
           uploads: ini ${{steps.set-variables.outputs.upload}}
           push: ${{steps.set-variables.outputs.push}}
@@ -49,3 +49,6 @@ jobs:
           RUSEFI_SSH_USER: ${{secrets.RUSEFI_SSH_USER}}
           RUSEFI_SSH_PASS: ${{secrets.RUSEFI_SSH_PASS}}
           ADDITIONAL_ENV: ${{secrets.ADDITIONAL_ENV}}
+
+      - name: Verify M74.9 bundle memory contract
+        run: python3 tests/check_bundles.py
