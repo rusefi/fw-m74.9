@@ -1,45 +1,103 @@
 package com.rusefi.m749;
 
 import java.io.IOException;
-import java.io.PrintStream;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
-/** Command-line variant of the M74.9 tab: scan PCAN adapters and read ECU identification. */
+/** Identification, offline image validation and OEM-loader firmware upload. */
 public final class M749Cli {
     private M749Cli() {
     }
 
+    interface UploadAction {
+        void upload(String channel, M749Image image, boolean verifyBytes, Consumer<String> out)
+                throws IOException, InterruptedException;
+    }
+
     public static void main(String[] args) {
-        boolean listOnly = false;
-        String requested = null;
-        for (String arg : args) {
-            if ("--list".equals(arg)) {
-                listOnly = true;
-            } else if ("-h".equals(arg) || "--help".equals(arg)) {
-                usage(System.out);
-                return;
-            } else if (arg.startsWith("-") || requested != null) {
-                usage(System.err);
-                System.exit(2);
-            } else {
-                requested = arg;
-            }
-        }
         int exit;
         try {
-            exit = run(requested, listOnly, M749Monitor.pcanBackend(), System.out::println);
+            exit = execute(args, M749Monitor.pcanBackend(), M749Cli::upload, System.out::println);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            System.err.println("Interrupted; no further requests sent. Check ECU state before retrying.");
             exit = 1;
         } catch (IOException | RuntimeException | LinkageError e) {
-            System.out.println(e instanceof LinkageError
+            System.err.println(e instanceof LinkageError
                     ? "PCAN native library unavailable. Install the PCAN driver and matching PCAN-Basic/JNI libraries."
-                    : "PCAN scan failed: " + e.getMessage());
+                    : e.getMessage());
             exit = 1;
         }
         System.exit(exit);
+    }
+
+    static int execute(String[] args, M749Monitor.Backend backend, UploadAction uploader, Consumer<String> out)
+            throws IOException, InterruptedException {
+        boolean list = false;
+        boolean dryRun = false;
+        boolean calibration = false;
+        boolean verifyBytes = false;
+        String channel = null;
+        String file = null;
+        for (int i = 0; i < args.length; i++) {
+            String arg = args[i];
+            switch (arg) {
+                case "--help": case "-h": usage(out); return 0;
+                case "--list": list = true; break;
+                case "--dry-run": dryRun = true; break;
+                case "--calibration": calibration = true; break;
+                case "--verify-bytes": verifyBytes = true; break;
+                case "--upload":
+                    if (++i == args.length || file != null) { usage(out); return 2; }
+                    file = args[i];
+                    break;
+                case "--channel":
+                    if (++i == args.length || channel != null) { usage(out); return 2; }
+                    channel = args[i];
+                    break;
+                default:
+                    if (arg.startsWith("-") || channel != null) { usage(out); return 2; }
+                    channel = arg;
+            }
+        }
+        if ((file == null && (dryRun || calibration || verifyBytes)) ||
+                (list && (file != null || channel != null)) || (file != null && !dryRun && channel == null)) {
+            usage(out);
+            return 2;
+        }
+        if (file == null) {
+            return run(channel, list, backend, out);
+        }
+        // Parse all input and prove the complete CRC domain before native library/device access.
+        M749Image image = M749Image.load(Path.of(file), calibration ? M749Image.Domain.CALIBRATION : M749Image.Domain.SOFTWARE);
+        image.requireActivationSupport();
+        image.describe(out);
+        if (dryRun) {
+            out.accept("Dry run complete; no adapter was opened. Target compatibility and retained-domain CRC remain device checks.");
+            return 0;
+        }
+        uploader.upload(channel, image, verifyBytes, out);
+        return 0;
+    }
+
+    private static void upload(String requested, M749Image image, boolean verifyBytes, Consumer<String> out)
+            throws IOException, InterruptedException {
+        PcanDevice device = new PcanDevice();
+        for (PcanDevice.Channel channel : device.scan()) {
+            if (channel.handle.name().equalsIgnoreCase(requested)) {
+                if (!channel.available) {
+                    throw new IOException("Channel " + requested + " is in use");
+                }
+                out.accept("Uploading through " + channel.handle + " at 500 kbit/s (7E0 / 7E8)");
+                try (DiagnosticTransport transport = device.open(channel)) {
+                    new M749Uploader(new UdsClient(transport), out).upload(image, verifyBytes);
+                }
+                return;
+            }
+        }
+        throw new IOException("Requested PCAN channel not found: " + requested);
     }
 
     static int run(String requested, boolean listOnly, M749Monitor.Backend backend, Consumer<String> out)
@@ -82,10 +140,14 @@ public final class M749Cli {
         return 1;
     }
 
-    private static void usage(PrintStream out) {
-        out.println("M74.9 identification tool: reads VIN, IDs and metadata over PCAN (500 kbit/s, 7E0/7E8)");
-        out.println("Usage: m749 [channel]   query via the given channel, e.g. PCAN_USBBUS1,");
-        out.println("                        or try every available channel when omitted");
-        out.println("       m749 --list     only scan and list PCAN channels");
+    private static void usage(Consumer<String> out) {
+        out.accept("M74.9 PCAN CLI (500 kbit/s, 7E0/7E8; I865 OEM resident loader)");
+        out.accept("Usage: m749-cli [channel]                 identify ECU; tries available channels when omitted");
+        out.accept("       m749-cli --list                    list PCAN channels");
+        out.accept("       m749-cli --upload FILE --dry-run   validate addressed HEX/SREC without hardware");
+        out.accept("       m749-cli --upload FILE --channel PCAN_USBBUS1 [--calibration] [--verify-bytes]");
+        out.accept("Software requires the M749ACT1 activation ABI. Calibration is a separate complete CRC domain.");
+        out.accept("--upload erases/programs the selected domain, preserves OEM programming metadata, and activates.");
+        out.accept("Default verification: per-block sum plus application-side CRCs; --verify-bytes adds slow byte comparisons.");
     }
 }

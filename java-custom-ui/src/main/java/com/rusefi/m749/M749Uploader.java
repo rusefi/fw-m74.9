@@ -1,0 +1,300 @@
+package com.rusefi.m749;
+
+import com.rusefi.uds.M74_9_SeedKeyCalculator;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.function.Consumer;
+
+import static com.rusefi.m749.M749Identification.bytes;
+
+/** I865 resident-loader programmer with application-side persistent activation. */
+final class M749Uploader {
+    interface Connection {
+        byte[] exchange(byte[] request, byte[] prefix, long timeout) throws IOException, InterruptedException;
+        void pause(long milliseconds) throws InterruptedException;
+    }
+
+    private final Connection connection;
+    private final Consumer<String> out;
+    private String phase = "preflight";
+
+    M749Uploader(Connection connection, Consumer<String> out) {
+        this.connection = connection;
+        this.out = out;
+    }
+
+    void upload(M749Image image, boolean verifyBytes) throws IOException, InterruptedException {
+        image.requireActivationSupport();
+        try {
+            phase = "entering programming session";
+            exact(request(bytes(0x10, 2), bytes(0x50, 2)), 6);
+            // The application acknowledges before its deferred reset into the loader.
+            connection.pause(1_000);
+            phase = "loader authentication";
+            byte[] response = request(bytes(0x27, 1, 0), bytes(0x67, 1));
+            exact(response, 6);
+            int seed = (response[2] & 255) << 24 | (response[3] & 255) << 16 |
+                    (response[4] & 255) << 8 | response[5] & 255;
+            if (seed != 0) {
+                int key = M74_9_SeedKeyCalculator.Uds_Security_CalcKey(
+                        M74_9_SeedKeyCalculator.BOOTLOADER_SECRET, seed, 0);
+                exact(request(bytes(0x27, 2, key >>> 24, key >>> 16, key >>> 8, key), bytes(0x67, 2)), 2);
+            }
+            phase = "checking the I865 loader profile";
+            // Compare individual bytes via FF01, where the sum cannot collide.
+            // These are compatibility sentinels, not an integrity check of the whole loader.
+            sentinel(0x0822DFFC, "94b8b6d7");
+            sentinel(0x08201E2C, "2de9f04184b004460d4617461e4601f0");
+            sentinel(0x08201D84, "70b506460d46144601f024fd012801d0");
+            sentinel(0x08204B7C, "08b50a4b1b68fff7e7ff012807d0fff7");
+            out.accept("I865 loader compatibility sentinels match; authentication accepted");
+
+            phase = "activation preflight";
+            if (image.domain == M749Image.Domain.CALIBRATION) {
+                for (int i = 0; i < M749Image.ACTIVATION_ABI.length; i++) {
+                    checksum(M749Image.ACTIVATION_ADDRESS + i, 1, M749Image.ACTIVATION_ABI[i] & 255);
+                }
+            }
+            int journalSlot = checkJournalSpace();
+            int softwareCrc = image.domain == M749Image.Domain.SOFTWARE ? image.crc : readWord(0x080FFFFC);
+            int calibrationCrc = image.domain == M749Image.Domain.CALIBRATION ? image.crc : readWord(0x0807FFFC);
+            Map<Integer, byte[]> metadata = journalSlot == 0 ? firstMetadata(softwareCrc) : readMetadata();
+
+            for (M749Image.Range range : image.ranges) {
+                byte[] data = range.bytes();
+                phase = String.format("erasing 0x%08X + 0x%X", range.address, data.length);
+                out.accept(phase);
+                // Bound each erase below the ECU's response/session/watchdog windows.
+                for (int offset = 0; offset < data.length; offset += M749Image.PAGE) {
+                    phase = String.format("erasing page 0x%08X", range.address + offset);
+                    byte[] erase = addressed(bytes(0x31, 1, 0xFF, 0, 0x44), range.address + offset, M749Image.PAGE, 0);
+                    response = request(erase, bytes(0x71, 1, 0xFF, 0));
+                    routineSucceeded(response);
+                }
+                phase = String.format("opening download at 0x%08X", range.address);
+                response = request(addressed(bytes(0x34, 0, 0x44), range.address, data.length, 0), bytes(0x74));
+                exact(response, 4);
+                if (response[1] != 0x20) {
+                    throw new IOException("Unsupported RequestDownload length format");
+                }
+                int maximum = (response[2] & 255) << 8 | response[3] & 255;
+                if (maximum < 6 || maximum > 0x802) {
+                    throw new IOException("Invalid I865 maximum transfer length: " + maximum);
+                }
+                int blockSize = (maximum - 2) & ~3;
+                int counter = 0; // OEM loader starts at zero, not the usual UDS one.
+                int nextProgress = 0;
+                for (int offset = 0; offset < data.length; offset += blockSize) {
+                    int count = Math.min(blockSize, data.length - offset);
+                    phase = String.format("writing 0x%08X (counter %02X)", range.address + offset, counter);
+                    byte[] block = new byte[count + 2];
+                    block[0] = 0x36;
+                    block[1] = (byte) counter;
+                    System.arraycopy(data, offset, block, 2, count);
+                    exact(request(block, bytes(0x76, counter)), 2);
+                    counter = (counter + 1) & 255;
+                    int percent = (offset + count) * 100 / data.length;
+                    if (percent >= nextProgress) {
+                        out.accept(String.format("Transfer 0x%08X: %d/%d bytes (%d%%)",
+                                range.address, offset + count, data.length, percent));
+                        nextProgress = percent + 10;
+                    }
+                }
+                phase = "closing download";
+                exact(request(bytes(0x37), bytes(0x77)), 1);
+                // Never interpret TransferExit as validation; it only closes the transfer.
+                int checkSize = verifyBytes ? 1 : 2048;
+                for (int offset = 0; offset < data.length; offset += checkSize) {
+                    int count = Math.min(checkSize, data.length - offset);
+                    phase = String.format("verifying 0x%08X", range.address + offset);
+                    int sum = 0;
+                    for (int i = offset; i < offset + count; i++) {
+                        sum = (sum + (data[i] & 255)) & 0xFFFF;
+                    }
+                    checksum(range.address + offset, count, sum);
+                    if (offset % 16384 == 0) {
+                        out.accept(String.format("Verify 0x%08X: %d/%d bytes", range.address, offset, data.length));
+                    }
+                }
+                out.accept(String.format("Verified 0x%08X + 0x%X using %s", range.address, data.length,
+                        verifyBytes ? "individual-byte comparisons" : "16-bit additive block checksums"));
+            }
+            phase = "appending programming metadata";
+            // The OEM record transaction arms the loader's return-token reset.
+            // Preserve opaque bytes; do not invent tester identity or overwrite ECU identity DIDs.
+            for (Map.Entry<Integer, byte[]> entry : metadata.entrySet()) {
+                int did = entry.getKey();
+                byte[] value = entry.getValue();
+                byte[] write = Arrays.copyOf(bytes(0x2E, did >>> 8, did), value.length + 3);
+                System.arraycopy(value, 0, write, 3, value.length);
+                exact(request(write, bytes(0x6E, did >>> 8, did)), 3);
+            }
+            Map<Integer, byte[]> restored = readMetadata();
+            for (int did : metadata.keySet()) {
+                if (!Arrays.equals(metadata.get(did), restored.get(did))) {
+                    throw new IOException(String.format("Programming metadata %04X changed", did));
+                }
+            }
+            phase = "activating and checking the application";
+            exact(request(bytes(0x11, 1), bytes(0x51, 1)), 2);
+            awaitApplication();
+            verifyApplication(softwareCrc, calibrationCrc);
+            phase = "confirming boot without the SRAM return token";
+            exact(request(bytes(0x11, 1), bytes(0x51, 1)), 2);
+            awaitApplication();
+            verifyApplication(softwareCrc, calibrationCrc);
+            out.accept("Upload complete: application reports valid software/calibration/loader CRCs and normal boot marker after reset.");
+        } catch (IOException e) {
+            throw new IOException("Stopped while " + phase + ": " + e.getMessage() +
+                    ". No further writes or reset were sent; flash/activation may be incomplete.", e);
+        }
+    }
+
+    private void sentinel(int address, String hex) throws IOException, InterruptedException {
+        for (int i = 0; i < hex.length(); i += 2) {
+            checksum(address + i / 2, 1, Integer.parseInt(hex.substring(i, i + 2), 16));
+        }
+    }
+
+    private void checksum(int address, int length, int sum) throws IOException, InterruptedException {
+        if (!checksumMatches(address, length, sum)) {
+            throw new IOException(String.format("Checksum mismatch at 0x%08X + 0x%X", address, length));
+        }
+    }
+
+    private boolean checksumMatches(int address, int length, int sum) throws IOException, InterruptedException {
+        byte[] request = addressed(bytes(0x31, 1, 0xFF, 1, 0x44), address, length, 2);
+        request[13] = (byte) (sum >>> 8);
+        request[14] = (byte) sum;
+        byte[] response = request(request, bytes(0x71, 1, 0xFF, 1));
+        exact(response, 5);
+        if (response[4] != 0 && response[4] != 1) {
+            throw new IOException("Unexpected checksum routine result");
+        }
+        return response[4] == 0;
+    }
+
+    private int readWord(int address) throws IOException, InterruptedException {
+        // Four bytes of the retained domain's CRC; never infer byte equality
+        // from a multi-byte additive checksum. Bounded at 1024 requests.
+        int word = 0;
+        for (int i = 0; i < 4; i++) {
+            int value = 0;
+            while (value < 256 && !checksumMatches(address + i, 1, value)) {
+                value++;
+            }
+            if (value == 256) {
+                throw new IOException("Cannot read retained CRC through FF01");
+            }
+            word |= value << (i * 8);
+        }
+        return word;
+    }
+
+    private Map<Integer, byte[]> readMetadata() throws IOException, InterruptedException {
+        int[][] limits = {{0xF188, 1, 48}, {0xF189, 1, 48}, {0xF194, 1, 40},
+                {0xF195, 8, 8}, {0xF198, 1, 100}, {0xF199, 8, 8}};
+        Map<Integer, byte[]> result = new LinkedHashMap<>();
+        for (int[] limit : limits) {
+            byte[] response = request(bytes(0x22, limit[0] >>> 8, limit[0]), bytes(0x62, limit[0] >>> 8, limit[0]));
+            int length = response.length - 3;
+            if (length < limit[1] || length > limit[2]) {
+                throw new IOException(String.format("Cannot preserve loader metadata %04X: length %d", limit[0], length));
+            }
+            result.put(limit[0], Arrays.copyOfRange(response, 3, response.length));
+        }
+        return result;
+    }
+
+    private int checkJournalSpace() throws IOException, InterruptedException {
+        // Native I865 NVM init selects the first record with bytes 0 and 8 FF.
+        // Region 6 is an append-only 16-record page; the loader does not erase it.
+        for (int slot = 0; slot < 16; slot++) {
+            int address = 0x0824E000 + slot * 256;
+            if (checksumMatches(address, 1, 255) && checksumMatches(address + 8, 1, 255)) {
+                // 256 * 255 = 65280: maximum sum, with no modulo wrap, proves all FF.
+                if (!checksumMatches(address, 256, 65280)) {
+                    throw new IOException("Next programming-history slot is partially written");
+                }
+                out.accept("Programming-history slot " + slot + "/15 is erased");
+                return slot;
+            }
+        }
+        throw new IOException("OEM programming-history page is full; refusing to erase application or compact protected NVM");
+    }
+
+    private Map<Integer, byte[]> firstMetadata(int softwareCrc) {
+        String date = LocalDate.now(ZoneOffset.UTC).format(DateTimeFormatter.BASIC_ISO_DATE);
+        Map<Integer, byte[]> records = new LinkedHashMap<>();
+        records.put(0xF188, "rusEFI m74_9".getBytes(StandardCharsets.US_ASCII));
+        records.put(0xF189, String.format("M749ACT1-%08X", softwareCrc).getBytes(StandardCharsets.US_ASCII));
+        records.put(0xF194, "rusEFI m74_9".getBytes(StandardCharsets.US_ASCII));
+        records.put(0xF195, date.getBytes(StandardCharsets.US_ASCII));
+        records.put(0xF198, "fw-m74.9 CLI".getBytes(StandardCharsets.US_ASCII));
+        records.put(0xF199, date.getBytes(StandardCharsets.US_ASCII));
+        out.accept("Programming history is empty: creating a tool record with the software CRC and today's UTC date");
+        return records;
+    }
+
+    private void awaitApplication() throws IOException, InterruptedException {
+        IOException last = null;
+        connection.pause(1_000);
+        for (int attempt = 0; attempt < 10; attempt++) {
+            try {
+                if (applicationWord(0xF1A0) == 0x4D740101) {
+                    return;
+                }
+            } catch (IOException e) {
+                last = e;
+            }
+            connection.pause(250);
+        }
+        throw new IOException("Application activation status did not become ready", last);
+    }
+
+    private int applicationWord(int did) throws IOException, InterruptedException {
+        byte[] response = connection.exchange(bytes(0x22, did >>> 8, did), bytes(0x62, did >>> 8, did), 3_000);
+        exact(response, 7);
+        return (response[3] & 255) << 24 | (response[4] & 255) << 16 | (response[5] & 255) << 8 | response[6] & 255;
+    }
+
+    private void verifyApplication(int software, int calibration) throws IOException, InterruptedException {
+        if (applicationWord(0xF1A1) != software || applicationWord(0xF1A2) != calibration ||
+                applicationWord(0xF1A3) != 0x43A0C212) {
+            throw new IOException("Application CRC or persistent boot marker mismatch");
+        }
+    }
+
+    private byte[] request(byte[] request, byte[] prefix) throws IOException, InterruptedException {
+        return connection.exchange(request, prefix, 60_000);
+    }
+
+    private static void routineSucceeded(byte[] response) throws IOException {
+        exact(response, 5);
+        if (response[4] != 0) {
+            throw new IOException("Loader routine failed (result " + (response[4] & 255) + ")");
+        }
+    }
+
+    private static void exact(byte[] response, int length) throws IOException {
+        if (response.length != length) {
+            throw new IOException("Unexpected UDS response length: " + response.length);
+        }
+    }
+
+    private static byte[] addressed(byte[] prefix, int address, int length, int tail) {
+        byte[] result = Arrays.copyOf(prefix, prefix.length + 8 + tail);
+        for (int i = 0; i < 4; i++) {
+            result[prefix.length + i] = (byte) (address >>> (24 - i * 8));
+            result[prefix.length + 4 + i] = (byte) (length >>> (24 - i * 8));
+        }
+        return result;
+    }
+}
