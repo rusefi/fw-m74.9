@@ -23,10 +23,11 @@ class M749CliTest {
             return channels;
         }
 
-        public void identify(PcanDevice.Channel channel, Consumer<String> messages) throws IOException {
+        public List<String> identify(PcanDevice.Channel channel, Consumer<String> messages) throws IOException {
             opened.add(channel.handle);
             if (channel.handle != working) throw new IOException("Open " + channel.handle + ": PCAN_ERROR_NODRIVER");
             messages.accept("VIN result");
+            return Collections.singletonList("VIN: TESTVIN1234567890");
         }
 
         int run(String requested, boolean listOnly) throws IOException, InterruptedException {
@@ -52,6 +53,7 @@ class M749CliTest {
         assertEquals(Arrays.asList(TPCANHandle.PCAN_ISABUS1, TPCANHandle.PCAN_USBBUS1), h.opened);
         assertTrue(h.messages.stream().anyMatch(s -> s.contains("PCAN_ERROR_NODRIVER")));
         assertTrue(h.messages.contains("VIN result"));
+        assertTrue(h.messages.contains("VIN: TESTVIN1234567890"));
     }
 
     @Test

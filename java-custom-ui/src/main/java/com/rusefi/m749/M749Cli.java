@@ -69,7 +69,10 @@ public final class M749Cli {
         for (PcanDevice.Channel channel : candidates) {
             out.accept("Querying M74.9 via " + channel.handle + " at 500 kbit/s (7E0 / 7E8)");
             try {
-                backend.identify(channel, out);
+                List<String> summary = backend.identify(channel, out);
+                for (String line : summary) {
+                    out.accept(line);
+                }
                 return 0;
             } catch (IOException | RuntimeException e) {
                 out.accept("Identification via " + channel.handle + " failed: " + e.getMessage());

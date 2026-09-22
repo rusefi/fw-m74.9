@@ -27,7 +27,8 @@ class M749PanelTest {
             assertEquals(M749Panel.MISSING_COLOR, label.getForeground());
             JTabbedPane tabs = find(panel, JTabbedPane.class, null);
             assertEquals("Messages", tabs.getTitleAt(0));
-            assertFalse(find(panel, JTextArea.class, null).isEditable());
+            assertFalse(find(panel, JTextArea.class, "messages").isEditable());
+            assertFalse(find(panel, JTextArea.class, "status").isEditable());
         });
     }
 
@@ -42,7 +43,7 @@ class M749PanelTest {
                 return Collections.singletonList(new PcanDevice.Channel(TPCANHandle.PCAN_USBBUS1, true));
             }
 
-            public void identify(PcanDevice.Channel channel, Consumer<String> messages) throws InterruptedException {
+            public List<String> identify(PcanDevice.Channel channel, Consumer<String> messages) throws InterruptedException {
                 assertFalse(SwingUtilities.isEventDispatchThread());
                 messages.accept("VIN (DID F190): TESTVIN1234567890");
                 started.countDown();
@@ -51,6 +52,7 @@ class M749PanelTest {
                 } finally {
                     released.countDown();
                 }
+                return Collections.emptyList();
             }
         };
         SwingUtilities.invokeAndWait(() -> {
@@ -62,7 +64,7 @@ class M749PanelTest {
             SwingUtilities.invokeAndWait(() -> {
                 JLabel label = find(panel.get(), JLabel.class, "PCAN detected");
                 assertEquals(M749Panel.DETECTED_COLOR, label.getForeground());
-                assertTrue(find(panel.get(), JTextArea.class, null).getText().contains("TESTVIN1234567890"));
+                assertTrue(find(panel.get(), JTextArea.class, "messages").getText().contains("TESTVIN1234567890"));
                 assertFalse(find(panel.get(), JButton.class, "Scan / query again").isEnabled());
             });
         } finally {
@@ -74,7 +76,7 @@ class M749PanelTest {
     private static <T extends Component> T find(Container root, Class<T> type, String text) {
         for (Component child : root.getComponents()) {
             String caption = child instanceof JLabel ? ((JLabel) child).getText()
-                    : child instanceof JButton ? ((JButton) child).getText() : null;
+                    : child instanceof JButton ? ((JButton) child).getText() : child.getName();
             if (type.isInstance(child) && (text == null || text.equals(caption))) return type.cast(child);
             if (child instanceof Container) {
                 T found = find((Container) child, type, text);

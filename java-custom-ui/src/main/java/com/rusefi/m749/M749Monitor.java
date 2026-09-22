@@ -11,11 +11,13 @@ import java.util.function.Consumer;
 final class M749Monitor {
     interface Backend {
         List<PcanDevice.Channel> scan() throws IOException;
-        void identify(PcanDevice.Channel channel, Consumer<String> messages) throws IOException, InterruptedException;
+        /** @return human-readable status lines for the queried ECU */
+        List<String> identify(PcanDevice.Channel channel, Consumer<String> messages) throws IOException, InterruptedException;
     }
 
     interface View {
         void detection(boolean detected, String detail);
+        void identification(List<String> summary);
         void message(String message);
         void busy(boolean busy);
     }
@@ -37,10 +39,10 @@ final class M749Monitor {
                 return device.scan();
             }
 
-            public void identify(PcanDevice.Channel channel, Consumer<String> messages)
+            public List<String> identify(PcanDevice.Channel channel, Consumer<String> messages)
                     throws IOException, InterruptedException {
                 try (DiagnosticTransport transport = device.open(channel)) {
-                    new M749Identification(transport, messages).run();
+                    return M749Identification.summarize(new M749Identification(transport, messages).run());
                 }
             }
         };
@@ -82,7 +84,7 @@ final class M749Monitor {
                 attempted.add(selected.handle.name());
                 view.message("Querying M74.9 via " + selected.handle + " at 500 kbit/s (7E0 / 7E8)");
                 try {
-                    backend.identify(selected, view::message);
+                    view.identification(backend.identify(selected, view::message));
                     return;
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();

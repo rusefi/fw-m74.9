@@ -17,6 +17,7 @@ public final class M749Panel extends JPanel {
     private final JLabel detail = new JLabel("Scanning for PCAN adapters...");
     private final JLabel activity = new JLabel(" ");
     private final JButton retry = new JButton("Scan / query again");
+    private final JTextArea status = new JTextArea();
     private final JTextArea messages = new JTextArea();
     private final M749Monitor.Backend backend;
     private ScheduledExecutorService worker;
@@ -45,7 +46,15 @@ public final class M749Panel extends JPanel {
         top.add(retry);
         top.add(Box.createVerticalStrut(8));
         top.add(activity);
+        top.add(Box.createVerticalStrut(8));
+        status.setName("status");
+        status.setEditable(false);
+        status.setOpaque(false);
+        status.setFocusable(false);
+        status.setFont(detail.getFont().deriveFont(Font.BOLD));
+        top.add(status);
 
+        messages.setName("messages");
         messages.setEditable(false);
         messages.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
         messages.setRows(14);
@@ -75,6 +84,7 @@ public final class M749Panel extends JPanel {
         int current = ++generation;
         retry.setEnabled(true);
         activity.setText(" ");
+        status.setText("");
         monitor = new M749Monitor(backend, new M749Monitor.View() {
             public void detection(boolean detected, String text) {
                 onEdt(current, () -> {
@@ -83,6 +93,10 @@ public final class M749Panel extends JPanel {
                     detail.setText(text);
                     detail.setToolTipText(text);
                 });
+            }
+
+            public void identification(java.util.List<String> summary) {
+                onEdt(current, () -> status.setText(String.join("\n", summary)));
             }
 
             public void message(String message) {

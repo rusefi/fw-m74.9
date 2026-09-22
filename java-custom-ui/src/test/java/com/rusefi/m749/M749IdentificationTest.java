@@ -21,8 +21,8 @@ class M749IdentificationTest {
         boolean zeroSeed;
         int flowControls;
 
-        void run() throws IOException, InterruptedException {
-            new M749Identification(this, messages::add, this).run();
+        Map<Integer, byte[]> run() throws IOException, InterruptedException {
+            return new M749Identification(this, messages::add, this).run();
         }
 
         public void send(byte[] frame) {
@@ -92,15 +92,41 @@ class M749IdentificationTest {
     @Test
     void authenticatesAndReadsAllRecordsIncludingMultiFrameVin() throws Exception {
         Harness h = new Harness();
-        h.run();
+        Map<Integer, byte[]> values = h.run();
         // Independent selector-00 vector: 35 rounds with the application polynomial.
         assertArrayEquals(bytes(6, 0x27, 2, 0xD3, 0x50, 0xD7, 0xF8, 0xCC), h.sent.get(2));
-        assertEquals(26, h.dids.size());
-        assertEquals(26, new HashSet<>(h.dids).size());
-        assertEquals(Integer.valueOf(0xFD09), h.dids.get(25));
+        assertEquals(17, h.dids.size());
+        assertEquals(17, new HashSet<>(h.dids).size());
+        assertEquals(Integer.valueOf(0xFD05), h.dids.get(16));
         assertEquals(1, h.flowControls);
         assertTrue(h.messages.stream().anyMatch(s -> s.contains("VIN (DID F190)") && s.contains("TESTVIN1234567890")));
-        assertEquals("Identification complete: 26 read, 0 unavailable", h.messages.get(h.messages.size() - 1));
+        assertEquals("Identification complete: 17 read, 0 unavailable", h.messages.get(h.messages.size() - 1));
+        assertArrayEquals("TESTVIN1234567890".getBytes(StandardCharsets.US_ASCII), values.get(0xF190));
+    }
+
+    @Test
+    void summaryPicksKeyRecordsAndTrimsPadding() {
+        Map<Integer, byte[]> values = new HashMap<>();
+        values.put(0xF190, "TESTVIN1234567890".getBytes(StandardCharsets.US_ASCII));
+        values.put(0xF189, "I812TA01_w2243v21\0\0".getBytes(StandardCharsets.US_ASCII));
+        values.put(0xF195, "20221027".getBytes(StandardCharsets.US_ASCII));
+        values.put(0xF193, "2581_3765_320_R07".getBytes(StandardCharsets.US_ASCII));
+        values.put(0xF192, "8450086874".getBytes(StandardCharsets.US_ASCII));
+        values.put(0xF18A, "Itelma LLC".getBytes(StandardCharsets.US_ASCII));
+        values.put(0xF18C, "0008354".getBytes(StandardCharsets.US_ASCII));
+        values.put(0xF18B, "20230314".getBytes(StandardCharsets.US_ASCII));
+        assertEquals(Arrays.asList(
+                "VIN: TESTVIN1234567890",
+                "Software: I812TA01_w2243v21, built 20221027",
+                "Hardware: 2581_3765_320_R07, part 8450086874",
+                "ECU: Itelma LLC, serial 0008354, manufactured 20230314"), M749Identification.summarize(values));
+        values.remove(0xF18A);
+        values.remove(0xF195);
+        assertTrue(M749Identification.summarize(values).contains("Software: I812TA01_w2243v21"));
+        assertTrue(M749Identification.summarize(values).contains("ECU: 0008354, manufactured 20230314"));
+        assertTrue(M749Identification.summarize(new HashMap<>()).isEmpty());
+        values.put(0xF190, bytes(0, 0, 0));
+        assertFalse(M749Identification.summarize(values).toString().contains("VIN"));
     }
 
     @Test
@@ -120,7 +146,7 @@ class M749IdentificationTest {
         };
         h.run();
         assertTrue(h.messages.contains("DID F192: unavailable (NRC 31)"));
-        assertEquals("Identification complete: 25 read, 1 unavailable", h.messages.get(h.messages.size() - 1));
+        assertEquals("Identification complete: 16 read, 1 unavailable", h.messages.get(h.messages.size() - 1));
     }
 
     @Test
@@ -133,7 +159,7 @@ class M749IdentificationTest {
             h.normalReply(request);
         };
         h.run();
-        assertEquals(26, h.dids.size());
+        assertEquals(17, h.dids.size());
     }
 
     @Test
@@ -200,17 +226,17 @@ class M749IdentificationTest {
     void longResponseWrapsSequenceAndKeepsBinaryDataPrintable() throws Exception {
         Harness h = new Harness();
         h.responder = request -> {
-            if (Arrays.equals(request, bytes(0x22, 0xFD, 0x09))) {
+            if (Arrays.equals(request, bytes(0x22, 0xFD, 0x02))) {
                 byte[] payload = new byte[150];
                 payload[0] = 0x62;
                 payload[1] = (byte) 0xFD;
-                payload[2] = 9;
+                payload[2] = 2;
                 h.reply(payload);
             } else h.normalReply(request);
         };
         h.run();
         assertEquals(2, h.flowControls);
-        assertTrue(h.messages.stream().anyMatch(s -> s.startsWith("DID FD09: 147 bytes")));
+        assertTrue(h.messages.stream().anyMatch(s -> s.startsWith("DID FD02: 147 bytes")));
         assertEquals(".A..", M749Identification.ascii(bytes(0, 65, 127, 255)));
     }
 

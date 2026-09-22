@@ -3,16 +3,21 @@ package com.rusefi.m749;
 import com.rusefi.uds.M74_9_SeedKeyCalculator;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /** Bounded session-03 authentication and individual identity reads. No programming services. */
 final class M749Identification {
+    // DIDs the real M74.9 rejects with NRC 31 are omitted:
+    // F180, F183, F18D, F18E, F191, F197, F198, F199, FD09.
     static final int[] DIDS = {
             0xF186, 0xF192, 0xF193, 0xF194, 0xF195, 0xF188, 0xF189,
-            0xF180, 0xF183, 0xF18A, 0xF18B, 0xF18C, 0xF18D, 0xF18E,
-            0xF190, 0xF191, 0xF197, 0xF198, 0xF199,
-            0xFD00, 0xFD01, 0xFD02, 0xFD03, 0xFD04, 0xFD05, 0xFD09
+            0xF18A, 0xF18B, 0xF18C, 0xF190,
+            0xFD00, 0xFD01, 0xFD02, 0xFD03, 0xFD04, 0xFD05
     };
 
     interface Timing {
@@ -38,7 +43,7 @@ final class M749Identification {
         this.timing = timing;
     }
 
-    void run() throws IOException, InterruptedException {
+    Map<Integer, byte[]> run() throws IOException, InterruptedException {
         overallDeadline = timing.now() + 15_000;
         messages.accept("M74.9: starting extended diagnostic session 03");
         requireLength(exchange(bytes(0x10, 0x03)), 6);
@@ -55,7 +60,7 @@ final class M749Identification {
         }
 
         overallDeadline = timing.now() + 90_000;
-        int read = 0;
+        Map<Integer, byte[]> values = new LinkedHashMap<>();
         int unavailable = 0;
         for (int did : DIDS) {
             try {
@@ -63,14 +68,44 @@ final class M749Identification {
                 byte[] value = Arrays.copyOfRange(response, 3, response.length);
                 messages.accept(String.format("%s: %d bytes | hex=%s | ASCII=%s",
                         label(did), value.length, hex(value), ascii(value)));
-                read++;
+                values.put(did, value);
             } catch (NegativeResponse e) {
                 messages.accept(String.format("%s: unavailable (NRC %02X)", label(did), e.code));
                 unavailable++;
             }
             timing.pause(50);
         }
-        messages.accept("Identification complete: " + read + " read, " + unavailable + " unavailable");
+        messages.accept("Identification complete: " + values.size() + " read, " + unavailable + " unavailable");
+        return values;
+    }
+
+    /** Human-readable status from the most useful identity records, in display order. */
+    static List<String> summarize(Map<Integer, byte[]> values) {
+        List<String> summary = new ArrayList<>();
+        String vin = text(values.get(0xF190));
+        if (vin != null) summary.add("VIN: " + vin);
+        append(summary, "Software: ", text(values.get(0xF189)), ", built ", text(values.get(0xF195)));
+        append(summary, "Hardware: ", text(values.get(0xF193)), ", part ", text(values.get(0xF192)));
+        String supplier = text(values.get(0xF18A));
+        String serial = text(values.get(0xF18C));
+        append(summary, "ECU: ", supplier == null ? serial : serial == null ? supplier : supplier + ", serial " + serial,
+                ", manufactured ", text(values.get(0xF18B)));
+        return summary;
+    }
+
+    private static void append(List<String> summary, String prefix, String main, String separator, String extra) {
+        if (main != null) {
+            summary.add(prefix + main + (extra == null ? "" : separator + extra));
+        }
+    }
+
+    /** Printable text with trailing padding (NULs etc) removed, or null when nothing printable. */
+    private static String text(byte[] value) {
+        int end = value == null ? 0 : value.length;
+        while (end > 0 && ((value[end - 1] & 0xFF) < 32 || (value[end - 1] & 0xFF) > 126)) {
+            end--;
+        }
+        return end == 0 ? null : ascii(Arrays.copyOf(value, end));
     }
 
     private byte[] exchange(byte[] request) throws IOException, InterruptedException {

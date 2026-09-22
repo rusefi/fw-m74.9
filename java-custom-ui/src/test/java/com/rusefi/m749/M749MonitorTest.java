@@ -18,6 +18,7 @@ class M749MonitorTest {
         final M749Monitor monitor = new M749Monitor(this, this);
         final List<String> messages = new ArrayList<>();
         final List<TPCANHandle> opened = new ArrayList<>();
+        final List<List<String>> summaries = new ArrayList<>();
         List<PcanDevice.Channel> channels = Collections.emptyList();
         Set<TPCANHandle> dead = Collections.emptySet();
         boolean detected;
@@ -37,16 +38,18 @@ class M749MonitorTest {
             return channels;
         }
 
-        public void identify(PcanDevice.Channel channel, Consumer<String> messages) throws IOException {
+        public List<String> identify(PcanDevice.Channel channel, Consumer<String> messages) throws IOException {
             assertTrue(busy);
             opened.add(channel.handle);
             queries++;
             if (dead.contains(channel.handle)) throw new IOException("Open " + channel.handle + ": PCAN_ERROR_NODRIVER");
             if (failQuery) throw new IOException("ECU timeout");
             messages.accept("VIN result");
+            return Collections.singletonList("VIN: TESTVIN1234567890");
         }
 
         public void detection(boolean detected, String detail) { this.detected = detected; }
+        public void identification(List<String> summary) { summaries.add(summary); }
         public void message(String message) { messages.add(message); }
         public void busy(boolean busy) { this.busy = busy; }
     }
@@ -63,6 +66,7 @@ class M749MonitorTest {
         assertTrue(h.detected);
         assertEquals(1, h.queries);
         assertTrue(h.messages.contains("VIN result"));
+        assertEquals(Collections.singletonList("VIN: TESTVIN1234567890"), h.summaries.get(0));
         h.channels = Collections.emptyList();
         h.monitor.poll(false);
         assertFalse(h.detected);
@@ -82,6 +86,7 @@ class M749MonitorTest {
         assertFalse(h.busy);
         assertEquals(1, h.queries);
         assertTrue(h.messages.stream().anyMatch(s -> s.contains("ECU timeout")));
+        assertTrue(h.summaries.isEmpty());
         h.monitor.poll(true);
         assertEquals(2, h.queries);
     }
