@@ -5,8 +5,10 @@ The Java CLI programs the I865 OEM resident loader over standard CAN IDs
 and the application activation routine pass their software checks. Normal
 paired IMMO authorization and programming-session
 entry have been validated on the restored I865 bench using native Windows PCAN.
-Live flashing and a physical power cycle of the replacement firmware remain
-unvalidated.
+The first live upload transferred every software byte and restored the normal
+boot marker, but a scheduler-priority startup error prevented CAN readiness
+confirmation. A corrected image is built; its hardware validation and physical
+power-cycle confirmation remain pending.
 
 ## Commands
 
@@ -240,8 +242,11 @@ all 24 expected bytes, and Windows upload preflight accepted the compact file
 with software CRC 59F9BC66. Live CAN capture saved all 24 bytes to ecu-can.pair;
 a second pass verified every saved byte. All captured bytes match the original
 backup. Interrupted-read resume has unit coverage; the live second pass used
-a complete file. Memory-contract and activation checks also pass. Full flash transfer, persistent activation and interrupted-
-power recovery still require hardware validation.
+a complete file. Memory-contract and activation checks also pass. The first hardware transfer matches the complete input image
+byte-for-byte, and the normal boot marker is set. Readiness confirmation failed
+after a scheduler-priority startup error; the corrected firmware still needs
+hardware validation, confirmation resets and a physical cold boot. Interrupted-
+power recovery remains unvalidated.
 
 OpenBLT replacement and generic AT32 MFS layouts are incompatible with this
 resident-loader contract. The local narrow bank-2 driver follows the register

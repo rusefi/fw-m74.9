@@ -1,6 +1,9 @@
 #include "pch.h"
 #include "boot_activation.h"
 
+static_assert(STM32_PWM_TIM5_IRQ_PRIORITY == EFI_IRQ_SCHEDULING_TIMER_PRIORITY,
+    "M74.9 TIM5 interrupt priority must match the scheduler contract");
+
 extern volatile uint32_t m749BootIntent;
 
 // Address and bytes are part of the CLI/firmware ABI. The linker reserves them.

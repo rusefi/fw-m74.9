@@ -17,6 +17,10 @@ DDEFS += -DLED_CRITICAL_ERROR_BRAIN_PIN=Gpio::Unassigned
 
 IS_AT32F435 = yes
 
+# TIM5 drives the microsecond scheduler through the PWM HAL. Its default IRQ
+# priority is 7, but the scheduling contract requires priority 3 on this port.
+DDEFS += -DSTM32_PWM_TIM5_IRQ_PRIORITY=EFI_IRQ_SCHEDULING_TIMER_PRIORITY
+
 # Use a distinct filename so simulator VPATH cannot select the hardware board.c.
 BOARD_C = $(BOARD_DIR)/m74_9_board.c
 # board.h from this directory

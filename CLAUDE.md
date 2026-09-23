@@ -43,3 +43,9 @@ rusEFI submodule; leave those generated changes unstaged.
   are known values. Resume verifies saved entries before filling missing bytes.
   Reading can request session 02 and reset into the loader, but a rejected
   programming transition stops before security/checksum requests.
+
+- AT32's TIM5 scheduler uses the STM32 PWM HAL. Set
+  STM32_PWM_TIM5_IRQ_PRIORITY to EFI_IRQ_SCHEDULING_TIMER_PRIORITY; the generic
+  STM32_IRQ_TIM5_PRIORITY setting does not replace that driver's priority.
+  The HAL default 7 conflicts with the scheduler's 3, raises a critical startup
+  error and prevents CAN initialization even after successful boot activation.
