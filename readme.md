@@ -1,5 +1,7 @@
 Custom firmware for M74.9 ECUs
 
+https://rusefi.com/build_server/rusefi_bundle_re74.9.zip
+
 Board configuration starts from rusEFI `firmware/config/boards/m74_9`
 for the AT32F435ZMT7 MCU and L9779 driver. The build entry point is
 `bash compile_firmware.sh`.
