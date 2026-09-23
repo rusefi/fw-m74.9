@@ -49,3 +49,9 @@ rusEFI submodule; leave those generated changes unstaged.
   STM32_IRQ_TIM5_PRIORITY setting does not replace that driver's priority.
   The HAL default 7 conflicts with the scheduler's 3, raises a critical startup
   error and prevents CAN initialization even after successful boot activation.
+
+- A running M74.9 rusEFI image can be quiet between diagnostic requests. Older
+  installed images answer F1A0..F1A3 but not OEM session/identity DIDs, including
+  F186. A timeout on F186 does not mean the ECU is absent or needs a power cycle.
+  Confirm the M749ACT1 interface separately from the general rusEFI identity;
+  other rusEFI boards need not use the I865 resident loader.

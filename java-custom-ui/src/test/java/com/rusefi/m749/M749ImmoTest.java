@@ -44,13 +44,25 @@ class M749ImmoTest {
         final Queue<Frame> incoming = new ArrayDeque<>();
         final List<Frame> sent = new ArrayList<>();
         final Clock clock = new Clock();
-        boolean loader, missingNonce, competingPeer, badProof, badAck, missingProof, badLength;
+        boolean loader, rusefi, genericRusefi, missingNonce, competingPeer, badProof, badAck, missingProof, badLength;
         int immoFrames;
         long proofAt;
 
         public void sendCan(int id, byte[] data) {
             sent.add(new Frame(id, data));
             if (id == 0x7E0) {
+                if (rusefi || genericRusefi) {
+                    if (genericRusefi && Arrays.equals(hex("0322f1a4cccccccc"), data)) {
+                        incoming.add(new Frame(0x7E8, hex("0762f1a472454649")));
+                    } else if (rusefi && Arrays.equals(hex("0322f1a0cccccccc"), data)) {
+                        incoming.add(new Frame(0x7E8, hex("0762f1a04d740101")));
+                    }
+                    return;
+                }
+                if (data[3] == (byte) 0xA4 || data[3] == (byte) 0xA0) {
+                    incoming.add(new Frame(0x7E8, hex("037f223100000000")));
+                    return;
+                }
                 assertArrayEquals(hex("0322f186cccccccc"), data);
                 incoming.add(new Frame(0x7E8, hex(loader ? "0462f18602cccccc" : "0462f18601cccccc")));
                 if (competingPeer) {
@@ -92,10 +104,26 @@ class M749ImmoTest {
         new M749Immo(KEY, REFERENCE).authorize(bus, s -> {}, bus.clock, PEER, 1000);
     }
 
+    @Test void installedRusefiNeedsNoUnsupportedSessionDidOrPowerCycle() throws Exception {
+        Bus bus = new Bus();
+        bus.rusefi = true;
+        authorize(bus);
+        assertEquals(2, bus.sent.size());
+        assertEquals(0, bus.immoFrames);
+    }
+
+    @Test void genericRusefiStopsBeforeOemAuthentication() {
+        Bus bus = new Bus();
+        bus.genericRusefi = true;
+        assertTrue(assertThrows(IOException.class, () -> authorize(bus)).getMessage().contains("not confirmed"));
+        assertEquals(2, bus.sent.size());
+        assertEquals(0, bus.immoFrames);
+    }
+
     @Test void normalExchangeMatchesExpectedProofsAndPermission() throws Exception {
         Bus bus = new Bus();
         authorize(bus);
-        assertEquals(4, bus.sent.size());
+        assertEquals(6, bus.sent.size());
         assertEquals(3, bus.immoFrames);
         assertTrue(bus.clock.now() >= 280);
     }
@@ -104,7 +132,7 @@ class M749ImmoTest {
         Bus bus = new Bus();
         bus.loader = true;
         authorize(bus);
-        assertEquals(1, bus.sent.size());
+        assertEquals(3, bus.sent.size());
         assertEquals(0, bus.immoFrames);
     }
 

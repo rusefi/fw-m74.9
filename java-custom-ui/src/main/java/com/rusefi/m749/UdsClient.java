@@ -9,6 +9,10 @@ final class UdsClient implements M749Uploader.Connection {
     private final DiagnosticTransport transport;
     private final M749Identification.Timing clock;
 
+    static final class Timeout extends IOException {
+        Timeout() { super("ISO-TP/UDS timeout; request was not retried"); }
+    }
+
     static final class NegativeResponse extends IOException {
         final int code;
 
@@ -187,7 +191,7 @@ final class UdsClient implements M749Uploader.Connection {
             throw new InterruptedException("Upload interrupted");
         }
         if (clock.now() >= deadline) {
-            throw new IOException("ISO-TP/UDS timeout; request was not retried");
+            throw new Timeout();
         }
     }
 

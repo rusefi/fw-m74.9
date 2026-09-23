@@ -71,6 +71,14 @@ final class M749Immo {
         if (peerNonce.length != 8 || timeout <= 0) {
             throw new IllegalArgumentException("Invalid IMMO nonce/deadline");
         }
+        M749FirmwareDetection.Result firmware = M749FirmwareDetection.detect(new UdsClient(transport, clock));
+        if (firmware.m749) {
+            out.accept(firmware.description + "; no OEM startup authentication or power cycle needed");
+            return;
+        }
+        if (firmware == M749FirmwareDetection.Result.RUSEFI) {
+            throw new IOException("rusEFI detected without M749ACT1; OEM programming entry is not confirmed");
+        }
         // Already in the OEM loader: no startup IMMO exchange is needed.
         byte[] session = new UdsClient(transport, clock).exchange(bytes(0x22, 0xF1, 0x86),
                 bytes(0x62, 0xF1, 0x86), 2_000);

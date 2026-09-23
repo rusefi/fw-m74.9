@@ -7,10 +7,38 @@ paired IMMO authorization and programming-session
 entry have been validated on the restored I865 bench using native Windows PCAN.
 The first live upload transferred every software byte and restored the normal
 boot marker, but a scheduler-priority startup error prevented CAN readiness
-confirmation. A corrected image is built; its hardware validation and physical
-power-cycle confirmation remain pending.
+confirmation. The corrected image (CRC D30E5B07) now reports all activation values correctly
+after a bench power cycle, with the OEM loader regions preserved. Recovery from
+power interruption during flashing remains unvalidated.
 
 ## Commands
+
+Identify either OEM firmware or rusEFI without a power cycle:
+
+```bat
+bin\m749-cli.bat PCAN_USBBUS1
+```
+
+The CLI first makes read-only UDS queries on 7E0/7E8. An exact reply to private
+DID F1A4 containing four ASCII bytes `rEFI` identifies rusEFI. Older M74.9
+images are recognized by F1A0 = 4D740101 (M749ACT1 ready) or 4D740100
+(M749ACT1 not ready). Silence and unrelated replies do not identify firmware.
+Each optional query has a two-second timeout. If neither identity matches,
+the CLI continues with its OEM extended-session identification procedure.
+
+When `--pair-file` or `--immo-backup` is supplied for programming, a recognized
+M749ACT1 application skips OEM startup authentication: no power cycle is needed.
+A generic rusEFI identity alone does not establish OEM-loader support, so that
+case stops before authorization. Activation readiness remains a separate check
+after programming; identity alone does not prove successful activation.
+
+The shared rusEFI identity service is compiled with `EFI_UDS=TRUE` (default
+false; enabled for the upstream M74.9 board). The board checkout's pinned
+rusEFI submodule must include that service before building a new F1A4-capable
+image. Existing M749ACT1 images work with this CLI through F1A0.
+
+Every CLI output line starts with elapsed whole seconds since CLI startup,
+for example `[  12] Transfer ...`. This also applies to errors and library logs.
 
 Build with Java 11 and the checked-in Gradle wrapper:
 
@@ -194,7 +222,9 @@ Confirm the installed firmware using identification only:
 bin\m749-cli.bat PCAN_USBBUS1
 ```
 
-This enters extended session 03, authenticates and reads identification DIDs.
+For OEM firmware this enters extended session 03, authenticates and reads
+identification DIDs. Recognized rusEFI firmware is reported using read-only
+identity queries, without entering an OEM session.
 It sends no flash erase/download requests. Capture its output, particularly
 session/authentication results and DID F189. NRC 22 alone does not identify a
 specific unmet condition. The replacement firmware checks that the engine is
@@ -232,6 +262,30 @@ The payload whitelist still excludes every loader/metadata/NVM region. The only
 additional writes are the resident loader's own programming-state/history
 transactions and the application's narrow, CRC-gated validity-page transaction.
 
+## Power interruption and recovery
+
+This updater is not yet validated for power-loss recovery. It updates the sole
+application in place; there is no second image or automatic rollback.
+
+Before the first application erase, the OEM loader changes the persistent
+marker to programming state. During erase/download/verification, the intended
+recovery path is to remain in the preserved OEM loader and retry the complete
+image over CAN. Firmware transfers do not resume at the last completed block.
+This is the expected protocol behavior, not a successful hardware power-cut test.
+
+Interruption during programming-record writes can leave metadata that the CLI
+refuses to reuse. During final activation, the application erases and restores
+a 4 KiB marker page using a RAM copy, then writes the normal marker last.
+Loss of power during this operation can lose the saved page or leave a partial
+marker. Automatic CAN recovery is not established for those states; J-Link
+recovery may be necessary. The upload payload excludes the OEM loader, but that
+alone does not prove that every power-cut state is recoverable over CAN.
+
+The bench has demonstrated J-Link OEM restoration following a firmware startup
+failure. That is separate from power-cut validation. Recovery testing must
+cover application erase, transfer, metadata and marker publication before this
+can be described as safe for unattended field updates.
+
 ## Validation and limits
 
 All 72 Java M749 tests pass, covering image preflight, ISO-TP, checksum byte
@@ -243,10 +297,12 @@ with software CRC 59F9BC66. Live CAN capture saved all 24 bytes to ecu-can.pair;
 a second pass verified every saved byte. All captured bytes match the original
 backup. Interrupted-read resume has unit coverage; the live second pass used
 a complete file. Memory-contract and activation checks also pass. The first hardware transfer matches the complete input image
-byte-for-byte, and the normal boot marker is set. Readiness confirmation failed
-after a scheduler-priority startup error; the corrected firmware still needs
-hardware validation, confirmation resets and a physical cold boot. Interrupted-
-power recovery remains unvalidated.
+byte-for-byte, and the normal boot marker is set. The original readiness check failed
+after a scheduler-priority startup error. The corrected D30E5B07 image now
+reports readiness, both expected CRCs and the normal marker after a bench
+power cycle; its loader regions match the original backup. The full corrected
+upload transaction was not observed here. Interrupted-power recovery remains
+unvalidated.
 
 OpenBLT replacement and generic AT32 MFS layouts are incompatible with this
 resident-loader contract. The local narrow bank-2 driver follows the register

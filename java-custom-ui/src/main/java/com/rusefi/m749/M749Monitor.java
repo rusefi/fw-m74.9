@@ -42,6 +42,10 @@ final class M749Monitor {
             public List<String> identify(PcanDevice.Channel channel, Consumer<String> messages)
                     throws IOException, InterruptedException {
                 try (DiagnosticTransport transport = device.open(channel)) {
+                    M749FirmwareDetection.Result firmware = M749FirmwareDetection.detect(new UdsClient(transport));
+                    if (firmware != M749FirmwareDetection.Result.UNKNOWN) {
+                        return java.util.Collections.singletonList(firmware.description);
+                    }
                     return M749Identification.summarize(new M749Identification(transport, messages).run());
                 }
             }
