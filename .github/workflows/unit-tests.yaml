@@ -27,6 +27,9 @@ jobs:
       - name: Test M74.9 memory layout and bootloader contract
         run: python3 -m unittest discover -s tests -p 'test_memory_contract.py' -v
 
+      - name: Test M74.9 bundle packaging
+        run: python3 -m unittest discover -s tests -p 'test_bundle_packaging.py' -v
+
       - name: Test and package M74.9 Java UI
         shell: bash
         run: bash bin/java-ui.sh --console=plain :custom-java-ui:test :ui:shadowJar

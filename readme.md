@@ -146,6 +146,11 @@ driver and matching native libraries. Missing libraries are reported in Messages
 
 The packaged console is `ext/rusefi/console/rusefi_console.jar`. Local bundle
 and CI builds also include the custom module through `RUSEFI_CUSTOM_JAVA_UI_DIR`.
+Build both ZIPs with `bash _compile_bundle.sh`. Extract the full bundle and run
+`rusefi_updater.exe` on Windows or `rusefi_updater.sh` on Linux/macOS to open the
+console. Windows PCAN DLLs are included beside the JAR; the PEAK driver and a
+compatible Java installation are still required. STM32 flashing tools and
+replacement bootloaders remain excluded because M74.9 uses its OEM loader.
 Closing the Sandbox or disposing the tab cancels the query and releases its
 PCAN channel.
 

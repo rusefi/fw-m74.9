@@ -9,6 +9,7 @@ ALLXASMSRC += $(BOARD_DIR)/firmware/m749_startup.S
 BOARD_IMAGE_SCRIPT = $(BOARD_DIR)/bin/m749_image.py
 BOARD_IMAGE_README = $(BOARD_DIR)/readme.md
 DO_NOT_BUNDLE_STM32_PROG = yes
+BUNDLE_PCAN = yes
 ifneq ($(filter yes,$(USE_OPENBLT)),)
 $(error M74.9 uses its resident OEM loader; OpenBLT replacement is forbidden)
 endif
