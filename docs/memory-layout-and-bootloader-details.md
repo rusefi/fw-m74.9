@@ -31,12 +31,40 @@ All ranges below use inclusive CPU addresses.
 | `0x08260000-0x0826FFFF` | 64 KiB | Reserved/erased flash | Preserve. |
 | `0x08270000-0x08273FFF` | 16 KiB | Emulated EEPROM backing store 1 | Preserve. |
 | `0x08274000-0x08274FFF` | 4 KiB | High NVM | Preserve. |
-| `0x08275000-0x083EFFFF` | 1516 KiB | Unclassified flash | Preserve. |
+| `0x08275000-0x082FFFFF` | 556 KiB | Unclassified flash | Preserve. |
+| `0x08300000-0x0833FFFF` | 256 KiB | rusEFI MFS bank 0 | Runtime settings storage; preserve during firmware updates. |
+| `0x08340000-0x0837FFFF` | 256 KiB | rusEFI MFS bank 1 | Runtime settings storage; preserve during firmware updates. |
+| `0x08380000-0x083EFFFF` | 448 KiB | Unclassified flash | Preserve. |
 
 For an application-only writer, the sole permitted destination window is
 `0x08001000-0x080FFFFF`. The calibration subrange and both CRC trailers still
 require separate handling inside that window. Broad address acceptance by the
 bootloader is not permission to overwrite its vectors, code, state, or NVM.
+
+### rusEFI settings storage
+
+The board uses ChibiOS MFS on EFLD2 with two 256 KiB banks. Physical erase
+sectors are 4 KiB: bank 0 uses sectors 256-319 and bank 1 uses sectors 320-383,
+relative to the MCU bank-2 base at `0x08200000`. Startup checks the flash
+descriptor's base, sector geometry and capacity before allowing MFS to mount.
+The generic AT32 MFS configuration at sectors 0 and 32 must never be used here;
+it overlaps OEM boot state and loader code.
+
+Primary and backup settings are MFS records 1 and 2. They are not assigned one
+per bank: MFS appends records and moves live records between banks during
+garbage collection. Other enabled persistent pages use the same MFS backend.
+Normal storage writes are deferred while the engine is running. The existing
+self-stimulation exception and explicitly forced-save commands remain available.
+
+These allocations are separate from the OEM calibration/data domain at
+`0x08060000-0x0807FFFF`, whose contents and CRC remain unchanged by a tune burn.
+The application linker and update payload whitelist exclude both MFS banks.
+
+The MFS allocation repurposes previously unclassified flash; it does not prove
+that the OEM software never uses these pages. Preserve their original contents
+before deployment. MFS may erase/initialize the banks on first boot, even
+before a tune burn. Hardware validation of retention, power interruption and
+garbage collection is still required.
 
 ## Deployment artifacts and tools
 

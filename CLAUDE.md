@@ -12,6 +12,10 @@
 
 - The I865 OEM resident loader is not OpenBLT. OpenBLT replacement and generic
   AT32 MFS memory layouts must not be applied to an ECU retaining the OEM loader.
+  M74.9 uses its own two 256 KiB MFS banks at 0x08300000-0x0837FFFF. Preserve
+  them during software updates; do not substitute the generic sector 0/32 layout.
+  These pages were previously unclassified; OEM non-use and storage reliability
+  still require hardware validation. MFS can initialize/erase banks during mount.
 - The Artery port actually built by this checkout lives in ChibiOS, not the
   similarly named AT32 driver under ChibiOS-Contrib. Its bank-2 register view is
   `FLASH2` at 0x40023C40, with `KEYR`, `STS`, `CTRL`, `ADDR`; names differ from

@@ -50,9 +50,16 @@ confirmed CAN transmission does the application write `0x4DF9123B` to SRAM and
 reset. Timeout/error leaves the application running. Suppressed-response requests
 are rejected, since this handoff requires the positive response.
 
-**Settings are currently volatile.** The generic AT32 MFS backend overwrites
-protected loader flash, so it is disabled. Tune and learned-data changes do not
-persist across reset until a compatible calibration storage backend is implemented.
+Tune and learned-data persistence uses two 256 KiB MFS banks at
+`0x08300000-0x0833FFFF` and `0x08340000-0x0837FFFF`. Primary and backup tune
+records are managed by MFS; its banks alternate during garbage collection.
+Software uploads preserve both banks. This storage is separate from the OEM
+calibration domain and does not change its CRC.
+
+These banks allocate part of the previously unclassified high flash. OEM use of
+these pages has not been ruled out on hardware. MFS can initialize/erase them on
+first boot; preserve their original contents before deploying this firmware.
+Tune retention, interrupted writes and garbage collection need bench validation.
 Bench verification of CAN acknowledgement/reset timing and actual resident-loader
 boot remains required; host tests and cross-compilation cannot establish it.
 

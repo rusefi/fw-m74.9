@@ -227,6 +227,12 @@ int getBoardMetaDcOutputsCount() {
     return 1;
 }
 void setup_custom_board_overrides() {
+#if EFI_CONFIGURATION_STORAGE
+	// Internal bank-2 writes/collection can stall the CPU, including LTFT saves.
+	custom_board_allowFlashNow = []() {
+		return engine->triggerCentral.directSelfStimulation || engine->rpmCalculator.isStopped();
+	};
+#endif
 #if EFI_PROD_CODE
 	initM749BootloaderHandoff();
 	custom_board_InitHardwareEarly = initM749BootActivation;
