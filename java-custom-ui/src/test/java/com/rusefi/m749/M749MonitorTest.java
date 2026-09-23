@@ -132,6 +132,20 @@ class M749MonitorTest {
     }
 
     @Test
+    void explicitSelectionNeverQueriesAnotherAdapter() {
+        Harness h = new Harness();
+        h.channels = Arrays.asList(
+                new PcanDevice.Channel(TPCANHandle.PCAN_USBBUS1, true),
+                new PcanDevice.Channel(TPCANHandle.PCAN_USBBUS2, true));
+        h.dead = Collections.singleton(TPCANHandle.PCAN_USBBUS2);
+        h.monitor.poll(true, "PCAN_USBBUS2");
+        assertEquals(Collections.singletonList(TPCANHandle.PCAN_USBBUS2), h.opened);
+        assertTrue(h.summaries.isEmpty());
+        h.monitor.poll(true, "PCAN_USBBUS9");
+        assertEquals(1, h.opened.size());
+    }
+
+    @Test
     void transientScanFailureDoesNotCauseAnotherAuthentication() {
         Harness h = new Harness();
         h.connected(true);

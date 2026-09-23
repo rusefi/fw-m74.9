@@ -35,6 +35,7 @@ tasks.register('runM749Tab', JavaExec) {
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.rusefi.m749.M749TabSandbox'
     workingDir = rootProject.file('java_console')
+    systemProperty 'input_files_path', rootProject.file('firmware/build').absolutePath
     systemProperty 'java.library.path', rootProject.file('java_console').absolutePath +
             File.pathSeparator + System.getProperty('java.library.path')
 }

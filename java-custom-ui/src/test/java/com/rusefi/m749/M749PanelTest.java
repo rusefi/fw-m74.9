@@ -56,7 +56,7 @@ class M749PanelTest {
             }
         };
         SwingUtilities.invokeAndWait(() -> {
-            panel.set(new M749Panel(backend));
+            panel.set(new M749Panel(backend, () -> { throw new java.io.IOException("No test firmware"); }));
             panel.get().addNotify();
         });
         try {

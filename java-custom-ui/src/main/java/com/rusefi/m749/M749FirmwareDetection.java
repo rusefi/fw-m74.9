@@ -9,6 +9,7 @@ import static com.rusefi.m749.M749Identification.bytes;
 final class M749FirmwareDetection {
     enum Result {
         UNKNOWN("No rusEFI identity response", false),
+        OEM("OEM firmware detected", false),
         RUSEFI("rusEFI (UDS identity F1A4; M749ACT1 not confirmed)", false),
         M749_READY("rusEFI (M749ACT1; activation ready)", true),
         M749_NOT_READY("rusEFI (M749ACT1; activation NOT ready)", true);

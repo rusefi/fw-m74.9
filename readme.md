@@ -38,7 +38,7 @@ python3 bin/m749_image.py --calibration --format hex calibration.bin calibration
 
 The tool checks the write whitelist and complete page ranges and computes each
 CRC independently using CRC-32/MPEG-2. It performs no device writes or activation.
-The Java tab remains identification-only. The CLI validates both CRC domains,
+The Java tab and CLI validate both CRC domains,
 activation and application startup before reporting a completed upload;
 transfer-exit alone is insufficient. See [CLI usage and limitations](docs/cli-uploader.md).
 
@@ -65,6 +65,31 @@ The custom console tab scans for PCAN adapters in the background. Its indicator
 shows green **PCAN detected** or red **PCAN not detected**. On detection it uses
 the first available channel at 500 kbit/s to query the ECU automatically.
 Channels already in use are reported without opening them.
+
+The **Installed firmware** label distinguishes positively detected OEM firmware
+and rusEFI, including older M74.9 images without the general rusEFI identity DID.
+No response leaves the firmware status unknown. Select the intended **PCAN
+channel** before flashing; the upload never switches to another adapter.
+
+**Flash rusEFI** installs the bundled software SREC through the OEM resident
+loader. It becomes **Update rusEFI** when an M74.9 rusEFI application is detected.
+The tab uses the console updater's SREC discovery helpers: a `re74.9` target
+artifact in the bundle or firmware archive, then the usual input-directory/current-
+directory SREC lookup. The selected filename is shown, with its full path in the
+tooltip and Messages. **Scan / query again** refreshes the file selection. The
+standalone Gradle launcher searches `ext/rusefi/firmware/build`.
+
+For OEM conversion requiring authorization, select the ECU's `.pair` file or
+original paired `.bin` backup in **OEM credentials**. Follow the startup power-cycle
+prompt in Messages. An installed M74.9 rusEFI application updates without a pair
+file or startup power cycle. Generic rusEFI identity alone does not establish
+M74.9 update support, so that state disables flashing.
+
+Image/credential validation, transfers, verification and activation run in the
+background. Scanning and other actions are disabled during upload. Completion
+requires the same CRC/boot-marker checks across reset as the CLI. Calibration is
+preserved; the UI button only uploads the software domain. Closing the tab stops
+the worker and releases its channel; an interrupted flash may need a full retry.
 
 The lower **Messages** tab shows VIN (DID F190), identity records and metadata
 as hex and printable ASCII, along with any unavailable-record responses or

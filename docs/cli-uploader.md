@@ -1,7 +1,8 @@
 # PCAN firmware uploader
 
 The Java CLI programs the I865 OEM resident loader over standard CAN IDs
-0x7E0/0x7E8 at 500 kbit/s. The Swing tab remains identification-only. The CLI
+0x7E0/0x7E8 at 500 kbit/s. The Swing tab's **Flash rusEFI / Update rusEFI** button
+uses the same uploader; see [the UI guide](../readme.md#m749-java-ui). The CLI
 and the application activation routine pass their software checks. Normal
 paired IMMO authorization and programming-session
 entry have been validated on the restored I865 bench using native Windows PCAN.

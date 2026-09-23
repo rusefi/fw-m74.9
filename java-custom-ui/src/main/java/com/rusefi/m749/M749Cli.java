@@ -155,7 +155,7 @@ public final class M749Cli {
                 immoBackup == null ? null : M749Immo.load(Path.of(immoBackup));
     }
 
-    private static void upload(String requested, M749Image image, boolean verifyBytes, M749Immo immo, Consumer<String> out)
+    static void upload(String requested, M749Image image, boolean verifyBytes, M749Immo immo, Consumer<String> out)
             throws IOException, InterruptedException {
         withChannel(requested, out, transport -> {
             if (immo != null) { immo.authorize(transport, out); }
