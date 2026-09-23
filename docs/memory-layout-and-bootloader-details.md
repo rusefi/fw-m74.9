@@ -12,26 +12,26 @@ All ranges below use inclusive CPU addresses.
 
 ## Memory layout
 
-| Address range | Contents | Update rule |
-| --- | --- | --- |
-| `0x08000000-0x08000FFF` | Bootloader vector page | Never erase or write during a main-firmware update. |
-| `0x08001000-0x0805FFFF` | Main application, first software CRC segment | Replaceable application software. |
-| `0x08060000-0x0807FFFB` | Calibration/data domain | Update separately from application software. |
-| `0x0807FFFC-0x0807FFFF` | Calibration CRC word | Recompute after changing calibration/data. |
-| `0x08080000-0x080FFFFB` | Main application, second software CRC segment | Replaceable application software; startup is at `0x08080000`. |
-| `0x080FFFFC-0x080FFFFF` | Application CRC word | Recompute after changing application software. |
-| `0x08100000-0x081FFFFF` | Reserved/erased flash | Preserve. |
-| `0x08200000-0x08200FFF` | Boot validity and activation state | Bootloader-managed; exclude from application payloads. |
-| `0x08201000-0x0822DFFB` | Bootloader code, configuration, and covered tail | Never erase or write during a main-firmware update. |
-| `0x0822DFFC-0x0822DFFF` | Bootloader CRC word | Preserve with the bootloader. |
-| `0x0822E000-0x0824DFFF` | Reserved/erased flash | Preserve. |
-| `0x0824E000-0x0824EFFF` | Protected high-flash data | Preserve. |
-| `0x0824F000-0x0824FFFF` | ECU identity data | Preserve. |
-| `0x08250000-0x0825FFFF` | Emulated EEPROM backing store 0 | Preserve. |
-| `0x08260000-0x0826FFFF` | Reserved/erased flash | Preserve. |
-| `0x08270000-0x08273FFF` | Emulated EEPROM backing store 1 | Preserve. |
-| `0x08274000-0x08274FFF` | High NVM | Preserve. |
-| `0x08275000-0x083EFFFF` | Unclassified flash | Preserve. |
+| Address range | Size | Contents | Update rule |
+| --- | --- | --- | --- |
+| `0x08000000-0x08000FFF` | 4 KiB | Bootloader vector page | Never erase or write during a main-firmware update. |
+| `0x08001000-0x0805FFFF` | 380 KiB | Main application, first software CRC segment | Replaceable application software. |
+| `0x08060000-0x0807FFFB` | 128 KiB minus 4 bytes | Calibration/data domain | Update separately from application software. |
+| `0x0807FFFC-0x0807FFFF` | 4 bytes | Calibration CRC word | Recompute after changing calibration/data. |
+| `0x08080000-0x080FFFFB` | 512 KiB minus 4 bytes | Main application, second software CRC segment | Replaceable application software; startup is at `0x08080000`. |
+| `0x080FFFFC-0x080FFFFF` | 4 bytes | Application CRC word | Recompute after changing application software. |
+| `0x08100000-0x081FFFFF` | 1 MiB | Reserved/erased flash | Preserve. |
+| `0x08200000-0x08200FFF` | 4 KiB | Boot validity and activation state | Bootloader-managed; exclude from application payloads. |
+| `0x08201000-0x0822DFFB` | 180 KiB minus 4 bytes | Bootloader code, configuration, and covered tail | Never erase or write during a main-firmware update. |
+| `0x0822DFFC-0x0822DFFF` | 4 bytes | Bootloader CRC word | Preserve with the bootloader. |
+| `0x0822E000-0x0824DFFF` | 128 KiB | Reserved/erased flash | Preserve. |
+| `0x0824E000-0x0824EFFF` | 4 KiB | Protected high-flash data | Preserve. |
+| `0x0824F000-0x0824FFFF` | 4 KiB | ECU identity data | Preserve. |
+| `0x08250000-0x0825FFFF` | 64 KiB | Emulated EEPROM backing store 0 | Preserve. |
+| `0x08260000-0x0826FFFF` | 64 KiB | Reserved/erased flash | Preserve. |
+| `0x08270000-0x08273FFF` | 16 KiB | Emulated EEPROM backing store 1 | Preserve. |
+| `0x08274000-0x08274FFF` | 4 KiB | High NVM | Preserve. |
+| `0x08275000-0x083EFFFF` | 1516 KiB | Unclassified flash | Preserve. |
 
 For an application-only writer, the sole permitted destination window is
 `0x08001000-0x080FFFFF`. The calibration subrange and both CRC trailers still
