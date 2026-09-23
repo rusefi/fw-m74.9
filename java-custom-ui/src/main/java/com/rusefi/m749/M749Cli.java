@@ -23,6 +23,7 @@ public final class M749Cli {
     }
 
     public static void main(String[] args) {
+        ElapsedTimeOutputStream.install();
         int exit;
         try {
             exit = execute(args, M749Monitor.pcanBackend(), M749Cli::upload, System.out::println);
