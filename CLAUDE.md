@@ -74,3 +74,12 @@ rusEFI submodule; leave those generated changes unstaged.
   serve different paths (fresh ECU settings versus missing imported fields);
   neither is a migration that overwrites an existing stored tune. Keep the
   board menu/options/constants-extension inputs as the sources for INI changes.
+
+
+- The primary console and SLCAN VCP can share a USB device identity; use the
+  shared SlcanPortScanner classification, not port enumeration order, for
+  automatic flash-reader selection. Discovery proves the adapter protocol,
+  not which ECU is connected to its CAN bus. Use a one-shot scan for a reader
+  so a background scanner cannot reopen its serial port during a transfer.
+- bin/m749-cli.sh is stored without an executable bit. Wrappers must invoke
+  it with bash; direct exec fails even when the wrapper itself is executable.

@@ -1,5 +1,6 @@
 package com.rusefi.m749;
 
+import com.rusefi.io.can.slcan.SlcanPortScanner;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
@@ -14,7 +15,8 @@ class M749ReadFlashCliTest {
 
     @Test void validatesAllOptionsBeforeAdapterAccess() throws Exception {
         for (String[] args : new String[][]{
-                {"--read-flash", "x"}, {"--read-flash", "x", "--slcan"},
+                {"--read-flash", "--resume"}, {"--read-flash", "x", "--slcan"},
+                {"--read-flash", "--serial-baud", "9600"},
                 {"--read-flash", "x", "--slcan", "a", "--channel", "PCAN_USBBUS1"},
                 {"--read-flash", "x", "--slcan", "a", "--chunk-size", "4096"},
                 {"--read-flash", "x", "--slcan", "a", "--start", "0x40000000"},
@@ -37,6 +39,28 @@ class M749ReadFlashCliTest {
             assertEquals(0x3f0000, o.length); assertEquals(16, o.block);
         }
         assertEquals(1, M749ReadFlashCli.parse(new String[]{"--read-flash", "x", "--channel", "PCAN_USBBUS1"}).stmin);
+    }
+
+    @Test void noArgumentReadSelectsTimestampedOutputAndSharedScanner() {
+        M749ReadFlashCli.Options o = M749ReadFlashCli.parse(new String[]{"--read-flash"});
+        assertEquals("auto", o.slcan);
+        assertEquals(3, o.stmin);
+        assertTrue(o.output.toString().matches("m749-full-[0-9]{8}T[0-9]{9}Z\\.bin"));
+        assertEquals("auto", M749ReadFlashCli.parse(new String[]{"--read-flash", "--channel", "auto"}).channel);
+        assertEquals(Path.of("backup with spaces.bin"), M749ReadFlashCli.parse(new String[]{"--read-flash", "backup with spaces.bin"}).output);
+    }
+
+    @Test void discoveryExcludesConsoleAndUnknownPortsAndRejectsAmbiguity() throws Exception {
+        SlcanPortScanner.Result console = new SlcanPortScanner.Result("COM1", SlcanPortScanner.Type.TS_CONSOLE, "rusEFI");
+        SlcanPortScanner.Result unknown = new SlcanPortScanner.Result("COM2", SlcanPortScanner.Type.UNKNOWN, null);
+        SlcanPortScanner.Result slcan = new SlcanPortScanner.Result("COM3", SlcanPortScanner.Type.SLCAN, "V1220");
+        assertEquals("COM3", M749ReadFlashCli.selectSlcan(Arrays.asList(console, unknown, slcan), s -> {}));
+        assertThrows(IOException.class, () -> M749ReadFlashCli.selectSlcan(Arrays.asList(console, unknown), s -> {}));
+        assertThrows(IOException.class, () -> M749ReadFlashCli.selectSlcan(Arrays.asList(slcan,
+                new SlcanPortScanner.Result("COM4", SlcanPortScanner.Type.SLCAN, "V1220")), s -> {}));
+        assertThrows(IOException.class, () -> M749ReadFlashCli.selectOnly(Collections.emptyList(), "PCAN", "--channel"));
+        assertThrows(IOException.class, () -> M749ReadFlashCli.selectOnly(Arrays.asList("PCAN_USBBUS1", "PCAN_USBBUS2"), "PCAN", "--channel"));
+        assertEquals("PCAN_USBBUS1", M749ReadFlashCli.selectOnly(Collections.singletonList("PCAN_USBBUS1"), "PCAN", "--channel"));
     }
 
     @Test void badOutputAndResumeNeverOpenAdapter() throws Exception {

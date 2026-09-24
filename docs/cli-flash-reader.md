@@ -16,6 +16,44 @@ RAM helper runs.
 
 ## Run
 
+No arguments are needed with these wrappers:
+
+```sh
+bin/read-flash.sh
+```
+
+```bat
+bin\read-flash.bat
+bin\read-flash-pcan.bat
+```
+
+`read-flash.sh` and `read-flash.bat` scan for SLCAN using the shared
+`SlcanPortScanner`. The scanner probes serial ports, classifies TunerStudio
+consoles separately, and completes one scan before opening the selected CAN
+adapter. Exactly one detected SLCAN port is required. No adapter or multiple
+adapters produces an error; use `--slcan PORT` to select explicitly. Detection
+uses the shared scanner's 115200 serial setting; other UART speeds require an
+explicit port. Discovery identifies the adapter, not the ECU connected to it.
+
+`read-flash-pcan.bat` selects the sole available Windows PCAN channel. With
+multiple available channels, use `read-flash.bat --channel PCAN_USBBUS1`.
+
+The default filename is `m749-full-YYYYMMDDTHHMMSSsssZ.bin` (UTC) in the current
+working directory. The chosen path and adapter are printed. The wrappers forward
+an optional output filename and read options, preserving quoted paths:
+
+```sh
+bin/read-flash.sh "my backup.bin" --slcan /dev/ttyACM0
+bin/read-flash.sh "my backup.bin" --resume --helper-running
+bin/read-flash.sh --help
+```
+
+Resume always requires the original filename. A no-argument launch starts a new
+backup; it never guesses which previous partial backup to resume. The equivalent
+direct invocation is `m749-cli --read-flash`, with optional `--slcan auto` or
+`--channel auto`. The existing `m749-cli` command without arguments retains its
+identification behavior.
+
 Use the existing launchers from this checkout. They build the Java CLI and
 preserve quoted paths. Java 11 or newer and the checked-in Gradle wrapper are
 required; first-time dependency setup may need network access.
@@ -42,8 +80,7 @@ bin\m749-cli.bat --read-flash "C:\backups\m749-full.bin" --channel PCAN_USBBUS1
 The output directory must already exist. An existing completed output is never
 overwritten. PCAN needs the PEAK driver and matching PCAN-Basic/JNI libraries;
 use native Windows Java, not a WSL JVM. SLCAN uses the included jSerialComm
-dependency and an explicitly selected serial port; unrelated ports are not
-scanned.
+dependency. With an explicit `--slcan PORT`, unrelated ports are not scanned.
 
 Start with a bounded read when validating a target/adapter combination:
 

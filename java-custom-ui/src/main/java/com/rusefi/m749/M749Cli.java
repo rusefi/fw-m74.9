@@ -247,7 +247,7 @@ public final class M749Cli {
         out.accept("M74.9 PCAN CLI (500 kbit/s, 7E0/7E8; I865 OEM resident loader)");
         out.accept("Usage: m749-cli [channel]                 identify ECU; tries available channels when omitted");
         out.accept("       m749-cli --list                    list PCAN channels");
-        out.accept("       m749-cli --read-flash OUTPUT.bin (--slcan PORT | --channel PCAN_USBBUS1)");
+        out.accept("       m749-cli --read-flash [OUTPUT.bin] [--slcan PORT|auto | --channel PCAN_USBBUS1|auto]");
         out.accept("                  [--resume] [--helper-running] [--reset-after]; add --help for read options");
         out.accept("       m749-cli --upload FILE --dry-run   validate addressed HEX/SREC without hardware");
         out.accept("       m749-cli --upload FILE --channel PCAN_USBBUS1 [--calibration] [--verify-bytes]");
