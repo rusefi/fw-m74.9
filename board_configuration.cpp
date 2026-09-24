@@ -219,14 +219,16 @@ static Gpio OUTPUTS[] = {
 //	Gpio::L9779_OUT_13, // Fuel pump relay
 };
 
-int getBoardMetaOutputsCount() {
+static int boardGetMetaOutputsCount() {
     return efi::size(OUTPUTS);
 }
 
-int getBoardMetaDcOutputsCount() {
+static int boardGetMetaDcOutputsCount() {
     return 1;
 }
 void setup_custom_board_overrides() {
+	custom_board_getMetaOutputsCount = boardGetMetaOutputsCount;
+	custom_board_getMetaDcOutputsCount = boardGetMetaDcOutputsCount;
 #if EFI_CONFIGURATION_STORAGE
 	// Internal bank-2 writes/collection can stall the CPU, including LTFT saves.
 	custom_board_allowFlashNow = []() {

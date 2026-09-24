@@ -14,6 +14,4 @@ Gpio* getBoardMetaOutputs() {
 }
 */
 
-int getBoardMetaDcOutputsCount() {
-    return 0;
-}
+// The core metadata callback dispatcher defaults to zero DC outputs.
