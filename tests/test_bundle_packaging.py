@@ -1,6 +1,8 @@
 """Exercise the real ZIP recipes without compiling firmware or Java."""
 from pathlib import Path
+import os
 import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -46,6 +48,9 @@ include {repo / 'firmware/bundle.mk'}
                     output.writestr("obsolete/flash_stlink.sh", "stale script")
             result = subprocess.run(
                 ["make", "-r", "-j2", "build_both_bundles"], cwd=firmware,
+                # bundle.mk runs the image script through $(PYTHON), which the
+                # top-level firmware Makefile normally provides.
+                env={**os.environ, "PYTHON": sys.executable},
                 capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             for suffix in ("", "_autoupdate"):

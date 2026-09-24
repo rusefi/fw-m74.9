@@ -60,10 +60,10 @@ rusEFI submodule; leave those generated changes unstaged.
   Confirm the M749ACT1 interface separately from the general rusEFI identity;
   other rusEFI boards need not use the I865 resident loader.
 
-- For standalone Python board regression discovery, set PYTHON=python3 in the
-  environment: the packaging fixture includes bundle.mk without the normal
-  top-level make defaults. Without it, make tries to execute the non-executable
-  image script directly. This does not require changing the script mode.
+- The packaging fixture includes bundle.mk without the normal top-level make
+  defaults, so test_bundle_packaging.py passes PYTHON=sys.executable to make
+  itself. Without it, make tries to execute the non-executable image script
+  directly. This does not require changing the script mode.
 - The default host test configuration does not enable EFI_CAN_SUPPORT. Test
   receive sensors through CanListener::processFrame and the sensor registry;
   the full shared receive dispatcher is validated by the production build and
