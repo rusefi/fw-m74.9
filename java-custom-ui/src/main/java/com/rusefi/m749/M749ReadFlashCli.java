@@ -144,7 +144,7 @@ public final class M749ReadFlashCli {
                 port = selectSlcan(SlcanPortScanner.scanOnce(SlcanPortScanner.Probes.REAL), out);
             }
             out.accept("Using SLCAN " + port);
-            return SlcanTransport.open(port, o.baud, o.bus);
+            return SlcanTransport.open(port, o.baud, o.bus, out);
         }
         if (!System.getProperty("os.name").toLowerCase(Locale.ROOT).startsWith("windows")) {
             throw new IOException("PCAN requires native Windows Java; use --slcan on this platform");

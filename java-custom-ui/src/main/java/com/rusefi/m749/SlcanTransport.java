@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.function.Consumer;
 
 /** Owned Lawicel serial channel. Parsing preserves partial lines across polls. */
 final class SlcanTransport implements RawCanTransport {
@@ -22,19 +23,32 @@ final class SlcanTransport implements RawCanTransport {
     private int acknowledgements;
     private boolean closed;
     private boolean recoveringClose;
+    private final Consumer<String> log;
+    private String initializingCommand;
+    private long receivedBytes;
 
     SlcanTransport(Port port, int bus) {
+        this(port, bus, message -> { });
+    }
+
+    SlcanTransport(Port port, int bus, Consumer<String> log) {
         if (bus < 1 || bus > 3) { throw new IllegalArgumentException("SLCAN bus must be 1..3"); }
+        this.log = log;
         this.port = port;
         this.bus = bus;
     }
 
-    static SlcanTransport open(String name, int baud, int bus) throws IOException {
+    static SlcanTransport open(String name, int baud, int bus, Consumer<String> log) throws IOException {
+        log.accept("SLCAN opening " + name + ": baud=" + baud +
+                ", 8N1, flow control=disabled, nonblocking reads, CAN bus=" + bus);
         SerialPort serial = SerialPort.getCommPort(name);
         serial.setComPortParameters(baud, 8, SerialPort.ONE_STOP_BIT, SerialPort.NO_PARITY);
         serial.setFlowControl(SerialPort.FLOW_CONTROL_DISABLED);
         serial.setComPortTimeouts(SerialPort.TIMEOUT_NONBLOCKING, 0, 0);
-        if (!serial.openPort()) { throw new IOException("Cannot open SLCAN serial port " + name); }
+        if (!serial.openPort()) {
+            throw new IOException("Cannot open SLCAN serial port " + name + "; native error=" + serial.getLastErrorCode());
+        }
+        log.accept("SLCAN " + name + " opened; queued RX bytes=" + serial.bytesAvailable());
         Port port = new Port() {
             public int read(byte[] buffer) throws IOException {
                 if (!serial.isOpen()) { throw new IOException("SLCAN serial port disconnected"); }
@@ -51,15 +65,19 @@ final class SlcanTransport implements RawCanTransport {
                 }
             }
             public void close() throws IOException {
+                log.accept("SLCAN closing " + name + "; open=" + serial.isOpen() +
+                        ", queued RX bytes=" + serial.bytesAvailable() + ", native error=" + serial.getLastErrorCode());
                 if (!serial.closePort()) { throw new IOException("Cannot close SLCAN serial port"); }
             }
         };
-        SlcanTransport transport = new SlcanTransport(port, bus);
+        SlcanTransport transport = new SlcanTransport(port, bus, log);
         try {
             // Explicit port only: never probe unrelated serial devices.
             transport.initialize();
             return transport;
         } catch (IOException e) {
+            log.accept("SLCAN initialization failed before ECU communication: " + e.getMessage());
+            log.accept("The reader has not uploaded or started the RAM helper; this failure does not require an ECU power cycle.");
             try { port.close(); } catch (IOException close) { e.addSuppressed(close); }
             throw e;
         }
@@ -74,16 +92,25 @@ final class SlcanTransport implements RawCanTransport {
     private void command(String value) throws IOException {
         acknowledgements = 0;
         recoveringClose = value.equals("C");
+        initializingCommand = value;
+        long start = System.nanoTime();
+        long before = receivedBytes;
+        log.accept("SLCAN TX " + value + "<CR> (" + hex((value + "\r").getBytes(StandardCharsets.US_ASCII), value.length() + 1) +
+                "); waiting up to 2000 ms for acknowledgement");
         try {
             write(value);
             long deadline = System.nanoTime() + 2_000_000_000L;
             while (acknowledgements == 0) {
                 pump();
-                if (System.nanoTime() >= deadline) { throw new IOException("SLCAN " + value + " acknowledgement timeout"); }
+                if (System.nanoTime() >= deadline) { throw new IOException("SLCAN " + value + " acknowledgement timeout after " +
+                        (System.nanoTime() - start) / 1_000_000 + " ms; received=" + (receivedBytes - before) +
+                        " bytes, partial line=" + hex(line.toString().getBytes(StandardCharsets.US_ASCII), line.length())); }
                 try { Thread.sleep(1); }
                 catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IOException("SLCAN open interrupted", e); }
             }
-        } finally { recoveringClose = false; }
+            log.accept("SLCAN " + value + " acknowledged after " + (System.nanoTime() - start) / 1_000_000 +
+                    " ms; received=" + (receivedBytes - before) + " bytes");
+        } finally { recoveringClose = false; initializingCommand = null; }
     }
 
     private void write(String value) throws IOException {
@@ -106,6 +133,10 @@ final class SlcanTransport implements RawCanTransport {
 
     private void pump() throws IOException {
         int count = port.read(input);
+        receivedBytes += count;
+        if (count > 0 && initializingCommand != null) {
+            log.accept("SLCAN RX while waiting for " + initializingCommand + ": " + count + " bytes: " + hex(input, count));
+        }
         for (int i = 0; i < count; i++) {
             int value = input[i] & 255;
             if (value == 7) {
@@ -121,6 +152,17 @@ final class SlcanTransport implements RawCanTransport {
                 line.append((char) value);
             }
         }
+    }
+
+    private static String hex(byte[] bytes, int count) {
+        if (count == 0) { return "<empty>"; }
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < Math.min(count, 64); i++) {
+            if (i > 0) { result.append(' '); }
+            result.append(String.format("%02X", bytes[i] & 255));
+        }
+        if (count > 64) { result.append(" ..."); }
+        return result.toString();
     }
 
     private void accept(String value) throws IOException {
