@@ -8,6 +8,20 @@ for the AT32F435ZMT7 MCU and L9779 driver. The build entry point is
 
 See https://github.com/rusefi/rusefi/wiki/Custom-Firmware
 
+## Windows build with Pixi
+
+With Pixi, Git and Python 3 (available as `python3`) on PATH, run:
+
+```bat
+git submodule update --init --recursive
+compile_firmware.bat
+```
+
+The batch file uses `ext/rusefi/pixi.toml` to install/activate the build
+toolchain and runs this board's `compile_firmware.sh`. It works from any
+working directory and returns the build's exit code. Additional make arguments
+are forwarded, for example `compile_firmware.bat -j8`.
+
 ## Resident bootloader compatibility
 
 The firmware follows [the M74.9 memory contract](docs/memory-layout-and-bootloader-details.md).
