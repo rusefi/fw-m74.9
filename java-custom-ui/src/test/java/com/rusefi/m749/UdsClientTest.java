@@ -93,4 +93,30 @@ class UdsClientTest {
                 () -> negative.client().exchange(bytes(0x36, 0, 1), bytes(0x76, 0), 500));
         assertEquals(0x72, error.code);
     }
+
+    @Test void receivesMaximumHelperBlockWithFiniteFlowControlAndWrapAndIgnoresPadding() throws Exception {
+        for (int block : new int[]{0, 1, 16}) {
+            Bus bus = new Bus();
+            byte[] response = new byte[4085]; response[0] = 0x63;
+            for (int i = 1; i < response.length; i++) { response[i] = (byte) (i * 17); }
+            int[] position = {6}, sequence = {1}, controls = {0};
+            bus.respond = frame -> {
+                if (frame[0] != 0x30) {
+                    byte[] first = bytes(0x1f, 0xf5, 0, 0, 0, 0, 0, 0);
+                    System.arraycopy(response, 0, first, 2, 6); bus.rx.add(first); return;
+                }
+                controls[0]++;
+                assertEquals(block, frame[1] & 255); assertEquals(3, frame[2]);
+                for (int i = 0; (block == 0 || i < block) && position[0] < response.length; i++) {
+                    byte[] cf = new byte[8]; Arrays.fill(cf, (byte) 0xA5);
+                    cf[0] = (byte) (0x20 | sequence[0]); sequence[0] = (sequence[0] + 1) & 15;
+                    int count = Math.min(7, response.length - position[0]);
+                    System.arraycopy(response, position[0], cf, 1, count); position[0] += count; bus.rx.add(cf);
+                }
+            };
+            assertArrayEquals(response, new UdsClient(bus, bus, block, 3).exchange(
+                    bytes(0x23, 8, 0, 0, 0, 15, 240), bytes(0x63), 15000));
+            assertEquals(block == 0 ? 1 : (583 + block - 1) / block, controls[0]);
+        }
+    }
 }

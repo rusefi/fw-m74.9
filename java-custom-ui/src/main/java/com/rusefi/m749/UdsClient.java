@@ -8,6 +8,8 @@ final class UdsClient implements M749Uploader.Connection {
     private static final long FRAME_TIMEOUT = 2_000;
     private final DiagnosticTransport transport;
     private final M749Identification.Timing clock;
+    private final int receiveBlockSize;
+    private final int receiveStmin;
 
     static final class Timeout extends IOException {
         Timeout() { super("ISO-TP/UDS timeout; request was not retried"); }
@@ -23,15 +25,28 @@ final class UdsClient implements M749Uploader.Connection {
     }
 
     UdsClient(DiagnosticTransport transport) {
+        this(transport, 0, 1);
+    }
+
+    UdsClient(DiagnosticTransport transport, int receiveBlockSize, int receiveStmin) {
         this(transport, new M749Identification.Timing() {
             public long now() { return System.nanoTime() / 1_000_000; }
             public void pause(long milliseconds) throws InterruptedException { Thread.sleep(milliseconds); }
-        });
+        }, receiveBlockSize, receiveStmin);
     }
 
     UdsClient(DiagnosticTransport transport, M749Identification.Timing clock) {
+        this(transport, clock, 0, 1);
+    }
+
+    UdsClient(DiagnosticTransport transport, M749Identification.Timing clock, int receiveBlockSize, int receiveStmin) {
+        if (receiveBlockSize < 0 || receiveBlockSize > 255 || receiveStmin < 0 || receiveStmin > 127) {
+            throw new IllegalArgumentException("Invalid receive flow control");
+        }
         this.transport = transport;
         this.clock = clock;
+        this.receiveBlockSize = receiveBlockSize;
+        this.receiveStmin = receiveStmin;
     }
 
     public void pause(long milliseconds) throws InterruptedException {
@@ -147,18 +162,21 @@ final class UdsClient implements M749Uploader.Connection {
         if (length < 8) {
             throw new IOException("Invalid ISO-TP first-frame length");
         }
-        if (!startsWith(Arrays.copyOfRange(frame, 2, 8), prefix)) {
+        // Only six payload bytes are present in the first frame. Match the
+        // remaining prefix after reassembly (RAM-write acknowledgements use 8).
+        if (!startsWith(Arrays.copyOfRange(frame, 2, 8), Arrays.copyOf(prefix, Math.min(prefix.length, 6)))) {
             return null;
         }
         byte[] payload = new byte[length];
         System.arraycopy(frame, 2, payload, 0, 6);
         byte[] fc = padded();
         fc[0] = 0x30;
-        fc[1] = 0;
-        fc[2] = 1;
+        fc[1] = (byte) receiveBlockSize;
+        fc[2] = (byte) receiveStmin;
         transport.send(fc);
         int position = 6;
         int sequence = 1;
+        int receivedInBlock = 0;
         while (position < length) {
             frame = next(Math.min(deadline, clock.now() + FRAME_TIMEOUT));
             int count = Math.min(7, length - position);
@@ -168,6 +186,10 @@ final class UdsClient implements M749Uploader.Connection {
             System.arraycopy(frame, 1, payload, position, count);
             sequence = (sequence + 1) & 15;
             position += count;
+            if (++receivedInBlock == receiveBlockSize && position < length) {
+                transport.send(fc);
+                receivedInBlock = 0;
+            }
         }
         return payload;
     }
@@ -188,7 +210,7 @@ final class UdsClient implements M749Uploader.Connection {
 
     private void check(long deadline) throws IOException, InterruptedException {
         if (Thread.currentThread().isInterrupted()) {
-            throw new InterruptedException("Upload interrupted");
+            throw new InterruptedException("Diagnostic operation interrupted");
         }
         if (clock.now() >= deadline) {
             throw new Timeout();

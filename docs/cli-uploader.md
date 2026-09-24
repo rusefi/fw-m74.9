@@ -1,5 +1,8 @@
 # PCAN firmware uploader
 
+For a complete main-flash backup over SLCAN or Windows PCAN, see
+[the flash-reader guide](cli-flash-reader.md).
+
 The Java CLI programs the I865 OEM resident loader over standard CAN IDs
 0x7E0/0x7E8 at 500 kbit/s. The Swing tab's **Flash rusEFI / Update rusEFI** button
 uses the same uploader; see [the UI guide](../readme.md#m749-java-ui). The CLI
