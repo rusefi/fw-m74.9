@@ -42,6 +42,7 @@ final class M749RamHelper {
         if (!alreadyRunning) {
             out.accept("Entering application session 60 for RAM helper upload");
             exact(bytes(0x10, 0x60), bytes(0x50, 0x60), 6);
+            out.accept("Application session 60 accepted");
             byte[] seedReply = exact(bytes(0x27, 1, 0), bytes(0x67, 1), 6);
             int seed = (seedReply[2] & 255) << 24 | (seedReply[3] & 255) << 16 |
                     (seedReply[4] & 255) << 8 | seedReply[5] & 255;
@@ -49,8 +50,9 @@ final class M749RamHelper {
                 int key = M74_9_SeedKeyCalculator.Uds_Security_CalcKey(M74_9_SeedKeyCalculator.SECRET, seed, 0);
                 exact(bytes(0x27, 2, key >>> 24, key >>> 16, key >>> 8, key), bytes(0x67, 2), 2);
             }
-            exact(bytes(0x85, 2), bytes(0xC5, 2), 2);
-            exact(bytes(0x28, 1, 1), bytes(0x68, 1), 2);
+            out.accept("Application security accepted");
+            prepare(bytes(0x85, 2), bytes(0xC5, 2), out);
+            prepare(bytes(0x28, 1, 1), bytes(0x68, 1), out);
             for (int offset = 0; offset < helper.length; offset += 512) {
                 int address = 0x2001BA00 + offset;
                 byte[] request = Arrays.copyOf(bytes(0x3D, 0x24, address >>> 24, address >>> 16,
@@ -59,6 +61,7 @@ final class M749RamHelper {
                 byte[] expected = Arrays.copyOf(request, 8);
                 expected[0] = 0x7D;
                 exact(request, expected, expected.length);
+                out.accept(String.format("RAM helper upload: %d/%d bytes acknowledged", offset + 512, helper.length));
             }
             byte[] ready = bytes(0x71, 1, 0xF0, 0, 0x7C, 0, 0);
             exact(bytes(0x31, 1, 0xF0, 0, 0x20, 1, 0xBA, 0), ready, ready.length);
@@ -113,6 +116,18 @@ final class M749RamHelper {
     }
 
     void reset() throws IOException, InterruptedException { exact(bytes(0x11, 1), bytes(0x51, 1), 2); }
+
+    private void prepare(byte[] request, byte[] expected, Consumer<String> out) throws IOException, InterruptedException {
+        try { exact(request, expected, expected.length); }
+        catch (UdsClient.NegativeResponse e) {
+            // Some applications omit DTC/communication control in session 60.
+            // Only explicit service-unavailable responses permit the RAM upload
+            // to be attempted; admission, security and every write still must pass.
+            if (e.code != 0x11 && e.code != 0x7F) { throw e; }
+            out.accept(String.format("Optional preparation SID %02X unavailable (NRC %02X); continuing to RAM upload",
+                    request[0] & 255, e.code));
+        }
+    }
 
     private byte[] exact(byte[] request, byte[] prefix, int length) throws IOException, InterruptedException {
         return exact(request, prefix, length, 15_000);

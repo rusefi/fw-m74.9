@@ -49,6 +49,7 @@ public final class M749Cli {
                        ReadAction reader, Consumer<String> out) throws IOException, InterruptedException {
         for (String arg : args) {
             if (arg.equals("--read-flash")) { return M749ReadFlashCli.execute(args, out); }
+            if (arg.equals("--identify")) { return M749ReadFlashCli.identify(args, out); }
         }
         boolean list = false;
         boolean dryRun = false;
@@ -246,6 +247,7 @@ public final class M749Cli {
     private static void usage(Consumer<String> out) {
         out.accept("M74.9 PCAN CLI (500 kbit/s, 7E0/7E8; I865 OEM resident loader)");
         out.accept("Usage: m749-cli [channel]                 identify ECU; tries available channels when omitted");
+        out.accept("       m749-cli --identify [--slcan PORT|auto | --channel PCAN_USBBUS1|auto]  query ECU without session changes");
         out.accept("       m749-cli --list                    list PCAN channels");
         out.accept("       m749-cli --read-flash [OUTPUT.bin] [--slcan PORT|auto | --channel PCAN_USBBUS1|auto]");
         out.accept("                  [--resume] [--helper-running] [--reset-after]; add --help for read options");

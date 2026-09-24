@@ -26,6 +26,12 @@ final class SlcanTransport implements RawCanTransport {
     private final Consumer<String> log;
     private String initializingCommand;
     private long receivedBytes;
+    private boolean canable;
+    private boolean versionReceived;
+
+    private static final class AckTimeout extends IOException {
+        AckTimeout(String message) { super(message); }
+    }
 
     SlcanTransport(Port port, int bus) {
         this(port, bus, message -> { });
@@ -84,31 +90,41 @@ final class SlcanTransport implements RawCanTransport {
     }
 
     void initialize() throws IOException {
-        command("C");
+        try { command("C"); }
+        catch (AckTimeout e) {
+            log.accept("No close acknowledgement; checking for CANable firmware with V");
+            command("V");
+            if (!canable) { throw e; }
+            if (bus != 1) { throw new IOException("CANable supports only SLCAN bus 1"); }
+            log.accept("CANable firmware detected: commands have no acknowledgements; checking version replies during setup");
+        }
         command("S6");
         command("O");
     }
 
     private void command(String value) throws IOException {
         acknowledgements = 0;
+        versionReceived = false;
         recoveringClose = value.equals("C");
         initializingCommand = value;
         long start = System.nanoTime();
         long before = receivedBytes;
-        log.accept("SLCAN TX " + value + "<CR> (" + hex((value + "\r").getBytes(StandardCharsets.US_ASCII), value.length() + 1) +
-                "); waiting up to 2000 ms for acknowledgement");
+        boolean requireVersion = canable || value.equals("V");
+        log.accept("SLCAN TX " + value + "<CR>; waiting up to 2000 ms for " +
+                (requireVersion ? "version reply" : "acknowledgement"));
         try {
             write(value);
+            if (canable && !value.equals("V")) { write("V"); }
             long deadline = System.nanoTime() + 2_000_000_000L;
-            while (acknowledgements == 0) {
+            while (requireVersion ? !versionReceived : acknowledgements == 0) {
                 pump();
-                if (System.nanoTime() >= deadline) { throw new IOException("SLCAN " + value + " acknowledgement timeout after " +
+                if (System.nanoTime() >= deadline) { throw new AckTimeout("SLCAN " + value + " reply timeout after " +
                         (System.nanoTime() - start) / 1_000_000 + " ms; received=" + (receivedBytes - before) +
                         " bytes, partial line=" + hex(line.toString().getBytes(StandardCharsets.US_ASCII), line.length())); }
                 try { Thread.sleep(1); }
                 catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new IOException("SLCAN open interrupted", e); }
             }
-            log.accept("SLCAN " + value + " acknowledged after " + (System.nanoTime() - start) / 1_000_000 +
+            log.accept("SLCAN " + value + (requireVersion ? " version reply after " : " acknowledged after ") + (System.nanoTime() - start) / 1_000_000 +
                     " ms; received=" + (receivedBytes - before) + " bytes");
         } finally { recoveringClose = false; initializingCommand = null; }
     }
@@ -148,7 +164,8 @@ final class SlcanTransport implements RawCanTransport {
                 accept(line.toString());
                 line.setLength(0);
             } else if (value != '\n') {
-                if (value < 32 || value > 126 || line.length() >= 64) { throw new IOException("Malformed SLCAN line"); }
+                int limit = initializingCommand == null ? 64 : 128;
+                if (value < 32 || value > 126 || line.length() >= limit) { throw new IOException("Malformed SLCAN line"); }
                 line.append((char) value);
             }
         }
@@ -166,6 +183,12 @@ final class SlcanTransport implements RawCanTransport {
     }
 
     private void accept(String value) throws IOException {
+        if (initializingCommand != null && value.matches("[0-9a-fA-F]{7,40}(-dirty)? github\\.com/normaldotcom/canable2(-fw)?(\\.git)?")) {
+            canable = true;
+            versionReceived = true;
+            log.accept("CANable version: " + value);
+            return;
+        }
         if (value.isEmpty() || value.equals("z") || value.equals("Z")) { acknowledgements++; return; }
         if (value.matches("[VN][0-9A-Fa-f]{4}")) { return; }
         if (value.matches("F[0-9A-Fa-f]{2}")) {

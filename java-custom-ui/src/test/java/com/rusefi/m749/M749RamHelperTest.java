@@ -7,6 +7,28 @@ import static org.junit.jupiter.api.Assertions.*;
 import static com.rusefi.m749.M749Identification.bytes;
 
 class M749RamHelperTest {
+    @Test void optionalPreparationMayBeUnsupportedButOtherFailuresStopBeforeRamWrites() throws Exception {
+        for (int nrc : new int[]{0x11, 0x7f, 0x22, 0x33}) {
+            Ecu ecu = new Ecu() {
+                public byte[] exchange(byte[] q, byte[] prefix, long timeout) throws IOException {
+                    if ((q[0] & 255) == 0x85 || q[0] == 0x28) {
+                        requests.add(q.clone());
+                        throw new UdsClient.NegativeResponse(q[0] & 255, nrc);
+                    }
+                    return super.exchange(q, prefix, timeout);
+                }
+            };
+            M749RamHelper helper = new M749RamHelper(ecu);
+            if (nrc == 0x11 || nrc == 0x7f) {
+                helper.start(M749RamHelper.load(), false, s -> {});
+                assertEquals(13, ecu.requests.stream().filter(q -> q[0] == 0x3d).count());
+            } else {
+                assertThrows(UdsClient.NegativeResponse.class, () -> helper.start(M749RamHelper.load(), false, s -> {}));
+                assertFalse(ecu.requests.stream().anyMatch(q -> q[0] == 0x3d));
+            }
+        }
+    }
+
     static class Ecu implements M749Uploader.Connection {
         final List<byte[]> requests = new ArrayList<>();
         byte[] helper;

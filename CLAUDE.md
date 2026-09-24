@@ -83,3 +83,14 @@ rusEFI submodule; leave those generated changes unstaged.
   so a background scanner cannot reopen its serial port during a transfer.
 - bin/m749-cli.sh is stored without an executable bit. Wrappers must invoke
   it with bash; direct exec fails even when the wrapper itself is executable.
+
+- CANable 2 can report a USB product revision different from its live V reply.
+  The 2026-09-24 adapter reports 16e7497-dirty at runtime and omits C/S6/O
+  acknowledgements. A close timeout triggers a bounded V probe; only a
+  recognized CANable revision enables setup with fresh V response checks.
+  Version replies establish serial responsiveness, not ECU presence.
+- Live I812TA01_w2243v21 / 8450086874 accepts session 60 and application
+  security, but rejects 85 02 with NRC 7F. Continuing without that optional
+  DTC-control step allowed communication control, thirteen 512-byte RAM writes,
+  helper launch and repeated flash reads. Do not broaden this exception to
+  admission/security/RAM writes or to arbitrary negative responses.

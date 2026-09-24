@@ -16,6 +16,18 @@ RAM helper runs.
 
 ## Run
 
+Confirm the connected ECU before reading:
+
+```sh
+bash bin/m749-cli.sh --identify --slcan /dev/ttyACM0
+```
+
+This queries OEM session/software/part DIDs and replacement-firmware identity
+DIDs without changing sessions, unlocking security or uploading RAM. At least
+one positive DID response is required for success. Adapter discovery alone is
+not ECU identification. `--identify` also accepts `--slcan auto` or a PCAN
+`--channel`, and creates no backup files.
+
 No arguments are needed with these wrappers:
 
 ```sh
@@ -167,6 +179,18 @@ timestamps and bus tags, ignores extended/RTR/other-bus traffic, and fails on
 adapter errors or malformed frames. All traffic uses classic CAN; diagnostic
 requests are on `0x7E0`, replies on `0x7E8`.
 
+CANable 2 firmware can omit setup acknowledgements and return a revision string
+instead of `Vhhhh`. After a close-command timeout, the CLI probes `V` and only
+enables this compatibility mode for a recognized CANable firmware response.
+It checks a fresh version response after each remaining setup command. This
+confirms adapter responsiveness; ECU replies establish CAN connectivity. Other
+silent adapters still fail initialization. CANable supports bus 1 only.
+
+The helper bootstrap attempts DTC control (`85 02`) and communication control
+(`28 01 01`). Explicit service-unavailable replies (NRC `11` or `7F`) permit
+continuing to RAM upload. Other errors stop. Session/security entry, every RAM
+write and helper launch still require their exact positive acknowledgements.
+
 The adapter must deliver replies promptly, including short USB serial packets.
 Some older rusEFI sniffer firmware buffers partial USB packets until more output
 arrives; use firmware that flushes those packets. This reader does not inject
@@ -204,6 +228,19 @@ sequence wrap, serial framing, partial reads and resume, changed/corrupt saved
 data, interruption, output collisions and failure before adapter access.
 The CLI runtime builds with the bundled helper included.
 
-Live session-60 admission, protected flash access through this helper, adapter
-throughput and application return still require target testing. No physical ECU
-was read or programmed while implementing this command.
+On 2026-09-24, SLCAN hardware validation identified software
+`I812TA01_w2243v21`, part `8450086874`, accepted session 60 and application
+security, uploaded all 6656 helper bytes and completed repeated boot and
+second-bank sample reads. DTC control returned NRC 7F; communication control
+and RAM writes succeeded. CANable 2 with 4080-byte chunks, block size 16 and
+STmin 0 completed the second-bank sample at about 10.5 kB/s including duplicate
+reads. Flash protection was not changed. These results apply to this target
+and adapter; other combinations still need bounded sample validation.
+
+The same bench completed the full 4,128,768-byte main-flash backup in about
+414 seconds at 10,009 verified bytes/s, with every block read twice. SHA-256:
+`317a949f10c3a783c78ed5f471ecc6ee933885c255848f76a5cd92625cb3dd60`.
+The independently checked file hash and earlier samples match. Boot CRC
+`4F256CD9` matches; application/calibration CRC validation remains unresolved
+for this I812 version. After `--reset-after`, a separate automatic SLCAN scan
+and identity query confirmed application session 01 and the same software/part.

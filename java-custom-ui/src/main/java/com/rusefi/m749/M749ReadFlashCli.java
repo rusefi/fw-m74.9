@@ -94,6 +94,37 @@ public final class M749ReadFlashCli {
         return execute(args, o -> open(o, out), out);
     }
 
+    static int identify(String[] args, Consumer<String> out) throws IOException, InterruptedException {
+        return identify(args, o -> open(o, out), out);
+    }
+
+    static int identify(String[] args, TransportFactory factory, Consumer<String> out) throws IOException, InterruptedException {
+        String usage = "Usage: m749-cli --identify [--slcan PORT|auto | --channel CHANNEL|auto] " +
+                "[--serial-baud BAUD] [--slcan-bus 1..3]";
+        java.util.ArrayList<String> transportArgs = new java.util.ArrayList<>();
+        transportArgs.add("--read-flash");
+        boolean identify = false;
+        for (int i = 0; i < args.length; i++) {
+            String arg = args[i];
+            if (arg.equals("--help") || arg.equals("-h")) { out.accept(usage); return 0; }
+            if (arg.equals("--identify") && !identify) { identify = true; continue; }
+            if (!(arg.equals("--slcan") || arg.equals("--channel") || arg.equals("--serial-baud") ||
+                    arg.equals("--slcan-bus")) || i + 1 >= args.length) {
+                out.accept(usage); return 2;
+            }
+            transportArgs.add(arg);
+            transportArgs.add(args[++i]);
+        }
+        if (!identify) { out.accept(usage); return 2; }
+        Options o;
+        try { o = parse(transportArgs.toArray(new String[0])); }
+        catch (IllegalArgumentException e) { out.accept(e.getMessage()); out.accept(usage); return 2; }
+        try (RawCanTransport transport = factory.open(o)) {
+            M749EcuProbe.identify(new UdsClient(transport, o.block, o.stmin), out);
+        }
+        return 0;
+    }
+
     static int execute(String[] args, TransportFactory factory, Consumer<String> out) throws IOException, InterruptedException {
         for (String arg : args) {
             if (arg.equals("--help") || arg.equals("-h")) { usage(out); return 0; }

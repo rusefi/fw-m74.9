@@ -13,6 +13,13 @@ class M749ReadFlashCliTest {
     @TempDir Path directory;
     M749ReadFlashCli.TransportFactory noAdapter = o -> { throw new AssertionError("Unexpected adapter access"); };
 
+    @Test void identifyRejectsReadAndWriteOptionsBeforeOpeningAdapter() throws Exception {
+        for (String option : new String[]{"--read-flash", "--upload", "--helper-running", "--reset-after", "--resume", "--identify"}) {
+            assertEquals(2, M749ReadFlashCli.identify(new String[]{"--identify", option}, noAdapter, s -> {}));
+        }
+        assertEquals(0, M749ReadFlashCli.identify(new String[]{"--identify", "--help"}, noAdapter, s -> {}));
+    }
+
     @Test void validatesAllOptionsBeforeAdapterAccess() throws Exception {
         for (String[] args : new String[][]{
                 {"--read-flash", "--resume"}, {"--read-flash", "x", "--slcan"},

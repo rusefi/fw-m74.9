@@ -8,6 +8,42 @@ import static org.junit.jupiter.api.Assertions.*;
 import static com.rusefi.m749.M749Identification.bytes;
 
 class SlcanTransportTest {
+    @Test void canableWithoutAcknowledgementsRequiresVersionReplies() throws Exception {
+        Port port = new Port() {
+            public void write(byte[] data) {
+                super.write(data);
+                if (writes.get(writes.size() - 1).equals("V\r")) {
+                    offer("16e7497-dirty github.com/normaldotcom/canable2.git\r");
+                }
+            }
+        };
+        try (SlcanTransport t = new SlcanTransport(port, 1)) {
+            t.initialize();
+            assertEquals(Arrays.asList("C\r", "V\r", "S6\r", "V\r", "O\r", "V\r"), port.writes);
+            port.offer("t7E840362F186\r");
+            assertArrayEquals(bytes(3, 0x62, 0xf1, 0x86), t.receiveCan().data);
+        }
+    }
+
+    @Test void silentUnknownAdapterDoesNotOpenCan() {
+        Port port = new Port();
+        assertThrows(IOException.class, () -> new SlcanTransport(port, 1).initialize());
+        assertEquals(Arrays.asList("C\r", "V\r"), port.writes);
+    }
+
+    @Test void canableSetupRequiresFreshVersionAndDoesNotTreatBlankAsSuccess() {
+        Port port = new Port() {
+            public void write(byte[] data) {
+                super.write(data);
+                if (writes.size() == 2) {
+                    offer("0123456789abcdef0123456789abcdef01234567 github.com/normaldotcom/canable2.git\r");
+                } else if (writes.size() > 2) { offer("\r"); }
+            }
+        };
+        assertThrows(IOException.class, () -> new SlcanTransport(port, 1).initialize());
+        assertEquals(Arrays.asList("C\r", "V\r", "S6\r", "V\r"), port.writes);
+    }
+
     static class Port implements SlcanTransport.Port {
         Queue<byte[]> incoming = new ArrayDeque<>();
         List<String> writes = new ArrayList<>();
