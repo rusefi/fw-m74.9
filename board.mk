@@ -21,6 +21,8 @@ IS_AT32F435 = yes
 # TIM5 drives the microsecond scheduler through the PWM HAL. Its default IRQ
 # priority is 7, but the scheduling contract requires priority 3 on this port.
 DDEFS += -DSTM32_PWM_TIM5_IRQ_PRIORITY=EFI_IRQ_SCHEDULING_TIMER_PRIORITY
+# TIM6 invokes fastAdcStartTrigger through the GPT HAL, which otherwise uses 7.
+DDEFS += -DSTM32_GPT_TIM6_IRQ_PRIORITY=EFI_IRQ_ADC_PRIORITY
 
 # Use a distinct filename so simulator VPATH cannot select the hardware board.c.
 BOARD_C = $(BOARD_DIR)/m74_9_board.c
