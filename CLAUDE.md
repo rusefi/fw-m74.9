@@ -94,3 +94,18 @@ rusEFI submodule; leave those generated changes unstaged.
   DTC-control step allowed communication control, thirteen 512-byte RAM writes,
   helper launch and repeated flash reads. Do not broaden this exception to
   admission/security/RAM writes or to arbitrary negative responses.
+
+- M749ACT2 keeps one fixed replacement software layout for I812 and I865,
+  while selecting retained calibration by validated loader CRC: I812 4F256CD9
+  -> 08069000, I865 D7B6B894 -> 08060000. Preserve the entire 60000..7FFFF gap;
+  leftover I812 OEM software at 60000..68FFF is outside the replacement CRCs.
+  Old M749ACT1 payloads are I865-only; calibration-only payloads remain I865-only.
+- Both supported loaders use the six programming DIDs and writable append-only
+  journal at 0824E000 for return-token activation. Do not infer these permissions
+  from application-session behavior. Preflight sends no metadata write/reset;
+  the OEM loader may later return to session 01 on its own timeout.
+- SLCAN after USB reattachment can start with partial frames and line endings
+  buffered before raw port configuration. Flush stale queues before any request
+  and synchronize fragments only during the first close command. Keep status
+  errors and active parsing strict; arbitrary malformed runtime frames are not
+  safe to discard. The I812 target preflight passed after this correction.

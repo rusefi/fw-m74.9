@@ -8,6 +8,19 @@ import static org.junit.jupiter.api.Assertions.*;
 import static com.rusefi.m749.M749Identification.bytes;
 
 class SlcanTransportTest {
+    @Test void closeSynchronizesPastStaleFragmentsButActiveParsingStaysStrict() throws Exception {
+        Port port = new Port(); port.acknowledge = true;
+        port.offer("1000000\rt".repeat(70) + "\r");
+        SlcanTransport transport = new SlcanTransport(port, 1);
+        transport.initialize();
+        assertEquals(Arrays.asList("C\r", "S6\r", "O\r"), port.writes);
+        port.offer("1000000\r");
+        assertThrows(IOException.class, transport::receiveCan);
+        Port error = new Port(); error.offer("F01\r");
+        assertThrows(IOException.class, () -> new SlcanTransport(error, 1).initialize());
+        assertEquals(List.of("C\r"), error.writes);
+    }
+
     @Test void canableWithoutAcknowledgementsRequiresVersionReplies() throws Exception {
         Port port = new Port() {
             public void write(byte[] data) {

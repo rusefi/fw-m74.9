@@ -324,9 +324,22 @@ Software checks pass; electrical and power-cycle testing is pending.
 
 ## Activation ABI
 
-The application reserves 32 bytes at 0x0805FFE0 for `M749ACT1`, pinned I865 boot
-CRC 0xD7B6B894 and protocol version 1. These bytes remain inside the software
-CRC domain. DIDs F1A0-F1A3 return, respectively, ready status 0x4D740101,
+The application reserves 32 bytes at 0x0805FFE0 for `M749ACT2`. Its eight
+little-endian words are 3934374D, 32544341, 00000002, 00000001, D7B6B894,
+08060000, 4F256CD9, 08069000: magic, profile count, activation protocol, then
+two (loader CRC, retained calibration start) pairs. The software CRC domain
+remains the same on both targets. These bytes remain inside that domain.
+Legacy `M749ACT1` descriptors support only I865.
+
+I812's original software/calibration split is 0x08069000. The replacement
+software still ends its first range at 0x08060000 and preserves the entire gap
+through 0x0807FFFF. I812 bytes 0x08060000-0x08068FFF are retained but are not
+part of either replacement software CRC or I812 calibration CRC. Boot CRC
+4F256CD9 selects calibration 0x08069000-0x0807FFFB; D7B6B894 selects
+0x08060000-0x0807FFFB. The stored trailer remains at 0x0807FFFC. Unknown loader
+CRCs cannot activate. Calibration generation/upload described above is I865-only.
+
+DIDs F1A0-F1A3 return, respectively, ready status 0x4D740101,
 software CRC, calibration CRC and the current persistent marker (big-endian).
 The validity-page operation is confined to 0x08200000-0x08200FFF and publishes
 0x43A0C212 only after CRC checks and restoration/verification of the page body.

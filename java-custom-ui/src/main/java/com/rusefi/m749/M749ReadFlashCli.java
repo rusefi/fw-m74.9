@@ -167,7 +167,7 @@ public final class M749ReadFlashCli {
         return 0;
     }
 
-    private static RawCanTransport open(Options o, Consumer<String> out) throws IOException {
+    static RawCanTransport open(Options o, Consumer<String> out) throws IOException {
         if (o.slcan != null) {
             String port = o.slcan;
             if (port.equalsIgnoreCase("auto")) {

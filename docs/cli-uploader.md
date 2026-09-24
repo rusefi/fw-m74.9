@@ -1,9 +1,37 @@
-# PCAN firmware uploader
+# M74.9 firmware uploader
+
+New builds use M749ACT2: one software HEX/SREC payload supports the known I812
+and I865 loader profiles. The CLI detects the target before erase; it preserves
+the loader, identity, pairing data and the complete 0x08060000-0x0807FFFF gap.
+I812 calibration starts at 0x08069000, I865 at 0x08060000. The application selects
+the retained calibration CRC domain from the validated loader CRC. Unknown
+I8xx profiles are rejected. Legacy M749ACT1 software remains I865-only.
+
+Check a payload against the connected ECU without writing flash:
+
+```sh
+bash bin/m749-cli.sh --check-target ext/rusefi/firmware/build/rusefi.hex --slcan auto
+bash bin/m749-cli.sh --upload ext/rusefi/firmware/build/rusefi.hex --slcan auto
+```
+
+The first command enters session 02 and checks authentication, loader sentinels,
+payload compatibility, the retained CRC trailer and journal space. It sends no
+erase/download, metadata write or reset; the loader can later time out back to
+the OEM application. The second command performs the update. Both also accept
+`--channel PCAN_USBBUS1` on native Windows. I865 paired authorization still uses
+`--pair-file` or `--immo-backup` when needed; those credentials do not apply to
+I812. I812 calibration-only uploads are deliberately rejected.
+
+On 2026-09-24 the I812TA01_w2243v21 bench passed the complete SLCAN preflight
+without a pairing credential. Its retained CRC was A5EC33E0 and journal slot 0
+was empty. Subsequent identification confirmed OEM session 01 and the same ECU
+identity. The new M749ACT2 image has passed software checks for both profiles;
+physical upload and power-cycle validation of this build remain outstanding.
 
 For a complete main-flash backup over SLCAN or Windows PCAN, see
 [the flash-reader guide](cli-flash-reader.md).
 
-The Java CLI programs the I865 OEM resident loader over standard CAN IDs
+The Java CLI programs the supported OEM resident loaders over standard CAN IDs
 0x7E0/0x7E8 at 500 kbit/s. The Swing tab's **Flash rusEFI / Update rusEFI** button
 uses the same uploader; see [the UI guide](../readme.md#m749-java-ui). The CLI
 and the application activation routine pass their software checks. Normal
@@ -55,8 +83,8 @@ bash bin/m749-cli.sh --upload ext/rusefi/firmware/build/rusefi.hex --channel PCA
 
 On native Windows, use `bin\m749-cli.bat` with the same arguments and Windows
 file paths. Install the PEAK driver and matching PCAN-Basic/JNI libraries.
-Windows DLLs cannot be used from a WSL JVM. Linux live access requires Linux
-PCAN drivers/native libraries. The launchers retain the caller's working
+Windows DLLs cannot be used from a WSL JVM. Use SLCAN for Linux live access.
+The launchers retain the caller's working
 directory and preserve quoted paths containing spaces.
 
 The launcher builds `:custom-java-ui:installM749Cli`, then runs
@@ -168,7 +196,7 @@ to satisfy a locked application's initial authorization condition.
 
 ## Calibration
 
-Calibration is a separate operation:
+I865 calibration is a separate operation:
 
 ```sh
 python3 bin/m749_image.py --calibration --format hex calibration.bin calibration.hex
@@ -199,7 +227,7 @@ loader's additive-checksum-only service before programming.
 5. Complete the minimal six-DID loader metadata handshake and verify those
    records, then request reset. The OEM loader writes the SRAM return token.
 6. Before actuator initialization, the new application checks the software,
-   calibration and pinned I865 loader CRCs. It preserves the validity page's
+   calibration and supported loader CRCs. It preserves the validity page's
    remaining bytes and writes the normal marker last. Failure resets into the
    resident loader without starting engine control.
 7. Read application activation status, both CRCs and the persistent marker.

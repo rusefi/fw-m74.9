@@ -12,7 +12,7 @@ import java.util.function.Consumer;
 
 import static com.rusefi.m749.M749Identification.bytes;
 
-/** I865 resident-loader programmer with application-side persistent activation. */
+/** Supported resident-loader programmer with application-side persistent activation. */
 final class M749Uploader {
     interface Connection {
         byte[] exchange(byte[] request, byte[] prefix, long timeout) throws IOException, InterruptedException;
@@ -31,6 +31,14 @@ final class M749Uploader {
     }
 
     void upload(M749Image image, boolean verifyBytes) throws IOException, InterruptedException {
+        upload(image, verifyBytes, false);
+    }
+
+    void checkTarget(M749Image image) throws IOException, InterruptedException {
+        upload(image, false, true);
+    }
+
+    private void upload(M749Image image, boolean verifyBytes, boolean preflightOnly) throws IOException, InterruptedException {
         image.requireActivationSupport();
         boolean eraseRequested = false;
         try {
@@ -41,22 +49,31 @@ final class M749Uploader {
             phase = "loader authentication";
             reader.authenticate();
             byte[] response;
-            phase = "checking the I865 loader profile";
+            phase = "checking the resident-loader profile";
             // Compare individual bytes via FF01, where the sum cannot collide.
             // These are compatibility sentinels, not an integrity check of the whole loader.
-            reader.checkProfile();
-            out.accept("I865 loader compatibility sentinels match; authentication accepted");
+            M749TargetProfile profile = reader.checkProfile();
+            out.accept(profile + " loader compatibility sentinels match; authentication accepted");
+            image.requireTarget(profile);
 
             phase = "activation preflight";
             if (image.domain == M749Image.Domain.CALIBRATION) {
-                for (int i = 0; i < M749Image.ACTIVATION_ABI.length; i++) {
-                    checksum(M749Image.ACTIVATION_ADDRESS + i, 1, M749Image.ACTIVATION_ABI[i] & 255);
+                boolean legacy = reader.matches(M749Image.ACTIVATION_ADDRESS + 7, 1, '1');
+                byte[] descriptor = legacy ? M749Image.ACTIVATION_ABI : M749Image.ACTIVATION_ABI_V2;
+                for (int i = 0; i < descriptor.length; i++) {
+                    reader.verifyByte(M749Image.ACTIVATION_ADDRESS + i, descriptor[i] & 255);
                 }
             }
             int journalSlot = checkJournalSpace();
             int softwareCrc = image.domain == M749Image.Domain.SOFTWARE ? image.crc : readWord(0x080FFFFC);
             int calibrationCrc = image.domain == M749Image.Domain.CALIBRATION ? image.crc : readWord(0x0807FFFC);
             Map<Integer, byte[]> metadata = journalSlot == 0 ? firstMetadata(softwareCrc) : readMetadata();
+            out.accept(String.format("Target %s: retained calibration starts at 0x%08X, CRC %08X",
+                    profile, profile.calibrationStart, calibrationCrc));
+            if (preflightOnly) {
+                out.accept("Target preflight passed; no erase, download, metadata write or reset sent. ECU remains in session 02.");
+                return;
+            }
 
             for (M749Image.Range range : image.ranges) {
                 byte[] data = range.bytes();
@@ -79,7 +96,7 @@ final class M749Uploader {
                 }
                 int maximum = (response[2] & 255) << 8 | response[3] & 255;
                 if (maximum < 6 || maximum > 0x802) {
-                    throw new IOException("Invalid I865 maximum transfer length: " + maximum);
+                    throw new IOException("Invalid loader maximum transfer length: " + maximum);
                 }
                 int blockSize = (maximum - 2) & ~3;
                 int counter = 0; // OEM loader starts at zero, not the usual UDS one.
@@ -187,7 +204,7 @@ final class M749Uploader {
     }
 
     private int checkJournalSpace() throws IOException, InterruptedException {
-        // I865 NVM initialization selects the first record with bytes 0 and 8 FF.
+        // Supported loaders select the first record with bytes 0 and 8 FF.
         // Region 6 is an append-only 16-record page; the loader does not erase it.
         for (int slot = 0; slot < 16; slot++) {
             int address = 0x0824E000 + slot * 256;
@@ -207,12 +224,12 @@ final class M749Uploader {
         String date = LocalDate.now(ZoneOffset.UTC).format(DateTimeFormatter.BASIC_ISO_DATE);
         Map<Integer, byte[]> records = new LinkedHashMap<>();
         records.put(0xF188, "rusEFI m74_9".getBytes(StandardCharsets.US_ASCII));
-        records.put(0xF189, String.format("M749ACT1-%08X", softwareCrc).getBytes(StandardCharsets.US_ASCII));
+        records.put(0xF189, String.format("M749-%08X", softwareCrc).getBytes(StandardCharsets.US_ASCII));
         records.put(0xF194, "rusEFI m74_9".getBytes(StandardCharsets.US_ASCII));
         records.put(0xF195, date.getBytes(StandardCharsets.US_ASCII));
         records.put(0xF198, "fw-m74.9 CLI".getBytes(StandardCharsets.US_ASCII));
         records.put(0xF199, date.getBytes(StandardCharsets.US_ASCII));
-        out.accept("Programming history is empty: creating a tool record with the software CRC and today's UTC date");
+        out.accept("Programming history is empty: prepared a tool record with the software CRC and today's UTC date");
         return records;
     }
 

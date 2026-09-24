@@ -10,9 +10,9 @@ final class M749FirmwareDetection {
     enum Result {
         UNKNOWN("No rusEFI identity response", false),
         OEM("OEM firmware detected", false),
-        RUSEFI("rusEFI (UDS identity F1A4; M749ACT1 not confirmed)", false),
-        M749_READY("rusEFI (M749ACT1; activation ready)", true),
-        M749_NOT_READY("rusEFI (M749ACT1; activation NOT ready)", true);
+        RUSEFI("rusEFI (UDS identity F1A4; M74.9 activation interface not confirmed)", false),
+        M749_READY("rusEFI (M74.9; activation ready)", true),
+        M749_NOT_READY("rusEFI (M74.9; activation NOT ready)", true);
 
         final String description;
         final boolean m749;

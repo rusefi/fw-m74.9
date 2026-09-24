@@ -77,7 +77,7 @@ final class M749Immo {
             return;
         }
         if (firmware == M749FirmwareDetection.Result.RUSEFI) {
-            throw new IOException("rusEFI detected without M749ACT1; OEM programming entry is not confirmed");
+            throw new IOException("rusEFI detected without the M74.9 activation interface; OEM programming entry is not confirmed");
         }
         // Already in the OEM loader: no startup IMMO exchange is needed.
         byte[] session = new UdsClient(transport, clock).exchange(bytes(0x22, 0xF1, 0x86),

@@ -17,14 +17,17 @@ class M749ImageTest {
     @TempDir Path directory;
 
     static List<SRecord> records(M749Image.Domain domain) {
+        return records(domain, M749Image.ACTIVATION_ABI);
+    }
+
+    static List<SRecord> records(M749Image.Domain domain, byte[] descriptor) {
         List<SRecord> records = new ArrayList<>();
         if (domain == M749Image.Domain.SOFTWARE) {
             byte[] first = new byte[M749Image.CAL - M749Image.START];
             Arrays.fill(first, (byte) 0xFF);
             word(first, 0, 0x20020000);
             word(first, 4, 0x08080001);
-            System.arraycopy(M749Image.ACTIVATION_ABI, 0, first, M749Image.ACTIVATION_ADDRESS - M749Image.START,
-                    M749Image.ACTIVATION_ABI.length);
+            System.arraycopy(descriptor, 0, first, M749Image.ACTIVATION_ADDRESS - M749Image.START, descriptor.length);
             records.add(new SRecord(M749Image.START, first));
             records.add(new SRecord(M749Image.SECOND, new byte[M749Image.END - M749Image.SECOND]));
         } else {

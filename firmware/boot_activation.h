@@ -8,6 +8,7 @@ constexpr uint32_t MarkerAddress = 0x08200000;
 constexpr uint32_t NormalMarker = 0x43A0C212;
 constexpr uint32_t ProgrammingMarker = 0x2548A4D2;
 constexpr uint32_t I865BootCrc = 0xD7B6B894;
+constexpr uint32_t I812BootCrc = 0x4F256CD9;
 constexpr uint32_t ActivationDescriptor = 0x0805FFE0;
 constexpr size_t MarkerPageSize = 4096;
 
@@ -45,12 +46,13 @@ template<class Read, class Heartbeat>
 ImageChecks checkImages(Read read, Heartbeat heartbeat) {
     auto software = crcRange(read, heartbeat, 0x08001000, 0x5F000, 0xFFFFFFFF);
     software = crcRange(read, heartbeat, 0x08080000, 0x7FFFC, software);
-    auto calibration = crcRange(read, heartbeat, 0x08060000, 0x1FFFC, 0xFFFFFFFF);
     auto boot = crcRange(read, heartbeat, 0x08000000, 0x1000, 0xFFFFFFFF);
     boot = crcRange(read, heartbeat, 0x08201000, 0x2CFFC, boot);
+    const uint32_t calibrationStart = boot == I812BootCrc ? 0x08069000 : 0x08060000;
+    auto calibration = crcRange(read, heartbeat, calibrationStart, 0x0807FFFC - calibrationStart, 0xFFFFFFFF);
     return {software, calibration, boot,
         software == readWord(read, 0x080FFFFC) && calibration == readWord(read, 0x0807FFFC) &&
-        boot == readWord(read, 0x0822DFFC) && boot == I865BootCrc &&
+        boot == readWord(read, 0x0822DFFC) && (boot == I865BootCrc || boot == I812BootCrc) &&
         readWord(read, 0x08001000) == 0x20020000 && readWord(read, 0x08001004) == 0x08080001};
 }
 

@@ -121,4 +121,55 @@ int main() {
     image[0x80000] ^= 1;
     changed = m749::checkImages(read, [] {});
     assert(changed.software != consistent.software && changed.boot == consistent.boot);
+
+    // Construct synthetic loader CRC domains for both profiles. Solve the final
+    // four input bytes as a GF(2) linear system; no original firmware is needed.
+    auto setBootCrc = [&](uint32_t target) {
+        const uint32_t patch = 0x0822DFF8;
+        auto prefix = m749::crcRange(read, [] {}, 0x08000000, 0x1000, 0xFFFFFFFF);
+        prefix = m749::crcRange(read, [] {}, 0x08201000, 0x2CFF8, prefix);
+        auto tailCrc = [&](uint32_t value) {
+            writeWord(patch, value);
+            return m749::crcRange(read, [] {}, patch, 4, prefix);
+        };
+        const uint32_t baseline = tailCrc(0);
+        uint32_t basis[32]{}, masks[32]{};
+        for (unsigned bit = 0; bit < 32; bit++) {
+            uint32_t value = tailCrc(1U << bit) ^ baseline;
+            uint32_t mask = 1U << bit;
+            for (int pivot = 31; pivot >= 0; pivot--) {
+                if (!(value & (1U << pivot))) continue;
+                if (basis[pivot]) { value ^= basis[pivot]; mask ^= masks[pivot]; }
+                else { basis[pivot] = value; masks[pivot] = mask; break; }
+            }
+        }
+        uint32_t value = target ^ baseline, solution = 0;
+        for (int pivot = 31; pivot >= 0; pivot--) {
+            if (value & (1U << pivot)) { assert(basis[pivot]); value ^= basis[pivot]; solution ^= masks[pivot]; }
+        }
+        assert(value == 0 && tailCrc(solution) == target);
+        writeWord(0x0822DFFC, target);
+    };
+    for (auto boot : {m749::I865BootCrc, m749::I812BootCrc}) {
+        setBootCrc(boot);
+        checked = m749::checkImages(read, [] {});
+        writeWord(0x080FFFFC, checked.software);
+        writeWord(0x0807FFFC, checked.calibration);
+        assert(m749::checkImages(read, [] {}).valid);
+        // I812 preserves 60000..68FFF without including it in custom software
+        // or the retained I812 calibration CRC. I865 includes it in calibration.
+        image[0x60000] ^= 1;
+        assert(m749::checkImages(read, [] {}).valid == (boot == m749::I812BootCrc));
+        image[0x60000] ^= 1;
+        image[0x69000] ^= 1;
+        assert(!m749::checkImages(read, [] {}).valid);
+        image[0x69000] ^= 1;
+        image[0x201000] ^= 1;
+        assert(!m749::checkImages(read, [] {}).valid);
+        image[0x201000] ^= 1;
+        writeWord(0x08001004, 0x08080003);
+        assert(!m749::checkImages(read, [] {}).valid);
+        writeWord(0x08001004, 0x08080001);
+        assert(m749::checkImages(read, [] {}).valid);
+    }
 }

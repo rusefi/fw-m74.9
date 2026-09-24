@@ -23,6 +23,7 @@ final class SlcanTransport implements RawCanTransport {
     private int acknowledgements;
     private boolean closed;
     private boolean recoveringClose;
+    private boolean discardingStartupLine;
     private final Consumer<String> log;
     private String initializingCommand;
     private long receivedBytes;
@@ -55,6 +56,9 @@ final class SlcanTransport implements RawCanTransport {
             throw new IOException("Cannot open SLCAN serial port " + name + "; native error=" + serial.getLastErrorCode());
         }
         log.accept("SLCAN " + name + " opened; queued RX bytes=" + serial.bytesAvailable());
+        // A newly attached port may contain partial or terminal-translated data
+        // from before raw serial configuration. No request has been sent yet.
+        serial.flushIOBuffers();
         Port port = new Port() {
             public int read(byte[] buffer) throws IOException {
                 if (!serial.isOpen()) { throw new IOException("SLCAN serial port disconnected"); }
@@ -83,7 +87,7 @@ final class SlcanTransport implements RawCanTransport {
             return transport;
         } catch (IOException e) {
             log.accept("SLCAN initialization failed before ECU communication: " + e.getMessage());
-            log.accept("The reader has not uploaded or started the RAM helper; this failure does not require an ECU power cycle.");
+            log.accept("No ECU requests were sent; this adapter initialization failure does not require an ECU power cycle.");
             try { port.close(); } catch (IOException close) { e.addSuppressed(close); }
             throw e;
         }
@@ -126,7 +130,11 @@ final class SlcanTransport implements RawCanTransport {
             }
             log.accept("SLCAN " + value + (requireVersion ? " version reply after " : " acknowledged after ") + (System.nanoTime() - start) / 1_000_000 +
                     " ms; received=" + (receivedBytes - before) + " bytes");
-        } finally { recoveringClose = false; initializingCommand = null; }
+        } finally {
+            if (recoveringClose) { line.setLength(0); discardingStartupLine = false; }
+            recoveringClose = false;
+            initializingCommand = null;
+        }
     }
 
     private void write(String value) throws IOException {
@@ -161,11 +169,25 @@ final class SlcanTransport implements RawCanTransport {
                 throw new IOException("SLCAN adapter rejected a command or CAN transmission");
             }
             if (value == '\r') {
-                accept(line.toString());
+                if (!discardingStartupLine) {
+                    try { accept(line.toString()); }
+                    catch (IOException e) {
+                        if (!recoveringClose || !(e.getMessage().startsWith("Malformed SLCAN") ||
+                                e.getMessage().startsWith("Unexpected SLCAN line"))) { throw e; }
+                        log.accept("Discarding incomplete startup line while closing CAN: " + e.getMessage());
+                    }
+                }
                 line.setLength(0);
+                discardingStartupLine = false;
             } else if (value != '\n') {
+                if (discardingStartupLine) { continue; }
                 int limit = initializingCommand == null ? 64 : 128;
-                if (value < 32 || value > 126 || line.length() >= limit) { throw new IOException("Malformed SLCAN line"); }
+                if (value < 32 || value > 126 || line.length() >= limit) {
+                    if (!recoveringClose) { throw new IOException("Malformed SLCAN line"); }
+                    line.setLength(0);
+                    discardingStartupLine = true;
+                    continue;
+                }
                 line.append((char) value);
             }
         }

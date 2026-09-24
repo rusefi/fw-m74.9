@@ -9,7 +9,8 @@ extern volatile uint32_t m749BootIntent;
 // Address and bytes are part of the CLI/firmware ABI. The linker reserves them.
 __attribute__((section(".m749_activation"), used))
 const uint32_t m749ActivationAbi[8] = {
-    0x3934374D, 0x31544341, m749::I865BootCrc, 1, 0, 0, 0, 0
+    0x3934374D, 0x32544341, 2, 1,
+    m749::I865BootCrc, 0x08060000, m749::I812BootCrc, 0x08069000
 };
 
 static m749::ImageChecks checks;

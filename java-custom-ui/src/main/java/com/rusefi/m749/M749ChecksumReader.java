@@ -4,7 +4,7 @@ import com.rusefi.uds.M74_9_SeedKeyCalculator;
 import java.io.IOException;
 import static com.rusefi.m749.M749Identification.bytes;
 
-/** Read flash through the I865 loader's FF01 checksum comparison. */
+/** Read flash through the supported loader's FF01 checksum comparison. */
 final class M749ChecksumReader {
     private final M749Uploader.Connection connection;
 
@@ -78,21 +78,12 @@ final class M749ChecksumReader {
         }
     }
 
-    void checkProfile() throws IOException, InterruptedException {
-        int[] addresses = {0x0822DFFC, 0x08201E2C, 0x08201D84, 0x08204B7C};
-        String[] values = {"94b8b6d7", "2de9f04184b004460d4617461e4601f0",
-                "70b506460d46144601f024fd012801d0", "08b50a4b1b68fff7e7ff012807d0fff7"};
-        for (int n = 0; n < addresses.length; n++) {
-            for (int i = 0; i < values[n].length(); i += 2) {
-                if (!matches(addresses[n] + i / 2, 1, Integer.parseInt(values[n].substring(i, i + 2), 16))) {
-                    throw new IOException("I865 loader compatibility check failed");
-                }
-            }
-        }
+    M749TargetProfile checkProfile() throws IOException, InterruptedException {
+        return M749TargetProfile.detect(this);
     }
 
     /** An accepted session transition can reset the application into its loader. */
-    void prepareRead() throws IOException, InterruptedException {
+    M749TargetProfile prepareRead() throws IOException, InterruptedException {
         byte[] r = connection.exchange(bytes(0x22, 0xF1, 0x86), bytes(0x62, 0xF1, 0x86), 5_000);
         if (r.length != 4) { throw new IOException("Invalid active-session response"); }
         if (r[3] != 2) {
@@ -101,6 +92,6 @@ final class M749ChecksumReader {
             connection.pause(1_000);
         }
         authenticate();
-        checkProfile();
+        return checkProfile();
     }
 }

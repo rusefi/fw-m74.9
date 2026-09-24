@@ -16,6 +16,10 @@ final class M749Image {
     static final int ACTIVATION_ADDRESS = 0x0805FFE0;
     static final byte[] ACTIVATION_ABI = new byte[]{0x4D, 0x37, 0x34, 0x39, 0x41, 0x43, 0x54, 0x31,
             (byte) 0x94, (byte) 0xB8, (byte) 0xB6, (byte) 0xD7, 1, 0, 0, 0};
+    static final byte[] ACTIVATION_ABI_V2 = new byte[]{0x4D, 0x37, 0x34, 0x39, 0x41, 0x43, 0x54, 0x32,
+            2, 0, 0, 0, 1, 0, 0, 0,
+            (byte) 0x94, (byte) 0xB8, (byte) 0xB6, (byte) 0xD7, 0, 0, 6, 8,
+            (byte) 0xD9, 0x6C, 0x25, 0x4F, 0, (byte) 0x90, 6, 8};
     static final class Range {
         final int address;
         private final byte[] data;
@@ -116,9 +120,24 @@ final class M749Image {
         if (domain == Domain.SOFTWARE) {
             byte[] first = ranges.get(0).data;
             int offset = ACTIVATION_ADDRESS - START;
-            if (!Arrays.equals(ACTIVATION_ABI, Arrays.copyOfRange(first, offset, offset + ACTIVATION_ABI.length))) {
-                throw new IOException("Software lacks the M749ACT1 persistent-activation ABI; rebuild this firmware first");
+            if (!descriptorMatches(first, offset, ACTIVATION_ABI) && !descriptorMatches(first, offset, ACTIVATION_ABI_V2)) {
+                throw new IOException("Software lacks a supported M749ACT1/M749ACT2 persistent-activation ABI; rebuild first");
             }
+        }
+    }
+
+    private static boolean descriptorMatches(byte[] data, int offset, byte[] descriptor) {
+        return Arrays.equals(descriptor, Arrays.copyOfRange(data, offset, offset + descriptor.length));
+    }
+
+    void requireTarget(M749TargetProfile profile) throws IOException {
+        requireActivationSupport();
+        if (domain == Domain.CALIBRATION && profile.calibrationStart != CAL) {
+            throw new IOException("This calibration payload uses the I865 layout; I812 software updates preserve its calibration");
+        }
+        if (domain == Domain.SOFTWARE && profile == M749TargetProfile.I812 &&
+                !descriptorMatches(ranges.get(0).data, ACTIVATION_ADDRESS - START, ACTIVATION_ABI_V2)) {
+            throw new IOException("I812 requires M749ACT2 software; the M749ACT1 image supports only I865");
         }
     }
 
