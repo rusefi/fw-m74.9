@@ -7,6 +7,7 @@
 #include "ignition_controller.h"
 #include "firmware/bootloader_handoff.h"
 #include "firmware/boot_activation.h"
+#include "firmware/vehicle_can.h"
 
 // PB14 is error LED, configured in board.mk
 Gpio getCommsLedPin() {
@@ -66,6 +67,7 @@ static void setupEtb() {
 
  */
 static void m74_9_boardDefaultConfiguration() {
+	config->ladaCanbusProfile = true;
 	setInjectorPins();
 	setIgnitionPins();
 
@@ -180,6 +182,7 @@ void boardInit() {
 }
 
 static void m74_9BoardInitHardware() {
+	initM749VehicleCan();
 	/* PB13 drives the inverted TLE9201 DIS circuit: high enables the bridge.
 	 * Start safely disabled until the cached ignition-key status is valid. */
 	gpio_pin_markUsed(GPIOB, 13, "ETC_EN");
@@ -240,6 +243,9 @@ void setup_custom_board_overrides() {
 	custom_board_InitHardwareEarly = initM749BootActivation;
 #endif
 	custom_board_InitHardware = m74_9BoardInitHardware;
+	custom_board_StopHardware = stopM749VehicleCan;
+	custom_board_StartHardware = startM749VehicleCan;
+	custom_board_update_dash = updateM749VehicleCan;
 	custom_board_DefaultConfiguration = m74_9_boardDefaultConfiguration;
 	custom_board_ConfigOverrides = m74_9_boardConfigOverrides;
 	custom_board_periodicSlowCallback = m74_9IgnitionGatePeriodic;

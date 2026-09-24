@@ -59,3 +59,18 @@ rusEFI submodule; leave those generated changes unstaged.
   F186. A timeout on F186 does not mean the ECU is absent or needs a power cycle.
   Confirm the M749ACT1 interface separately from the general rusEFI identity;
   other rusEFI boards need not use the I865 resident loader.
+
+- For standalone Python board regression discovery, set PYTHON=python3 in the
+  environment: the packaging fixture includes bundle.mk without the normal
+  top-level make defaults. Without it, make tries to execute the non-executable
+  image script directly. This does not require changing the script mode.
+- The default host test configuration does not enable EFI_CAN_SUPPORT. Test
+  receive sensors through CanListener::processFrame and the sensor registry;
+  the full shared receive dispatcher is validated by the production build and
+  still needs hardware testing for live diagnostic coexistence.
+
+- Board fields declared in board_config.txt belong to persistent `config`, not
+  `engineConfiguration`. Board default setup and the INI `defaultValue` entry
+  serve different paths (fresh ECU settings versus missing imported fields);
+  neither is a migration that overwrites an existing stored tune. Keep the
+  board menu/options/constants-extension inputs as the sources for INI changes.

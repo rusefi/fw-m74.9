@@ -2,7 +2,9 @@
 BOARDCPPSRC = $(BOARD_DIR)/board_configuration.cpp \
   $(BOARD_DIR)/firmware/bootloader_handoff.cpp \
   $(BOARD_DIR)/firmware/boot_activation.cpp \
-  $(BOARD_DIR)/firmware/board_storage.cpp
+  $(BOARD_DIR)/firmware/board_storage.cpp \
+  $(BOARD_DIR)/firmware/vehicle_can.cpp \
+  $(BOARD_DIR)/firmware/vehicle_can_tx.cpp
 
 override LDSCRIPT = $(BOARD_DIR)/firmware/m749.ld
 ALLXASMSRC += $(BOARD_DIR)/firmware/m749_startup.S

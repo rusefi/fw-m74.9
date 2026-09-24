@@ -1,2 +1,1 @@
-! this file is used to define custom board-specific calibrations
-! see also extra.txt for board-specific data points
+bit ladaCanbusProfile,"yes","no";Enable the Lada vehicle CAN receive and dashboard transmit profile on CAN1. Diagnostics remain available when disabled.
