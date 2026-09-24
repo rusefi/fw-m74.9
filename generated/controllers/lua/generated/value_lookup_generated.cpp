@@ -2221,6 +2221,9 @@ float getConfigValueByHash(const int hash) {
 // wizardVeTable
 		case 346417305:
 			return config->wizardVeTable;
+// ladaCanbusProfile
+		case 2085262628:
+			return config->ladaCanbusProfile;
 	}
 	return EFI_ERROR_CODE;
 }
@@ -5924,6 +5927,11 @@ bool setConfigValueByName(const char *name, float value) {
 		case 346417305:
 	{
 		config->wizardVeTable = (int)value;
+		return 1;
+	}
+		case 2085262628:
+	{
+		config->ladaCanbusProfile = (int)value;
 		return 1;
 	}
 	}

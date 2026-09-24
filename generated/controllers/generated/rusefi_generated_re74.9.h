@@ -154,7 +154,6 @@
 #define BOARD_ACTION_INJECTOR_PRESET 0x302
 #define BOARD_CAM_SETTINGS_FILE
 #define BOARD_CAN_BUS_FROM_FILE
-#define BOARD_CONSTANTS_EXTENSIONS_FROM_FILE
 #define BOARD_CONTROLLER_MENU_PREFIX_FROM_FILE
 #define BOARD_CONTROLLER_MENU_SUFFIX_FROM_FILE
 #define BOARD_CURVES_FROM_FILE
@@ -168,8 +167,6 @@
 #define BOARD_IGNITION_SETTINGS_FROM_FILE
 #define BOARD_INJECTION_SETTINGS_FROM_FILE
 #define BOARD_INJECTOR_SETTINGS_FROM_FILE
-#define BOARD_MENU_FROM_FILE
-#define BOARD_OPTIONS_FROM_FILE
 #define BOARD_PANELS_FROM_FILE
 #define BOARD_PC_VARIABLES_FROM_FILE
 #define BOARD_POPULAR_VEHICLES_FILE
@@ -1648,7 +1645,7 @@
 #define SentInput_NONE 0
 #define show_tcu_gauges false
 #define show_vvt_output_pin true
-#define SIGNATURE_HASH 2034842302
+#define SIGNATURE_HASH 2784515714
 #define SIMULATOR_TUNE_BIN_FILE_NAME "generated/simulator_tune_image.bin"
 #define SIMULATOR_TUNE_BIN_FILE_NAME_PREFIX "generated/simulator_tune_image"
 #define SIMULATOR_TUNE_BIN_FILE_NAME_SUFFIX ".bin"
@@ -2293,7 +2290,7 @@
 #define ts_show_wbo_canbus_index true
 #define ts_show_wbo_canbus_set_index true
 #define ts_show_wbo_canbus_set_type false
-#define TS_SIGNATURE "rusEFI main.2026.09.24.re74.9.2034842302"
+#define TS_SIGNATURE "rusEFI main.2026.09.24.re74.9.2784515714"
 #define TS_SIMULATE_CAN '>'
 #define TS_SIMULATE_CAN_char >
 #define TS_TEST_COMMAND 't'
