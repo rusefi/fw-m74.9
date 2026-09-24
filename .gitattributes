@@ -7,3 +7,7 @@
 *.mk text eol=lf
 *.sh text eol=lf
 *.env text eol=lf
+# Configuration generator inputs are hashed and must not contain CR bytes.
+*.txt text eol=lf
+*.ini text eol=lf
+connectors/*.yaml text eol=lf
