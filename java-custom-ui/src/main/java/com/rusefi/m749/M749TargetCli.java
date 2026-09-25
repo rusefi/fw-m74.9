@@ -14,7 +14,7 @@ final class M749TargetCli {
 
     static int execute(String[] args, M749ReadFlashCli.TransportFactory factory, Consumer<String> out)
             throws IOException, InterruptedException {
-        String usage = "m749-cli --check-target FILE [--slcan PORT|auto | --channel CHANNEL|auto] " +
+        String usage = "m749-cli --check-target FILE [--slcan PORT|auto | --socketcan IFACE | --channel CHANNEL|auto] " +
                 "[--pair-file ECU.pair | --immo-backup PAIRED_FULLFLASH.bin]";
         String file = null;
         List<String> transport = new ArrayList<>();
@@ -25,7 +25,7 @@ final class M749TargetCli {
             if (i + 1 >= args.length || args[i + 1].startsWith("--")) { out.accept(usage); return 2; }
             String value = args[++i];
             if (option.equals("--check-target") && file == null) { file = value; continue; }
-            if (!List.of("--slcan", "--channel", "--serial-baud", "--slcan-bus", "--pair-file", "--immo-backup").contains(option)) {
+            if (!List.of("--slcan", "--socketcan", "--channel", "--serial-baud", "--slcan-bus", "--pair-file", "--immo-backup").contains(option)) {
                 out.accept(usage); return 2;
             }
             transport.add(option);

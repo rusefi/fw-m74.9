@@ -31,6 +31,18 @@ class M749CliUploadTest {
         assertEquals(0, M749Cli.execute(new String[]{"--help"}, noDevices, noUpload, s -> {}));
     }
 
+    @Test void invalidSocketCanSelectionNeverAccessesHardware() throws Exception {
+        for (String[] selection : new String[][]{
+                {"--socketcan"}, {"--socketcan", ""}, {"--socketcan", "auto"},
+                {"--socketcan", "--verify-bytes"}, {"--socketcan", "can0", "--socketcan", "can1"},
+                {"--socketcan", "can0", "--slcan", "port"}, {"--socketcan", "can0", "--channel", "PCAN_USBBUS1"}}) {
+            java.util.ArrayList<String> args = new java.util.ArrayList<>(List.of("--upload", "unused.hex"));
+            args.addAll(List.of(selection));
+            assertEquals(2, M749Cli.execute(args.toArray(new String[0]), noDevices, noUpload, s -> {}));
+        }
+        assertEquals(2, M749Cli.execute(new String[]{"--list", "--socketcan", "can0"}, noDevices, noUpload, s -> {}));
+    }
+
     @Test void dryRunHandlesSpacesAndLiveRequestUsesExactValidatedImageAndExplicitChannel() throws Exception {
         Path file = directory.resolve("calibration with spaces.srec");
         StringBuilder text = new StringBuilder();
@@ -68,6 +80,13 @@ class M749CliUploadTest {
                     assertNull(immo);
                 }, s -> {}));
         assertTrue(called[0]);
+        assertEquals(0, M749Cli.execute(new String[]{"--upload", file.toString(), "--calibration", "--socketcan", "can2"},
+                noDevices, (channel, image, verify, immo, out) -> {
+                    assertEquals("socketcan:can2", channel);
+                    assertArrayEquals(record.data, image.ranges.get(0).bytes());
+                }, s -> {}));
+        assertEquals(0, M749Cli.execute(new String[]{"--upload", file.toString(), "--calibration", "--socketcan", "can2", "--dry-run"},
+                noDevices, noUpload, s -> {}));
         Path pairPath = directory.resolve("known bytes.pair");
         M749PairFile pair = new M749PairFile(); pair.put(0, 0); pair.save(pairPath);
         assertThrows(IOException.class, () -> M749Cli.execute(new String[]{"--upload", file.toString(),

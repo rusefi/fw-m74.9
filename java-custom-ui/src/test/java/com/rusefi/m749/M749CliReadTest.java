@@ -42,6 +42,21 @@ class M749CliReadTest {
         assertTrue(called[0]);
     }
 
+    @Test void socketCanByteAndPairReadsUseExplicitInterface() throws Exception {
+        for (String mode : new String[]{"--read-byte", "--read-pair"}) {
+            String target = mode.equals("--read-byte") ? "0x08000004" : directory.resolve("socketcan.pair").toString();
+            boolean[] called = {false};
+            assertEquals(0, M749Cli.execute(new String[]{mode, target, "--socketcan", "can9"},
+                    noDevices, noUpload, (channel, address, path, known, immo, out) -> {
+                        called[0] = true;
+                        assertEquals("socketcan:can9", channel);
+                        if (address != null) { assertEquals(0x08000004, address.intValue()); }
+                        else { assertEquals(Path.of(target), path); assertEquals(0, known.knownCount()); }
+                    }, s -> {}));
+            assertTrue(called[0]);
+        }
+    }
+
     @Test void pairReadPassesSparseStateAndRejectsBadFilesBeforeAdapterAccess() throws Exception {
         Path path = directory.resolve("ecu pair.pair");
         M749PairFile pair = new M749PairFile(); pair.put(5, 0); pair.save(path);

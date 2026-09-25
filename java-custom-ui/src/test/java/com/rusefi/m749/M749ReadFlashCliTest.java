@@ -25,6 +25,14 @@ class M749ReadFlashCliTest {
                 {"--read-flash", "--resume"}, {"--read-flash", "x", "--slcan"},
                 {"--read-flash", "--serial-baud", "9600"},
                 {"--read-flash", "x", "--slcan", "a", "--channel", "PCAN_USBBUS1"},
+                {"--read-flash", "x", "--socketcan", "can0", "--slcan", "a"},
+                {"--read-flash", "x", "--socketcan", "can0", "--channel", "auto"},
+                {"--read-flash", "x", "--socketcan", "can0", "--serial-baud", "115200"},
+                {"--read-flash", "x", "--socketcan", "can0", "--slcan-bus", "1"},
+                {"--read-flash", "x", "--socketcan", "can0", "--socketcan", "can1"},
+                {"--read-flash", "x", "--socketcan"},
+                {"--read-flash", "x", "--socketcan", "auto"},
+                {"--read-flash", "x", "--socketcan", ""},
                 {"--read-flash", "x", "--slcan", "a", "--chunk-size", "4096"},
                 {"--read-flash", "x", "--slcan", "a", "--start", "0x40000000"},
                 {"--read-flash", "x", "--slcan", "a", "--length", "-1"},
@@ -55,6 +63,41 @@ class M749ReadFlashCliTest {
         assertTrue(o.output.toString().matches("m749-full-[0-9]{8}T[0-9]{9}Z\\.bin"));
         assertEquals("auto", M749ReadFlashCli.parse(new String[]{"--read-flash", "--channel", "auto"}).channel);
         assertEquals(Path.of("backup with spaces.bin"), M749ReadFlashCli.parse(new String[]{"--read-flash", "backup with spaces.bin"}).output);
+    }
+
+    @Test void socketCanUsesNativePacingAndReadOnlyIdentification() throws Exception {
+        M749ReadFlashCli.Options options = M749ReadFlashCli.parse(new String[]{"--read-flash", "--socketcan", "can2"});
+        assertEquals("can2", options.socketcan);
+        assertNull(options.slcan);
+        assertNull(options.channel);
+        assertEquals(1, options.stmin);
+        SocketCanTransportTest.Port port = new SocketCanTransportTest.Port() {
+            public void send(com.rusefi.io.can.ClassicCanFrame frame) {
+                super.send(frame);
+                byte[] q = frame.getPayload();
+                assertEquals(0x22, q[1]);
+                reply(0x7e8, (byte) 4, (byte) 0x62, q[2], q[3], (byte) 1);
+            }
+        };
+        assertEquals(0, M749ReadFlashCli.identify(new String[]{"--identify", "--socketcan", "can2"}, o -> {
+            assertEquals("can2", o.socketcan);
+            return new SocketCanTransport(port);
+        }, s -> {}));
+        assertFalse(port.outgoing.isEmpty());
+        assertTrue(port.closed);
+    }
+
+    @Test void socketCanBackupUsesIsoTpAndPublishesVerifiedBytes() throws Exception {
+        Path path = directory.resolve("socketcan backup.bin");
+        WireEcu peer = new WireEcu();
+        assertEquals(0, M749ReadFlashCli.execute(new String[]{"--read-flash", path.toString(),
+                "--socketcan", "can0", "--length", "128"}, options -> {
+            assertEquals("can0", options.socketcan);
+            assertNull(options.slcan);
+            return peer;
+        }, s -> {}));
+        assertArrayEquals(M749RamHelperTest.Ecu.content(M749RamHelper.BASE, 128), Files.readAllBytes(path));
+        assertTrue(peer.closed);
     }
 
     @Test void discoveryExcludesConsoleAndUnknownPortsAndRejectsAmbiguity() throws Exception {

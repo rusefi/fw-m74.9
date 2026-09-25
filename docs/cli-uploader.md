@@ -18,7 +18,7 @@ The first command enters session 02 and checks authentication, loader sentinels,
 payload compatibility, the retained CRC trailer and journal space. It sends no
 erase/download, metadata write or reset; the loader can later time out back to
 the OEM application. The second command performs the update. Both also accept
-`--channel PCAN_USBBUS1` on native Windows. I865 paired authorization still uses
+`--socketcan can0` on Linux or `--channel PCAN_USBBUS1` on native Windows. I865 paired authorization still uses
 `--pair-file` or `--immo-backup` when needed; those credentials do not apply to
 I812. I812 calibration-only uploads are deliberately rejected.
 
@@ -28,7 +28,7 @@ was empty. Subsequent identification confirmed OEM session 01 and the same ECU
 identity. The new M749ACT2 image has passed software checks for both profiles;
 physical upload and power-cycle validation of this build remain outstanding.
 
-For a complete main-flash backup over SLCAN or Windows PCAN, see
+For a complete main-flash backup over SLCAN, Linux SocketCAN or Windows PCAN, see
 [the flash-reader guide](cli-flash-reader.md).
 
 The Java CLI programs the supported OEM resident loaders over standard CAN IDs
@@ -83,9 +83,36 @@ bash bin/m749-cli.sh --upload ext/rusefi/firmware/build/rusefi.hex --channel PCA
 
 On native Windows, use `bin\m749-cli.bat` with the same arguments and Windows
 file paths. Install the PEAK driver and matching PCAN-Basic/JNI libraries.
-Windows DLLs cannot be used from a WSL JVM. Use SLCAN for Linux live access.
+Windows DLLs cannot be used from a WSL JVM. Use SLCAN or SocketCAN for Linux live access.
 The launchers retain the caller's working
 directory and preserve quoted paths containing spaces.
+
+### Linux SocketCAN
+
+Configure the selected Linux CAN interface at 500 kbit/s before opening the CLI:
+
+```sh
+sudo ip link set can0 down
+sudo ip link set can0 type can bitrate 500000
+sudo ip link set can0 up
+bash bin/m749-cli.sh --identify --socketcan can0
+bash bin/m749-cli.sh --check-target rusefi.hex --socketcan can0
+bash bin/m749-cli.sh --upload rusefi.hex --socketcan can0
+```
+
+`--socketcan IFACE` selects one explicit interface without scanning serial or
+PCAN devices. It also works with `--read-flash`, `--read-byte` and `--read-pair`,
+and with existing credential options. Use only one transport selector per command.
+`--socketcan can0` alone performs read-only identification. `--list` continues
+to list PCAN channels; use `ip -details link show` to inspect Linux interfaces.
+
+The CLI uses rusEFI's JavaCAN backend, with its Linux x86_64 native library
+included in the runtime. It does not configure bitrate or change interface
+state. Other CPU architectures need the matching JavaCAN native library.
+Under WSL, the adapter must be exposed as a CAN interface in the Linux kernel;
+Windows PEAK DLLs do not provide that interface. SocketCAN receives diagnostic
+and paired-authorization frames on one socket and disables own-message echo.
+Physical SocketCAN ECU transfers still need bench validation.
 
 The launcher builds `:custom-java-ui:installM749Cli`, then runs
 `com.rusefi.m749.M749Cli` directly with the installed runtime JARs. A missing

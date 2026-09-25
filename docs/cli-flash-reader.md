@@ -1,7 +1,7 @@
 # Complete main-flash backup
 
 `m749-cli --read-flash` reads M74.9 main flash using the bundled RAM helper.
-It supports SLCAN serial adapters on Linux, macOS and Windows, or PCAN with
+It supports Linux SocketCAN, SLCAN serial adapters on Linux, macOS and Windows, or PCAN with
 native Windows Java. The default range is `0x08000000..0x083EFFFF`: 4,128,768
 bytes (4,032 KiB), including both banks, boot code, application, calibration,
 identity and main-flash NVM. This profile requires the corresponding flash
@@ -25,7 +25,7 @@ bash bin/m749-cli.sh --identify --slcan /dev/ttyACM0
 This queries OEM session/software/part DIDs and replacement-firmware identity
 DIDs without changing sessions, unlocking security or uploading RAM. At least
 one positive DID response is required for success. Adapter discovery alone is
-not ECU identification. `--identify` also accepts `--slcan auto` or a PCAN
+not ECU identification. `--identify` also accepts `--socketcan can0`, `--slcan auto` or a PCAN
 `--channel`, and creates no backup files.
 
 No arguments are needed with these wrappers:
@@ -75,6 +75,19 @@ Linux SLCAN:
 ```sh
 bash bin/m749-cli.sh --read-flash m749-full.bin --slcan /dev/ttyACM0
 ```
+
+Linux SocketCAN (bring `can0` up at 500 kbit/s first; see
+[SocketCAN setup](cli-uploader.md#linux-socketcan)):
+
+```sh
+bash bin/m749-cli.sh --identify --socketcan can0
+bash bin/m749-cli.sh --read-flash "my backup.bin" --socketcan can0
+```
+
+`bin/read-flash.sh "my backup.bin" --socketcan can0` is equivalent. Select an
+explicit interface; `auto`, serial baud/bus options, and combining SocketCAN
+with SLCAN or PCAN selectors are rejected. Existing resume, helper and credential
+options apply unchanged. The default without a transport selector remains SLCAN.
 
 macOS SLCAN:
 
@@ -166,7 +179,7 @@ start address.
 | `--slcan-bus` | `1`; optional rusEFI bus tags `&` for 2 and `$` for 3 |
 | `--chunk-size` | `1024`; 1..4080 data bytes per read request |
 | `--block-size` | `16`; ISO-TP receive block size, 0 means unlimited |
-| `--stmin` | PCAN: 1 ms. SLCAN: at least 3 ms, increased for low serial baud rates. Override 0..127 ms |
+| `--stmin` | PCAN/SocketCAN: 1 ms. SLCAN: at least 3 ms, increased for low serial baud rates. Override 0..127 ms |
 | `--start`, `--length` | Default complete 4032 KiB main-flash range; decimal or `0x` integers |
 | `--resume` | Validate and continue the existing partial backup |
 | `--helper-running` | Verify and use the already-running bundled helper |

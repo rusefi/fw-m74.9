@@ -15,14 +15,16 @@ Hardware notes and wiring: https://github.com/rusefi/m74.9
 - An M74.9 ECU on the bench or in the vehicle, with the engine stopped.
 - A CAN adapter connected to the ECU diagnostic CAN bus at 500 kbit/s:
   - PEAK PCAN-USB on Windows, with the PEAK driver installed, or
-  - an SLCAN serial adapter such as CANable on Linux, macOS or Windows.
+  - an SLCAN serial adapter such as CANable on Linux, macOS or Windows, or
+  - a Linux SocketCAN interface for command-line use.
 - Java, version 11 or newer recommended. On Windows the Java installation must match the PCAN
   driver architecture (64-bit Java for a 64-bit driver).
 - The extracted rusEFI bundle. Run `rusefi_updater.exe` on Windows or
   `rusefi_updater.sh` on Linux/macOS to open the console.
 
 Close any other software that uses the CAN adapter before starting. Windows
-Subsystem for Linux cannot use a PCAN adapter; use native Windows Java there.
+Subsystem for Linux cannot load Windows PCAN libraries; use native Windows Java
+or expose the adapter as a Linux SocketCAN interface.
 
 ## Before you start: back up your ECU
 
@@ -121,6 +123,16 @@ bin\m749-cli.bat --check-target rusefi.hex --channel PCAN_USBBUS1
 bin\m749-cli.bat --upload rusefi.hex --channel PCAN_USBBUS1
 ```
 
+Linux with SocketCAN, after [configuring `can0` at 500 kbit/s](docs/cli-uploader.md#linux-socketcan):
+
+```sh
+bash bin/m749-cli.sh --identify --socketcan can0
+bash bin/m749-cli.sh --check-target rusefi.hex --socketcan can0
+bash bin/m749-cli.sh --upload rusefi.hex --socketcan can0
+```
+
+For a backup, use `bash bin/m749-cli.sh --read-flash backup.bin --socketcan can0`.
+
 Use the `rusefi.hex` or `rusefi_update.srec` file from the bundle. When the
 ECU still runs OEM firmware and needs its pairing credential, add
 `--pair-file ecu.pair` or `--immo-backup backup.bin`. Follow the power-cycle
@@ -140,7 +152,7 @@ for it on the command line.
 
 - **PCAN not detected**: install the PEAK driver, use 64-bit Java with the
   64-bit driver, and close other programs using the adapter. Only native
-  Windows Java can use PCAN; WSL cannot.
+  Windows Java can use the PEAK libraries; Linux CLI users can use `--socketcan`.
 - **No SLCAN adapter found**: the wrappers need exactly one SLCAN adapter.
   Select it explicitly with `--slcan /dev/ttyACM0` or `--slcan COM5` when
   several serial devices are present.

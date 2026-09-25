@@ -10,7 +10,7 @@ test {
 
 tasks.register('runM749Cli', JavaExec) {
     group = 'Execution'
-    description = 'M74.9 PCAN identification and OEM-loader firmware uploader'
+    description = 'M74.9 CAN identification and OEM-loader firmware uploader'
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'com.rusefi.m749.M749Cli'
     workingDir = rootProject.file('java_console')

@@ -58,6 +58,7 @@ public final class M749Cli {
         boolean verifyBytes = false;
         String channel = null;
         String slcan = null;
+        String socketcan = null;
         String file = null;
         String immoBackup = null;
         String pairFile = null, readPair = null, exportPair = null, readAddress = null;
@@ -97,10 +98,20 @@ public final class M749Cli {
                     if (++i == args.length || slcan != null) { usage(out); return 2; }
                     slcan = args[i];
                     break;
+                case "--socketcan":
+                    if (++i == args.length || socketcan != null) { usage(out); return 2; }
+                    socketcan = args[i];
+                    try { SocketCanTransport.requireInterface(socketcan); }
+                    catch (IllegalArgumentException e) { out.accept(e.getMessage()); return 2; }
+                    break;
                 default:
                     if (arg.startsWith("-") || channel != null) { usage(out); return 2; }
                     channel = arg;
             }
+        }
+        if (socketcan != null) {
+            if (channel != null || slcan != null) { usage(out); return 2; }
+            channel = "socketcan:" + socketcan;
         }
         if (slcan != null) {
             if (channel != null || file == null && readPair == null && readAddress == null) { usage(out); return 2; }
@@ -146,6 +157,9 @@ public final class M749Cli {
             return 0;
         }
         if (file == null) {
+            if (socketcan != null) {
+                return M749ReadFlashCli.identify(new String[]{"--identify", "--socketcan", socketcan}, out);
+            }
             return run(channel, list, backend, out);
         }
         // Parse all input and prove the complete CRC domain before native library/device access.
@@ -201,9 +215,10 @@ public final class M749Cli {
 
     private static void withChannel(String requested, Consumer<String> out, ChannelAction action)
             throws IOException, InterruptedException {
-        if (requested.startsWith("slcan:")) {
+        if (requested.startsWith("slcan:") || requested.startsWith("socketcan:")) {
             M749ReadFlashCli.Options options = new M749ReadFlashCli.Options();
-            options.slcan = requested.substring(6);
+            if (requested.startsWith("socketcan:")) { options.socketcan = requested.substring(10); }
+            else { options.slcan = requested.substring(6); }
             try (RawCanTransport transport = M749ReadFlashCli.open(options, out)) {
                 action.run(transport);
             }
@@ -268,19 +283,22 @@ public final class M749Cli {
     private static void usage(Consumer<String> out) {
         out.accept("M74.9 CLI (500 kbit/s, 7E0/7E8; supported I812/I865 resident loaders)");
         out.accept("Usage: m749-cli [channel]                 identify ECU; tries available channels when omitted");
-        out.accept("       m749-cli --identify [--slcan PORT|auto | --channel PCAN_USBBUS1|auto]  query ECU without session changes");
+        out.accept("       m749-cli --identify [--slcan PORT|auto | --socketcan IFACE | --channel PCAN_USBBUS1|auto]  query ECU without session changes");
         out.accept("       m749-cli --list                    list PCAN channels");
-        out.accept("       m749-cli --read-flash [OUTPUT.bin] [--slcan PORT|auto | --channel PCAN_USBBUS1|auto]");
+        out.accept("       m749-cli --read-flash [OUTPUT.bin] [--slcan PORT|auto | --socketcan IFACE | --channel PCAN_USBBUS1|auto]");
         out.accept("                  [--resume] [--helper-running] [--reset-after]; add --help for read options");
         out.accept("       m749-cli --upload FILE --dry-run   validate addressed HEX/SREC without hardware");
         out.accept("       m749-cli --upload FILE --channel PCAN_USBBUS1 [--calibration] [--verify-bytes]");
         out.accept("       m749-cli --upload FILE --slcan PORT|auto [--verify-bytes]");
-        out.accept("       m749-cli --check-target FILE [--slcan PORT|auto | --channel CHANNEL|auto]   programming preflight, no flash writes");
+        out.accept("       m749-cli --upload FILE --socketcan IFACE [--calibration] [--verify-bytes]");
+        out.accept("       m749-cli --check-target FILE [--slcan PORT|auto | --socketcan IFACE | --channel CHANNEL|auto]   programming preflight, no flash writes");
         out.accept("                  [--pair-file ECU.pair | --immo-backup PAIRED_FULLFLASH.bin]");
         out.accept("       m749-cli --read-byte 0xADDRESS --channel PCAN_USBBUS1");
         out.accept("       m749-cli --read-pair ECU.pair --channel PCAN_USBBUS1   read/resume 24 indexed bytes");
         out.accept("                  [--pair-file KNOWN.pair | --immo-backup PAIRED_FULLFLASH.bin]   optional read authorization");
         out.accept("       m749-cli --export-pair ECU.pair --immo-backup PAIRED_FULLFLASH.bin   offline conversion");
+        out.accept("Byte/pair reads also accept --slcan PORT|auto or --socketcan IFACE instead of --channel.");
+        out.accept("SocketCAN: Linux, explicit interface already up at 500 kbit/s (e.g. can0); --socketcan IFACE alone identifies.");
         out.accept("Reads enter OEM session 02 (can reset the ECU) and authenticate. Rejected entry stops without flash writes.");
         out.accept("Pair files checkpoint each byte; unknown indices are omitted.");
         out.accept("--immo-backup enables normal I865 CAN authorization; cycle bench power when the listener reports ready.");
