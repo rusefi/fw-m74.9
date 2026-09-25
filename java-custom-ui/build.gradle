@@ -1,5 +1,6 @@
 dependencies {
     implementation project(':ui')
+    implementation project(':connectivity')
     implementation project(':ecu_io')
     implementation project(':peak-can-basic')
 }

@@ -56,6 +56,7 @@ public final class M749Cli {
         boolean dryRun = false;
         boolean calibration = false;
         boolean verifyBytes = false;
+        boolean writeFlash = false;
         String channel = null;
         String slcan = null;
         String socketcan = null;
@@ -86,8 +87,10 @@ public final class M749Cli {
                     if (++i == args.length || immoBackup != null) { usage(out); return 2; }
                     immoBackup = args[i];
                     break;
+                case "--write-flash":
                 case "--upload":
                     if (++i == args.length || file != null) { usage(out); return 2; }
+                    writeFlash = arg.equals("--write-flash");
                     file = args[i];
                     break;
                 case "--channel":
@@ -109,6 +112,7 @@ public final class M749Cli {
                     channel = arg;
             }
         }
+        if (writeFlash && channel == null && slcan == null && socketcan == null) { slcan = "auto"; }
         if (socketcan != null) {
             if (channel != null || slcan != null) { usage(out); return 2; }
             channel = "socketcan:" + socketcan;
@@ -187,7 +191,7 @@ public final class M749Cli {
             throws IOException, InterruptedException {
         withChannel(requested, out, transport -> {
             if (immo != null) { immo.authorize(transport, out); }
-            new M749Uploader(new UdsClient(transport), out).upload(image, verifyBytes);
+            new M749Uploader(new UdsClient(transport, 16, requested.startsWith("slcan:") ? 3 : 1), out).upload(image, verifyBytes);
         });
     }
 
@@ -287,7 +291,10 @@ public final class M749Cli {
         out.accept("       m749-cli --list                    list PCAN channels");
         out.accept("       m749-cli --read-flash [OUTPUT.bin] [--slcan PORT|auto | --socketcan IFACE | --channel PCAN_USBBUS1|auto]");
         out.accept("                  [--resume] [--helper-running] [--reset-after]; add --help for read options");
-        out.accept("       m749-cli --upload FILE --dry-run   validate addressed HEX/SREC without hardware");
+        out.accept("       m749-cli --write-flash FILE [--dry-run] [--slcan PORT|auto | --socketcan IFACE | --channel CHANNEL]");
+        out.accept("       HEX/SREC: rusEFI software. BIN: I812/I865 full backup, restore application/calibration only.");
+        out.accept("       --write-flash defaults to SLCAN auto; --upload remains an alias requiring explicit transport.");
+        out.accept("       m749-cli --upload FILE --dry-run   validate HEX/SREC/OEM BIN without hardware");
         out.accept("       m749-cli --upload FILE --channel PCAN_USBBUS1 [--calibration] [--verify-bytes]");
         out.accept("       m749-cli --upload FILE --slcan PORT|auto [--verify-bytes]");
         out.accept("       m749-cli --upload FILE --socketcan IFACE [--calibration] [--verify-bytes]");

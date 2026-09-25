@@ -28,6 +28,11 @@ public final class M749Panel extends JPanel {
     private final JTextField credential = new JTextField(28);
     private final JButton browseCredential = new JButton("Choose pair file / backup...");
     private final JButton flash = new JButton("Flash rusEFI");
+    private final JButton readFlash = new JButton("Read flash...");
+    private final JButton writeFlash = new JButton("Write firmware...");
+    private final JComboBox<String> transferTransport = new JComboBox<>(new String[]{"PCAN", "SLCAN", "SocketCAN"});
+    private final JTextField transferEndpoint = new JTextField("auto", 18);
+    private final TransferChooser transferChooser;
     private final JTextArea status = new JTextArea();
     private final JTextArea messages = new JTextArea();
     private final M749Monitor.Backend backend;
@@ -52,9 +57,28 @@ public final class M749Panel extends JPanel {
     }
 
     M749Panel(M749Monitor.Backend backend, M749FirmwareFile.Locator firmwareLocator) {
+        this(backend, firmwareLocator, M749Panel::chooseTransfer);
+    }
+
+    interface TransferChooser {
+        Selection choose(Component parent, boolean read);
+    }
+
+    static final class Selection {
+        final Path path;
+        final boolean resume, helperRunning;
+        Selection(Path path, boolean resume, boolean helperRunning) {
+            this.path = path;
+            this.resume = resume;
+            this.helperRunning = helperRunning;
+        }
+    }
+
+    M749Panel(M749Monitor.Backend backend, M749FirmwareFile.Locator firmwareLocator, TransferChooser transferChooser) {
         super(new BorderLayout(8, 8));
         this.backend = backend;
         this.firmwareLocator = firmwareLocator;
+        this.transferChooser = transferChooser;
         setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
         detection.setForeground(MISSING_COLOR);
         detection.setFont(detection.getFont().deriveFont(Font.BOLD, 20f));
@@ -93,6 +117,20 @@ public final class M749Panel extends JPanel {
         flash.setName("flash");
         flash.setEnabled(false);
         top.add(flash);
+        JPanel transferRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 4));
+        transferRow.add(new JLabel("File transfer: "));
+        transferTransport.setName("transferTransport");
+        transferRow.add(transferTransport);
+        transferEndpoint.setName("transferEndpoint");
+        transferEndpoint.setToolTipText("SLCAN: serial port or auto. SocketCAN: configured interface, e.g. can0. PCAN uses selected channel above.");
+        transferRow.add(transferEndpoint);
+        readFlash.setName("readFlash");
+        writeFlash.setName("writeFlash");
+        transferRow.add(readFlash);
+        transferRow.add(writeFlash);
+        transferRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, transferRow.getPreferredSize().height));
+        top.add(transferRow);
+        top.add(new JLabel("Read: OEM full backup. Write: rusEFI HEX/SREC or OEM BIN software + calibration."));
         top.add(Box.createVerticalStrut(8));
         activity.setName("activity");
         top.add(activity);
@@ -137,6 +175,12 @@ public final class M749Panel extends JPanel {
             }
         });
         flash.addActionListener(event -> flashFirmware());
+        readFlash.addActionListener(event -> transferFile(true));
+        writeFlash.addActionListener(event -> transferFile(false));
+        transferTransport.addActionListener(event -> {
+            transferEndpoint.setText(transferTransport.getSelectedIndex() == 2 ? "can0" : "auto");
+            updateControls();
+        });
     }
 
     private void queryAgain() {
@@ -224,11 +268,102 @@ public final class M749Panel extends JPanel {
         boolean idle = worker != null && !uploading && !querying;
         retry.setEnabled(idle);
         channels.setEnabled(idle);
-        credential.setEnabled(idle && !installed.m749);
-        browseCredential.setEnabled(idle && !installed.m749);
+        boolean needsCredential = !installed.m749 || transferTransport.getSelectedIndex() != 0;
+        credential.setEnabled(idle && needsCredential);
+        browseCredential.setEnabled(idle && needsCredential);
         PcanDevice.Channel channel = (PcanDevice.Channel) channels.getSelectedItem();
         flash.setEnabled(idle && imagePath != null && channel != null && channel.available
                 && installed != M749FirmwareDetection.Result.RUSEFI);
+        transferTransport.setEnabled(idle);
+        transferEndpoint.setEnabled(idle && transferTransport.getSelectedIndex() != 0);
+        boolean canTransfer = idle && (transferTransport.getSelectedIndex() != 0 || channel != null && channel.available);
+        readFlash.setEnabled(canTransfer);
+        writeFlash.setEnabled(canTransfer && (transferTransport.getSelectedIndex() != 0 || installed != M749FirmwareDetection.Result.RUSEFI));
+    }
+
+    private static Selection chooseTransfer(Component parent, boolean read) {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle(read ? "Save full OEM flash backup" : "Write firmware - select HEX, SREC or OEM BIN");
+        chooser.setFileFilter(read ? new FileNameExtensionFilter("Flash backup (*.bin)", "bin") :
+                new FileNameExtensionFilter("Firmware (*.hex, *.srec, *.bin)", "hex", "srec", "s19", "s28", "s37", "bin"));
+        JCheckBox resume = new JCheckBox("Resume saved partial backup");
+        JCheckBox running = new JCheckBox("RAM helper is already running");
+        if (read) {
+            chooser.setSelectedFile(new java.io.File("m749-full-" + java.time.Instant.now().toString().replaceAll("[:.]", "-") + ".bin"));
+            JPanel options = new JPanel(new GridLayout(0, 1));
+            options.add(resume);
+            options.add(running);
+            chooser.setAccessory(options);
+        }
+        int result = read ? chooser.showSaveDialog(parent) : chooser.showOpenDialog(parent);
+        if (result != JFileChooser.APPROVE_OPTION) return null;
+        Path path = chooser.getSelectedFile().toPath();
+        if (read && !path.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".bin")) {
+            path = path.resolveSibling(path.getFileName() + ".bin");
+        }
+        return new Selection(path, resume.isSelected(), running.isSelected());
+    }
+
+    private void transferFile(boolean read) {
+        if (!(read ? readFlash : writeFlash).isEnabled()) return;
+        Selection selection = transferChooser.choose(this, read);
+        if (selection == null || worker == null) return;
+        java.util.ArrayList<String> args = new java.util.ArrayList<>();
+        args.add(read ? "--read-flash" : "--write-flash");
+        args.add(selection.path.toString());
+        int transport = transferTransport.getSelectedIndex();
+        if (transport == 0) {
+            PcanDevice.Channel channel = (PcanDevice.Channel) channels.getSelectedItem();
+            if (channel == null || !channel.available) return;
+            args.add("--channel");
+            args.add(channel.handle.name());
+        } else {
+            args.add(transport == 1 ? "--slcan" : "--socketcan");
+            args.add(transferEndpoint.getText().trim());
+        }
+        if (read) {
+            args.add("--reset-after");
+            if (selection.resume) args.add("--resume");
+            if (selection.helperRunning) args.add("--helper-running");
+        }
+        String credentialText = credential.isEnabled() ? credential.getText().trim() : "";
+        if (!credentialText.isEmpty() && !(read && selection.helperRunning)) {
+            args.add(credentialText.toLowerCase(java.util.Locale.ROOT).endsWith(".pair") ? "--pair-file" : "--immo-backup");
+            args.add(credentialText);
+        }
+        uploading = true;
+        updateControls();
+        String operation = read ? "Read" : "Write";
+        activity.setText(operation + " in progress - keep ECU power and CAN connected.");
+        status.setText("");
+        int current = generation;
+        long start = System.nanoTime();
+        Consumer<String> log = message -> onEdt(current, () -> appendMessage(String.format(java.util.Locale.ROOT,
+                "[%4d] %s", (System.nanoTime() - start) / 1_000_000_000L, message)));
+        worker.execute(() -> {
+            synchronized (backend) {
+                try {
+                    if (generation != current || Thread.currentThread().isInterrupted()) return;
+                    log.accept(operation + ": " + selection.path);
+                    int result = backend.transfer(args.toArray(new String[0]), log);
+                    if (result != 0) throw new java.io.IOException("Command returned " + result + "; see Messages");
+                    onEdt(current, () -> activity.setText(operation + " complete - see Messages for verification details."));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    log.accept(operation + " interrupted; check ECU state before retrying.");
+                    onEdt(current, () -> activity.setText(operation + " interrupted"));
+                } catch (Exception | LinkageError e) {
+                    log.accept(operation + " failed: " + e.getMessage());
+                    onEdt(current, () -> activity.setText(operation + " failed: " + e.getMessage()));
+                } finally {
+                    onEdt(current, () -> {
+                        setFirmware(M749FirmwareDetection.Result.UNKNOWN);
+                        uploading = false;
+                        updateControls();
+                    });
+                }
+            }
+        });
     }
 
     private void flashFirmware() {

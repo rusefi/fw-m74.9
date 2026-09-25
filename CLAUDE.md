@@ -114,3 +114,12 @@ rusEFI submodule; leave those generated changes unstaged.
   and synchronize fragments only during the first close command. Keep status
   errors and active parsing strict; arbitrary malformed runtime frames are not
   safe to discard. The I812 target preflight passed after this correction.
+
+
+- Full OEM I812TA01 backups have application vector words 00000000/08080001
+  at 08001000, while I865LB52 uses 20020000/08080001. A universal nonzero-SP
+  check rejects a valid I812 backup even when all three CRCs pass. Keep OEM
+  vector checks profile-specific; replacement firmware still uses 20020000.
+- OEM application return can be checked with F186=01 after the loader metadata
+  transaction/reset. OEM does not implement replacement activation DIDs F1A0..3;
+  session return is not evidence of those CRC/marker reports or of cold boot.

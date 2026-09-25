@@ -65,10 +65,11 @@ final class M749Uploader {
                 }
             }
             int journalSlot = checkJournalSpace();
-            int softwareCrc = image.domain == M749Image.Domain.SOFTWARE ? image.crc : readWord(0x080FFFFC);
-            int calibrationCrc = image.domain == M749Image.Domain.CALIBRATION ? image.crc : readWord(0x0807FFFC);
-            Map<Integer, byte[]> metadata = journalSlot == 0 ? firstMetadata(softwareCrc) : readMetadata();
-            out.accept(String.format("Target %s: retained calibration starts at 0x%08X, CRC %08X",
+            int softwareCrc = image.domain != M749Image.Domain.CALIBRATION ? image.crc : readWord(0x080FFFFC);
+            int calibrationCrc = image.domain == M749Image.Domain.OEM ? image.calibrationCrc :
+                    image.domain == M749Image.Domain.CALIBRATION ? image.crc : readWord(0x0807FFFC);
+            Map<Integer, byte[]> metadata = journalSlot == 0 ? firstMetadata(softwareCrc, image.domain == M749Image.Domain.OEM) : readMetadata();
+            out.accept(String.format("Target %s: calibration starts at 0x%08X, expected CRC %08X",
                     profile, profile.calibrationStart, calibrationCrc));
             if (preflightOnly) {
                 out.accept("Target preflight passed; no erase, download, metadata write or reset sent. ECU remains in session 02.");
@@ -154,6 +155,12 @@ final class M749Uploader {
             }
             phase = "activating and checking the application";
             exact(request(bytes(0x11, 1), bytes(0x51, 1)), 2);
+            if (image.domain == M749Image.Domain.OEM) {
+                awaitOemApplication();
+                out.accept("Upload complete: OEM software/calibration transferred and verified; application session 01 confirmed after reset.");
+                out.accept("OEM activation CRC/marker DIDs are unavailable. Cold power-cycle validation remains a separate check.");
+                return;
+            }
             awaitApplication();
             verifyApplication(softwareCrc, calibrationCrc);
             phase = "confirming boot without the SRAM return token";
@@ -220,12 +227,12 @@ final class M749Uploader {
         throw new IOException("OEM programming-history page is full; refusing to erase application or compact protected NVM");
     }
 
-    private Map<Integer, byte[]> firstMetadata(int softwareCrc) {
+    private Map<Integer, byte[]> firstMetadata(int softwareCrc, boolean oem) {
         String date = LocalDate.now(ZoneOffset.UTC).format(DateTimeFormatter.BASIC_ISO_DATE);
         Map<Integer, byte[]> records = new LinkedHashMap<>();
-        records.put(0xF188, "rusEFI m74_9".getBytes(StandardCharsets.US_ASCII));
+        records.put(0xF188, (oem ? "M74.9 OEM restore" : "rusEFI m74_9").getBytes(StandardCharsets.US_ASCII));
         records.put(0xF189, String.format("M749-%08X", softwareCrc).getBytes(StandardCharsets.US_ASCII));
-        records.put(0xF194, "rusEFI m74_9".getBytes(StandardCharsets.US_ASCII));
+        records.put(0xF194, (oem ? "M74.9 OEM restore" : "rusEFI m74_9").getBytes(StandardCharsets.US_ASCII));
         records.put(0xF195, date.getBytes(StandardCharsets.US_ASCII));
         records.put(0xF198, "fw-m74.9 CLI".getBytes(StandardCharsets.US_ASCII));
         records.put(0xF199, date.getBytes(StandardCharsets.US_ASCII));
@@ -247,6 +254,20 @@ final class M749Uploader {
             connection.pause(250);
         }
         throw new IOException("Application activation status did not become ready", last);
+    }
+
+    private void awaitOemApplication() throws IOException, InterruptedException {
+        IOException last = null;
+        connection.pause(1_000);
+        for (int attempt = 0; attempt < 10; attempt++) {
+            try {
+                byte[] reply = connection.exchange(bytes(0x22, 0xF1, 0x86), bytes(0x62, 0xF1, 0x86), 3_000);
+                exact(reply, 4);
+                if (reply[3] == 1) { return; }
+            } catch (IOException e) { last = e; }
+            connection.pause(250);
+        }
+        throw new IOException("OEM application session 01 was not confirmed after reset", last);
     }
 
     private int applicationWord(int did) throws IOException, InterruptedException {

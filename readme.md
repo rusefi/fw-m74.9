@@ -98,6 +98,41 @@ or unplug the adapter while it runs; an interrupted flash usually needs a full
 retry from step 4. Your calibration is preserved: the button only replaces the
 engine software.
 
+For a chosen file, use the separate **Read flash...** and **Write firmware...**
+buttons. Select **File transfer** transport: PCAN uses the channel above, SLCAN
+takes a serial port or `auto`, and SocketCAN takes an interface such as `can0`
+already configured at 500 kbit/s. The PCAN indicator describes PCAN only; it
+does not disable SLCAN/SocketCAN transfers.
+
+- **Read flash...** opens a save dialog for a full OEM `.bin` backup. The dialog
+  also offers resume and already-running-helper options. Existing completed
+  files are never overwritten. Progress, byte counts, speed and final SHA-256
+  appear in **Messages**. After a successful read the UI requests ECU reset;
+  application return is not verified. Reading requires the OEM application's
+  session-60 helper support, which is unavailable in the rusEFI application.
+- **Write firmware...** opens a file dialog for rusEFI `.hex`/`.srec` or a
+  supported OEM full-flash `.bin`. HEX/SREC software updates preserve
+  calibration. OEM BIN restores replace software **and calibration**, preserving
+  the connected ECU's loader, identity, pairing and storage. Only matching
+  I812/I865 profiles are supported; partial dumps are rejected. See
+  [write details and completion checks](docs/cli-uploader.md#selected-file-writes).
+
+The buttons use the CLI transfer implementation and report progress and failures
+in the existing Messages control. Other operations are disabled until the
+transfer ends. In the embedded console, discovery is suspended and the console
+connection is released for the transfer; reconnect the console manually afterward.
+
+Command-line equivalents (Windows: use the matching `.bat` wrappers):
+
+```sh
+bash bin/read-flash.sh "ECU backup.bin" --slcan auto --reset-after
+bash bin/write-flash.sh rusefi.hex --dry-run
+bash bin/write-flash.sh rusefi.srec --slcan auto
+bash bin/write-flash.sh "OEM full backup.bin" --channel PCAN_USBBUS1
+```
+
+See the [toolset review](docs/toolset-review.md) for remaining UI/CLI differences.
+
 The **Messages** tab also lists the VIN and identity records read from the ECU.
 If the ECU does not answer, check ECU power and CAN wiring, then use
 **Scan / query again**. Unplugging and reconnecting the adapter also starts a

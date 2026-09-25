@@ -1,5 +1,12 @@
 # Complete main-flash backup
 
+The M74.9 tab's **Read flash...** button runs this same reader. Select the file
+transfer transport, choose a destination in the save dialog and watch Messages
+for verified byte counts, percentage, speed and SHA-256. The dialog supports
+`--resume` and `--helper-running`; the UI adds `--reset-after` on successful reads.
+Completed backups are never overwritten, even if an existing path is selected.
+This helper requires OEM application support; it is not a rusEFI backup service.
+
 `m749-cli --read-flash` reads M74.9 main flash using the bundled RAM helper.
 It supports Linux SocketCAN, SLCAN serial adapters on Linux, macOS and Windows, or PCAN with
 native Windows Java. The default range is `0x08000000..0x083EFFFF`: 4,128,768

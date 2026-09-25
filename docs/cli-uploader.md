@@ -118,12 +118,56 @@ The launcher builds `:custom-java-ui:installM749Cli`, then runs
 `com.rusefi.m749.M749Cli` directly with the installed runtime JARs. A missing
 adapter/native library does not prevent `--help` or `--dry-run`.
 
-Software HEX and SREC are equivalent inputs. Raw BIN, ELF, sparse images,
+Software HEX and SREC are equivalent inputs. Unsupported BIN, ELF, sparse images,
 overlaps, mixed software/calibration domains, bad record checksums, missing
 terminators, invalid vectors and bad CRC trailers are rejected before opening
-an adapter. Software upload also requires the `M749ACT1` descriptor emitted by
-the current firmware build. An explicit, available PCAN channel is required;
-upload never tries another ECU after a failure.
+an adapter. Software upload also requires the `M749ACT1` or `M749ACT2` descriptor emitted by
+the current firmware build. Supported OEM full-flash BIN files use the restore
+path below. PCAN uploads require an explicit, available channel; upload never
+tries another ECU after a failure.
+
+## Selected-file writes
+
+`write-flash.sh` / `write-flash.bat` invoke `m749-cli --write-flash FILE`.
+The action shares the uploader with `--upload` and the UI's **Write firmware...**
+button. With no transport selector, `--write-flash` selects exactly one SLCAN
+adapter automatically. Existing `--upload` keeps its explicit-transport behavior.
+Quoted filenames retain spaces. `--dry-run` validates without opening an adapter.
+
+```sh
+bash bin/write-flash.sh rusefi.hex --dry-run
+bash bin/write-flash.sh rusefi.srec --slcan /dev/ttyACM0
+bash bin/write-flash.sh "OEM full backup.bin" --dry-run
+bash bin/m749-cli.sh --check-target "OEM full backup.bin" --socketcan can0
+bash bin/write-flash.sh "OEM full backup.bin" --channel PCAN_USBBUS1
+```
+
+HEX/SREC software updates use the existing activation contract and preserve
+calibration. OEM BIN input must contain exactly 0x3F0000 bytes mapped from
+0x08000000 and have a supported I812/I865 loader CRC, valid boot/software/
+calibration CRCs and the corresponding application vectors. I812 calibration
+starts at 0x08069000; I865 starts at 0x08060000. Partial 2 MiB dumps, unsupported
+profiles, rusEFI BIN backups and corrupt images are rejected before adapter
+access. Use addressed HEX/SREC for rusEFI updates. `--calibration` is incompatible
+with OEM BIN because restoring OEM software requires its matching calibration.
+
+OEM restore writes only 0x08001000..0x080FFFFF, including calibration. The rest of
+the source file is not copied to the ECU: the boot page, resident loader, identity,
+paired credentials, EEPROM and rusEFI storage remain those of the connected ECU.
+The existing programming-history transaction still appends one record and the
+OEM application manages its boot-validity state. This is an application restore,
+not a whole-chip clone. Use a backup appropriate for this ECU and calibration.
+The connected loader profile must match the backup; an I812/I865 mismatch stops
+before any erase. Credential options remain optional and retain their existing
+I865-only scope; the input BIN is not implicitly used as a credential.
+
+Transfer verification uses additive block checksums, or exact individual-byte
+comparisons with `--verify-bytes`. The OEM completion path then verifies the six
+programming records, requests reset and requires F186=01, confirming return to
+the application. OEM applications do not expose rusEFI's activation CRC/marker
+DIDs, so this path does not claim those checks or a cold power-cycle test.
+OEM BIN restore has automated protocol coverage and offline validation against
+both supported full backups; live CAN restoration and cold boot remain untested.
 
 For the paired I865 bench that rejects programming entry with NRC 22, add the
 original full backup as the credential source:
@@ -239,6 +283,9 @@ loader's additive-checksum-only service before programming.
 
 ## Transaction and completion
 
+This sequence describes rusEFI HEX/SREC updates. OEM BIN completion uses the
+application-session check described under selected-file writes above.
+
 1. Validate the entire input and optional pairing credential. If requested, complete
    normal IMMO authorization. Enter programming session 02, wait for the
    application handoff, and authenticate with the I865 loader polynomial.
@@ -347,7 +394,7 @@ can be described as safe for unattended field updates.
 
 ## Validation and limits
 
-All 72 Java M749 tests pass, covering image preflight, ISO-TP, checksum byte
+The Java M749 suite covers image preflight, ISO-TP, checksum byte
 reads, protected ranges, metadata capacity, activation status, IMMO authentication, rejection,
 timeouts and pair-file persistence/resume. A live Windows PCAN byte read
 returned 01 at 0x08000004 after loader authorization. Offline export recovered

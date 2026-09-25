@@ -24,6 +24,10 @@ final class M749Monitor {
                 throws IOException, InterruptedException {
             throw new IOException("Flashing is unavailable for this adapter backend");
         }
+
+        default int transfer(String[] args, Consumer<String> messages) throws IOException, InterruptedException {
+            throw new IOException("File transfers are unavailable for this adapter backend");
+        }
     }
 
     static final class Identification {
@@ -57,6 +61,18 @@ final class M749Monitor {
     }
 
     static Backend pcanBackend() {
+        return pcanBackend(action -> action.run());
+    }
+
+    interface TransferAction {
+        int run() throws IOException, InterruptedException;
+    }
+
+    interface TransferAccess {
+        int run(TransferAction action) throws IOException, InterruptedException;
+    }
+
+    static Backend pcanBackend(TransferAccess access) {
         PcanDevice device = new PcanDevice();
         return new Backend() {
             public List<PcanDevice.Channel> scan() throws IOException {
@@ -82,7 +98,14 @@ final class M749Monitor {
 
             public void flash(PcanDevice.Channel channel, M749Image image, M749Immo credential, Consumer<String> messages)
                     throws IOException, InterruptedException {
-                M749Cli.upload(channel.handle.name(), image, false, credential, messages);
+                access.run(() -> {
+                    M749Cli.upload(channel.handle.name(), image, false, credential, messages);
+                    return 0;
+                });
+            }
+
+            public int transfer(String[] args, Consumer<String> messages) throws IOException, InterruptedException {
+                return access.run(() -> M749Cli.execute(args, this, M749Cli::upload, messages));
             }
         };
     }
