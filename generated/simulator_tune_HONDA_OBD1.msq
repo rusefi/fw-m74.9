@@ -560,7 +560,7 @@
         <constant name="brakePedalPin">"NONE"</constant>
         <constant name="brakePedalPinMode">"PULLUP"</constant>
         <constant digits="0" name="byFirmwareVersion" units="index">0</constant>
-        <constant digits="0" name="calibrationBirthday" units="">20260924</constant>
+        <constant digits="0" name="calibrationBirthday" units="">20260925</constant>
         <constant digits="0" name="camDecoder2jzPosition" units="angle">95</constant>
         <constant digits="0" name="camDecoder2jzPrecision" units="">40</constant>
         <constant name="camInputs1">"NONE"</constant>
@@ -2690,6 +2690,7 @@
         <constant digits="1" name="knockSuppressMinTps" units="%">10.0</constant>
         <constant name="l9779_cs">"NONE"</constant>
         <constant name="l9779spiDevice">"Off"</constant>
+        <constant name="ladaCanbusProfile">"no"</constant>
         <constant cols="1" digits="0" name="lambdaLoadBins" rows="16" units="{bitStringValue(afrLoadUnitLabels, afrLoadUnitIdx)}">
          30
          40
@@ -5232,8 +5233,8 @@
 </constant>
         <constant name="yesUnderstandLocking">"no"</constant>
     </page>
-    <versionInfo firmwareInfo="20260923" nPages="1" signature="rusEFI main.2026.09.24.re74.9.2034842302" version="5.0"/>
-    <bibliography author="rusEFI 20260923" writeDate="date"/>
+    <versionInfo firmwareInfo="20260925" nPages="1" signature="rusEFI main.2026.09.25.re74.9.2784515714" version="5.0"/>
+    <bibliography author="rusEFI 20260925" writeDate="date"/>
     <settings/>
     <userComments/>
 </msq>
