@@ -20,10 +20,10 @@ public final class M749ReadFlashCli {
         RawCanTransport open(Options options) throws IOException;
     }
 
-    static final class Options {
+    static final class Options extends M749ConnectionOptions {
         Path output;
-        String slcan, socketcan, channel, pair, immo;
-        int baud = 115200, bus = 1, chunk = 1024, block = 16, stmin = -1;
+        String pair, immo;
+        int chunk = 1024;
         int address = M749RamHelper.BASE, length = M749RamHelper.SIZE;
         boolean resume, running, reset;
     }
@@ -45,15 +45,9 @@ public final class M749ReadFlashCli {
             if (++i >= args.length) { throw new IllegalArgumentException("Missing value for " + option); }
             String value = args[i];
             if (value.startsWith("--")) { throw new IllegalArgumentException("Missing value for " + option); }
+            if (M749ConnectionOptions.FLAGS.contains(option)) { o.accept(option, value); continue; }
             switch (option) {
-                case "--slcan": o.slcan = value; break;
-                case "--socketcan": o.socketcan = value; SocketCanTransport.requireInterface(value); break;
-                case "--channel": o.channel = value; break;
-                case "--serial-baud": o.baud = Integer.decode(value); break;
-                case "--slcan-bus": o.bus = Integer.decode(value); break;
                 case "--chunk-size": o.chunk = Integer.decode(value); break;
-                case "--block-size": o.block = Integer.decode(value); break;
-                case "--stmin": o.stmin = Integer.decode(value); break;
                 case "--start": o.address = Integer.decode(value); break;
                 case "--length": o.length = Integer.decode(value); break;
                 case "--pair-file": o.pair = value; break;
@@ -61,34 +55,19 @@ public final class M749ReadFlashCli {
                 default: throw new IllegalArgumentException("Unknown read option " + option);
             }
         }
-        if (!seen.contains("--read-flash") ||
-                (o.slcan != null ? 1 : 0) + (o.socketcan != null ? 1 : 0) + (o.channel != null ? 1 : 0) > 1) {
-            throw new IllegalArgumentException("Choose one transport: --slcan PORT, --socketcan IFACE or --channel PCAN channel");
-        }
+        if (!seen.contains("--read-flash")) throw new IllegalArgumentException("Missing --read-flash action");
+        o.validate();
         if (o.output == null && o.resume) { throw new IllegalArgumentException("--resume requires the original output filename"); }
         if (o.output == null) {
             o.output = Path.of("m749-full-" + DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmssSSS'Z'")
                     .withZone(ZoneOffset.UTC).format(Instant.now()) + ".bin");
         }
-        if (o.slcan == null && o.socketcan == null && o.channel == null) { o.slcan = "auto"; }
         if (!seen.contains("--length")) { o.length = M749RamHelper.BASE + M749RamHelper.SIZE - o.address; }
         M749RamHelper.requireRange(o.address, o.length);
-        if (o.chunk < 1 || o.chunk > 4080 || o.block < 0 || o.block > 255 ||
-                o.baud < 9600 || o.baud > 4_000_000 || o.bus < 1 || o.bus > 3 ||
-                (seen.contains("--stmin") && (o.stmin < 0 || o.stmin > 127))) {
-            throw new IllegalArgumentException("Invalid block, flow control, serial baud or bus");
-        }
-        if (o.slcan == null && (seen.contains("--serial-baud") || seen.contains("--slcan-bus"))) {
-            throw new IllegalArgumentException("Serial settings require --slcan");
-        }
-        if ("auto".equalsIgnoreCase(o.slcan) && o.baud != 115200) {
-            throw new IllegalArgumentException("SLCAN auto scan uses 115200; select --slcan PORT for a different serial baud");
-        }
+        if (o.chunk < 1 || o.chunk > 4080) throw new IllegalArgumentException("Invalid chunk size");
         if (o.pair != null && o.immo != null || o.running && (o.pair != null || o.immo != null)) {
             throw new IllegalArgumentException("Choose one authorization credential, only when launching the helper");
         }
-        // Allow for timestamped ASCII frames and serial start/stop bits.
-        if (o.stmin < 0) { o.stmin = o.slcan == null ? 1 : Math.max(3, (270000 + o.baud - 1) / o.baud); }
         return o;
     }
 
@@ -108,10 +87,9 @@ public final class M749ReadFlashCli {
         boolean identify = false;
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
-            if (arg.equals("--help") || arg.equals("-h")) { out.accept(usage); return 0; }
+            if (arg.equals("--help") || arg.equals("-h")) { out.accept(usage); M749ConnectionOptions.usage(out); return 0; }
             if (arg.equals("--identify") && !identify) { identify = true; continue; }
-            if (!(arg.equals("--slcan") || arg.equals("--socketcan") || arg.equals("--channel") || arg.equals("--serial-baud") ||
-                    arg.equals("--slcan-bus")) || i + 1 >= args.length) {
+            if (!M749ConnectionOptions.FLAGS.contains(arg) || i + 1 >= args.length) {
                 out.accept(usage); return 2;
             }
             transportArgs.add(arg);
@@ -122,7 +100,7 @@ public final class M749ReadFlashCli {
         try { o = parse(transportArgs.toArray(new String[0])); }
         catch (IllegalArgumentException e) { out.accept(e.getMessage()); out.accept(usage); return 2; }
         try (RawCanTransport transport = factory.open(o)) {
-            M749EcuProbe.identify(new UdsClient(transport, o.block, o.stmin), out);
+            M749EcuProbe.identify(o.client(transport), out);
         }
         return 0;
     }
@@ -145,7 +123,7 @@ public final class M749ReadFlashCli {
             boolean published = false;
             try (RawCanTransport transport = factory.open(o)) {
                 if (authorization != null) { authorization.authorize(transport, out); }
-                M749RamHelper reader = new M749RamHelper(new UdsClient(transport, o.block, o.stmin), o.stmin);
+                M749RamHelper reader = new M749RamHelper(o.client(transport), o.stmin);
                 file.identify(reader.start(helper, o.running, out));
                 String hash = M749FlashReader.read(reader, file, o.chunk, out);
                 published = true;
@@ -169,58 +147,20 @@ public final class M749ReadFlashCli {
         return 0;
     }
 
-    static RawCanTransport open(Options o, Consumer<String> out) throws IOException {
-        if (o.socketcan != null) {
-            out.accept("Using SocketCAN " + o.socketcan + " (interface must already be up at 500 kbit/s)");
-            return SocketCanTransport.open(o.socketcan);
-        }
-        if (o.slcan != null) {
-            String port = o.slcan;
-            if (port.equalsIgnoreCase("auto")) {
-                out.accept("Scanning serial ports for SLCAN (skipping detected TunerStudio consoles)");
-                port = selectSlcan(SlcanPortScanner.scanOnce(SlcanPortScanner.Probes.REAL), out);
-            }
-            out.accept("Using SLCAN " + port);
-            return SlcanTransport.open(port, o.baud, o.bus, out);
-        }
-        if (!System.getProperty("os.name").toLowerCase(Locale.ROOT).startsWith("windows")) {
-            throw new IOException("PCAN requires native Windows Java; use --slcan or Linux --socketcan");
-        }
-        PcanDevice device = new PcanDevice();
-        List<PcanDevice.Channel> channels = device.scan();
-        String selected = o.channel;
-        if (selected.equalsIgnoreCase("auto")) {
-            List<String> available = new java.util.ArrayList<>();
-            for (PcanDevice.Channel channel : channels) { if (channel.available) { available.add(channel.handle.name()); } }
-            selected = selectOnly(available, "PCAN", "--channel");
-        }
-        for (PcanDevice.Channel channel : channels) {
-            if (channel.handle.name().equalsIgnoreCase(selected)) {
-                if (!channel.available) { throw new IOException("PCAN channel is in use: " + o.channel); }
-                out.accept("Using PCAN " + channel.handle.name());
-                return device.open(channel);
-            }
-        }
-        throw new IOException("PCAN channel not found: " + o.channel);
+    static RawCanTransport open(M749ConnectionOptions o, Consumer<String> out) throws IOException {
+        return M749ConnectionOptions.open(o, out);
     }
 
     static String selectSlcan(List<SlcanPortScanner.Result> results, Consumer<String> out) throws IOException {
-        if (Thread.currentThread().isInterrupted()) { throw new IOException("SLCAN scan interrupted"); }
-        List<String> candidates = new java.util.ArrayList<>();
-        for (SlcanPortScanner.Result result : results) {
-            out.accept(result.toString());
-            if (result.type == SlcanPortScanner.Type.SLCAN) { candidates.add(result.port); }
-        }
-        return selectOnly(candidates, "SLCAN", "--slcan");
+        return M749ConnectionOptions.selectSlcan(results, out);
     }
 
     static String selectOnly(List<String> candidates, String kind, String option) throws IOException {
-        if (candidates.isEmpty()) { throw new IOException("No available " + kind + " adapter found; connect one or specify " + option); }
-        if (candidates.size() != 1) { throw new IOException("Multiple " + kind + " adapters found: " + candidates + "; choose " + option); }
-        return candidates.get(0);
+        return M749ConnectionOptions.selectOnly(candidates, kind, option);
     }
 
     private static void usage(Consumer<String> out) {
+        M749ConnectionOptions.usage(out);
         out.accept("m749-cli --read-flash [OUTPUT.bin] [--slcan PORT|auto | --socketcan IFACE | --channel PCAN_USBBUS1|auto]");
         out.accept("Defaults: timestamped m749-full-*.bin in the current directory, automatic SLCAN scan.");
         out.accept("  [--resume] [--helper-running] [--reset-after]");

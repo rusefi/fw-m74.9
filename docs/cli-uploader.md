@@ -56,7 +56,7 @@ DID F1A4 containing four ASCII bytes `rEFI` identifies rusEFI. Older M74.9
 images are recognized by F1A0 = 4D740101 (M749ACT1 ready) or 4D740100
 (M749ACT1 not ready). Silence and unrelated replies do not identify firmware.
 Each optional query has a two-second timeout. If neither identity matches,
-the CLI continues with its OEM extended-session identification procedure.
+the CLI checks OEM session/software/part DIDs without changing sessions or authenticating.
 
 When `--pair-file` or `--immo-backup` is supplied for programming, a recognized
 M749ACT1 application skips OEM startup authentication: no power cycle is needed.
@@ -123,15 +123,50 @@ overlaps, mixed software/calibration domains, bad record checksums, missing
 terminators, invalid vectors and bad CRC trailers are rejected before opening
 an adapter. Software upload also requires the `M749ACT1` or `M749ACT2` descriptor emitted by
 the current firmware build. Supported OEM full-flash BIN files use the restore
-path below. PCAN uploads require an explicit, available channel; upload never
-tries another ECU after a failure.
+path below. PCAN uploads accept a named channel or `--channel auto` when exactly one
+available channel exists; upload never tries another ECU after a failure.
+
+## Shared transport options
+
+Every hardware action uses the same connection parser and defaults, including
+`--identify`, implicit identification, `--read-flash`, `--read-byte`, `--read-pair`,
+`--check-target`, `--upload` and `--write-flash`. Offline `--export-pair` needs no
+connection options; `--list` lists PCAN channels without opening them.
+
+| Option | Default and behavior |
+| --- | --- |
+| Connector | `--slcan auto` if no selector is supplied |
+| `--slcan PORT` | Explicit serial port, or `auto` requiring one detected SLCAN adapter |
+| `--channel CHANNEL` | Explicit available PCAN channel, or `auto` requiring one available channel |
+| `--socketcan IFACE` | Explicit Linux interface already up at 500 kbit/s; no `auto` |
+| `--serial-baud BAUD` | 115200, SLCAN only; 9600..4000000 for explicit ports |
+| `--slcan-bus BUS` | 1, SLCAN only; tagged adapters can use 1..3 |
+| `--block-size BS` | 16 received ISO-TP frames per block; 0..255, zero means unlimited |
+| `--stmin MS` | PCAN/SocketCAN: 1 ms; SLCAN: at least 3 ms, increased for slower serial baud. Explicit range 0..127 |
+
+SLCAN auto discovery uses 115200; choose an explicit port for a different baud.
+Duplicate options, conflicting selectors, invalid values and serial settings on
+nonserial connectors are rejected before adapter access. PCAN auto never tries
+multiple ECUs to find one willing to accept a write. A positional PCAN channel
+remains an alias for `--channel CHANNEL`; no arguments now identify via SLCAN auto.
+
+```sh
+bash bin/m749-cli.sh --identify --slcan /dev/ttyACM0 --serial-baud 57600 --slcan-bus 2
+bash bin/m749-cli.sh --check-target rusefi.hex --slcan /dev/ttyACM0 --serial-baud 57600 --slcan-bus 2
+bash bin/write-flash.sh rusefi.hex --slcan /dev/ttyACM0 --serial-baud 57600 --slcan-bus 2
+bash bin/write-flash.sh rusefi.hex --channel auto --block-size 8 --stmin 2
+```
+
+The UI's Connector row and transport settings feed this same connection model
+for identification, bundled updates, backup reads and selected-file writes.
+`--check-target` also accepts `--calibration`, matching calibration upload mode.
 
 ## Selected-file writes
 
 `write-flash.sh` / `write-flash.bat` invoke `m749-cli --write-flash FILE`.
 The action shares the uploader with `--upload` and the UI's **Write firmware...**
 button. With no transport selector, `--write-flash` selects exactly one SLCAN
-adapter automatically. Existing `--upload` keeps its explicit-transport behavior.
+adapter automatically. `--upload` uses the same options and defaults.
 Quoted filenames retain spaces. `--dry-run` validates without opening an adapter.
 
 ```sh
@@ -180,11 +215,11 @@ bin\m749-cli.bat --upload rusefi.hex --channel PCAN_USBBUS1 --immo-backup "bin\R
 with SHA-256 `ac052cd5cacf0385b4c2de794f6b1ad476e3f9f1badab5b8c54619854e428b39`.
 It reads the paired key locally; it does not program the backup, change pairing
 or disable the immobilizer. Its file length and hash are checked before opening
-PCAN, including during `--dry-run`. Key bytes are never printed.
+the adapter, including during `--dry-run`. Key bytes are never printed.
 
 If the ECU already reports programming session 02, the CLI proceeds directly
 to the existing loader checks. Otherwise wait for `IMMO listener ready`, then
-cycle the ECU bench power while leaving PCAN connected. The listener waits up
+cycle the ECU bench power while leaving the CAN adapter connected. The listener waits up
 to 60 seconds, proves the normal 713/714 exchange, sends the encrypted permission
 message and verifies its acknowledgement before allowing the uploader to run.
 An existing peer, wrong proof, wrong acknowledgement or timeout stops the attempt
@@ -213,7 +248,7 @@ failed control stops the read; it is never recorded as a zero or FF byte.
 For a locked application, add `--pair-file KNOWN.pair` or
 `--immo-backup PAIRED_FULLFLASH.bin` to a read command. The CLI then runs its
 60-second startup authorization listener and immediately enters the loader on
-the same PCAN connection. Follow the prompt before cycling ECU power. See the
+the same CAN connection. Follow the prompt before cycling ECU power. See the
 [Windows pairing-file walkthrough](../readme-grab-key.md) for the full sequence.
 A valid existing credential is required for this authorization step.
 
@@ -328,9 +363,9 @@ Confirm the installed firmware using identification only:
 bin\m749-cli.bat PCAN_USBBUS1
 ```
 
-For OEM firmware this enters extended session 03, authenticates and reads
-identification DIDs. Recognized rusEFI firmware is reported using read-only
-identity queries, without entering an OEM session.
+Both OEM and rusEFI identification use read-only DID queries. Bare/positional
+identification and `--identify` use the same transport defaults and do not enter
+an OEM session or authenticate.
 It sends no flash erase/download requests. Capture its output, particularly
 session/authentication results and DID F189. NRC 22 alone does not identify a
 specific unmet condition. The replacement firmware checks that the engine is

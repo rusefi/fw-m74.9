@@ -75,14 +75,19 @@ does not mean the ECU is missing.
 
 Open the rusEFI console and select the **M74.9** tab.
 
-1. The adapter indicator shows green **PCAN detected** or red **PCAN not
-   detected**. When an adapter is present, the tab queries the ECU on its own
-   and fills in **Installed firmware**.
-2. Select the intended **PCAN channel** if more than one adapter is connected.
-   The upload only ever uses the channel you selected.
-3. For a first installation over OEM firmware, choose the ECU's `.pair` file or
-   the original paired `.bin` backup under **OEM credentials**. An already
-   installed M74.9 rusEFI application updates without a credential.
+1. Select **Connector**: SLCAN (default), PCAN or SocketCAN. The tab queries
+   the selected endpoint automatically and fills in **Installed firmware** using
+   read-only identification requests.
+2. SLCAN takes a serial port or `auto`; automatic selection requires exactly one
+   adapter. SocketCAN takes an interface such as `can0`, already up at 500 kbit/s.
+   PCAN lists channels in its selector and requires a choice when multiple
+   adapters are available. Successful automatic identification pins subsequent
+   operations to that adapter. Press Enter after editing the endpoint/settings,
+   or use **Scan / query again** to retry. Identification failures are retried
+   at ten-second intervals until an ECU responds.
+3. If OEM authorization is required, choose the ECU's `.pair` file or original
+   paired `.bin` backup under **OEM credentials**. An already installed M74.9
+   rusEFI application updates without a credential.
 4. Press **Flash rusEFI**. The button reads **Update rusEFI** when a rusEFI
    M74.9 application is already installed. The bundled firmware file name is
    shown next to the button; **Scan / query again** re-reads it.
@@ -99,10 +104,10 @@ retry from step 4. Your calibration is preserved: the button only replaces the
 engine software.
 
 For a chosen file, use the separate **Read flash...** and **Write firmware...**
-buttons. Select **File transfer** transport: PCAN uses the channel above, SLCAN
-takes a serial port or `auto`, and SocketCAN takes an interface such as `can0`
-already configured at 500 kbit/s. The PCAN indicator describes PCAN only; it
-does not disable SLCAN/SocketCAN transfers.
+buttons. Identification, the bundled updater, and both file actions use the
+same **Connector**, endpoint and transport settings. **Serial baud** and
+**SLCAN bus** apply only to SLCAN. **Receive block** and **STmin ms** apply to all
+connectors; `auto` STmin uses the CLI's transport-specific default.
 
 - **Read flash...** opens a save dialog for a full OEM `.bin` backup. The dialog
   also offers resume and already-running-helper options. Existing completed
@@ -120,7 +125,7 @@ does not disable SLCAN/SocketCAN transfers.
 The buttons use the CLI transfer implementation and report progress and failures
 in the existing Messages control. Other operations are disabled until the
 transfer ends. In the embedded console, discovery is suspended and the console
-connection is released for the transfer; reconnect the console manually afterward.
+connection is released for direct identification and transfers; reconnect the console manually afterward.
 
 Command-line equivalents (Windows: use the matching `.bat` wrappers):
 

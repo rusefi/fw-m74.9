@@ -13,7 +13,7 @@ public final class M749TabProvider implements ConsoleTabProvider {
 
     @Override
     public JComponent createTab(UIContext uiContext) {
-        return uiContext == null ? new M749Panel() : new M749Panel(M749Monitor.pcanBackend(
+        return uiContext == null ? new M749Panel() : new M749Panel(M749Monitor.canBackend(
                 new M749ConsoleAccess(com.rusefi.ProductionConnectivity.CONTEXT.getPortScanner(),
                         uiContext.getLinkManager()::disconnect)));
     }

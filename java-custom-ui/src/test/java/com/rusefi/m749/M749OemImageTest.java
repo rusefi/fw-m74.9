@@ -103,7 +103,7 @@ class M749OemImageTest {
                 (c, i, v, a, o) -> fail("Dry run opened uploader"), s -> {}));
         boolean[] called = {false};
         assertEquals(0, M749Cli.execute(new String[]{"--write-flash", file.toString()}, noDevices,
-                (c, i, v, a, o) -> { called[0] = true; assertEquals("slcan:auto", c); assertEquals(M749Image.Domain.OEM, i.domain); }, s -> {}));
+                (c, i, v, a, o) -> { called[0] = true; assertEquals("auto", c.slcan); assertEquals(M749Image.Domain.OEM, i.domain); }, s -> {}));
         assertTrue(called[0]);
         Files.write(file, new byte[100]);
         assertThrows(IOException.class, () -> M749Cli.execute(new String[]{"--write-flash", file.toString()}, noDevices,

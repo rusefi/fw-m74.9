@@ -2,7 +2,7 @@ package com.rusefi.m749;
 
 import javax.swing.*;
 
-/** Standalone launcher for the M74.9 custom tab and its direct PCAN connection. */
+/** Standalone launcher for the M74.9 custom tab and its direct CAN connections. */
 public final class M749TabSandbox {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {

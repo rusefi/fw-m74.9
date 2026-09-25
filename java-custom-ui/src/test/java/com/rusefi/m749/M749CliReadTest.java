@@ -20,10 +20,10 @@ class M749CliReadTest {
 
     @Test void invalidReadModesNeverOpenAnAdapter() throws Exception {
         for (String[] args : new String[][]{
-                {"--read-byte"}, {"--read-byte", "0x08000000"},
+                {"--read-byte"},
                 {"--read-byte", "nope", "--channel", "PCAN_USBBUS1"},
                 {"--read-byte", "0x40000000", "--channel", "PCAN_USBBUS1"},
-                {"--read-pair", "ecu.pair"}, {"--export-pair", "ecu.pair"},
+                 {"--export-pair", "ecu.pair"},
                 {"--read-pair", "ecu.pair", "--channel", "PCAN_USBBUS1", "--dry-run"},
                 {"--read-pair", "ecu.pair", "--read-byte", "08000000", "--channel", "PCAN_USBBUS1"},
                 {"--pair-file", "ecu.pair"}, {"--list", "--read-pair", "ecu.pair"}}) {
@@ -36,7 +36,7 @@ class M749CliReadTest {
         assertEquals(0, M749Cli.execute(new String[]{"--read-byte", "0x0827400F", "--channel", "PCAN_USBBUS2"},
                 noDevices, noUpload, (c, a, p, k, immo, o) -> {
                     called[0] = true;
-                    assertEquals("PCAN_USBBUS2", c); assertEquals(0x0827400F, a.intValue());
+                    assertEquals("PCAN_USBBUS2", c.channel); assertEquals(0x0827400F, a.intValue());
                     assertNull(p); assertNull(k);
                 }, s -> {}));
         assertTrue(called[0]);
@@ -49,7 +49,7 @@ class M749CliReadTest {
             assertEquals(0, M749Cli.execute(new String[]{mode, target, "--socketcan", "can9"},
                     noDevices, noUpload, (channel, address, path, known, immo, out) -> {
                         called[0] = true;
-                        assertEquals("socketcan:can9", channel);
+                        assertEquals("can9", channel.socketcan);
                         if (address != null) { assertEquals(0x08000004, address.intValue()); }
                         else { assertEquals(Path.of(target), path); assertEquals(0, known.knownCount()); }
                     }, s -> {}));

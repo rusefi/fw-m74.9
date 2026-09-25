@@ -49,7 +49,7 @@ class M749UiTransferTest {
             SwingUtilities.invokeAndWait(() -> button(panel, "readFlash").doClick());
             assertTrue(backend.entered.await(5, TimeUnit.SECONDS));
             assertEquals(List.of("--read-flash", "backup with spaces.bin", "--channel", "PCAN_USBBUS2",
-                    "--reset-after", "--resume", "--helper-running"), backend.args);
+                    "--block-size", "16", "--stmin", "1", "--reset-after", "--resume", "--helper-running"), backend.args);
             SwingUtilities.invokeAndWait(() -> {
                 assertFalse(button(panel, "readFlash").isEnabled());
                 assertFalse(button(panel, "writeFlash").isEnabled());
@@ -74,12 +74,16 @@ class M749UiTransferTest {
                 SwingUtilities.invokeAndWait(() -> {
                     find(panel, JComboBox.class, "transferTransport").setSelectedIndex(selected);
                     find(panel, JTextField.class, "credential").setText("paired key.pair");
-                    button(panel, "writeFlash").doClick();
                 });
+                await(() -> button(panel, "writeFlash").isEnabled());
+                SwingUtilities.invokeAndWait(() -> button(panel, "writeFlash").doClick());
                 assertTrue(backend.entered.await(5, TimeUnit.SECONDS));
                 String option = transport == 0 ? "--channel" : transport == 1 ? "--slcan" : "--socketcan";
                 String value = transport == 0 ? "PCAN_USBBUS2" : transport == 1 ? "auto" : "can0";
-                assertEquals(List.of("--write-flash", "selected firmware.bin", option, value, "--pair-file", "paired key.pair"), backend.args);
+                java.util.ArrayList<String> expected = new java.util.ArrayList<>(List.of("--write-flash", "selected firmware.bin", option, value));
+                if (transport == 1) expected.addAll(List.of("--serial-baud", "115200", "--slcan-bus", "1"));
+                expected.addAll(List.of("--block-size", "16", "--stmin", transport == 1 ? "3" : "1", "--pair-file", "paired key.pair"));
+                assertEquals(expected, backend.args);
                 backend.release.countDown();
                 await(() -> label(panel).startsWith("Write complete"));
                 SwingUtilities.invokeAndWait(() -> assertEquals("Installed firmware: unknown",
@@ -123,6 +127,7 @@ class M749UiTransferTest {
         AtomicReference<M749Panel> panel = new AtomicReference<>();
         SwingUtilities.invokeAndWait(() -> {
             panel.set(new M749Panel(backend, () -> { throw new IOException("No bundle"); }, chooser));
+            find(panel.get(), JComboBox.class, "transferTransport").setSelectedIndex(0);
             panel.get().addNotify();
         });
         return panel.get();

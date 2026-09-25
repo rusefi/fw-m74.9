@@ -25,10 +25,13 @@ final class M749FirmwareDetection {
 
     static Result detect(UdsClient client) throws IOException, InterruptedException {
         byte[] identity = readOptional(client, 0xF1A4);
+        return classify(identity, readOptional(client, 0xF1A0));
+    }
+
+    static Result classify(byte[] identity, byte[] activation) {
         boolean rusefi = Arrays.equals(identity, bytes(0x62, 0xF1, 0xA4, 'r', 'E', 'F', 'I'));
         // Compatibility with installed M74.9 images predating EFI_UDS. This
         // also confirms the board-specific interface independently of identity.
-        byte[] activation = readOptional(client, 0xF1A0);
         if (Arrays.equals(activation, bytes(0x62, 0xF1, 0xA0, 0x4D, 0x74, 1, 1))) {
             return Result.M749_READY;
         }

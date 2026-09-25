@@ -19,7 +19,7 @@ class M749CliUploadTest {
     private final M749Cli.UploadAction noUpload = (c, i, v, a, o) -> { throw new AssertionError("Unexpected upload"); };
 
     @Test void malformedOptionsAndInputsNeverAccessHardware() throws Exception {
-        for (String[] args : new String[][]{{"--upload"}, {"--upload", "missing.hex"},
+        for (String[] args : new String[][]{{"--upload"},
                 {"--verify-bytes"}, {"--calibration"}, {"--list", "--upload", "x.hex"}, {"--channel"},
                 {"--immo-backup"}, {"--immo-backup", "backup.bin"}}) {
             assertEquals(2, M749Cli.execute(args, noDevices, noUpload, s -> {}));
@@ -73,7 +73,7 @@ class M749CliUploadTest {
         assertEquals(0, M749Cli.execute(new String[]{"--upload", file.toString(), "--calibration", "--channel", "PCAN_USBBUS2", "--verify-bytes"},
                 noDevices, (channel, image, verify, immo, out) -> {
                     called[0] = true;
-                    assertEquals("PCAN_USBBUS2", channel);
+                    assertEquals("PCAN_USBBUS2", channel.channel);
                     assertEquals(M749Image.Domain.CALIBRATION, image.domain);
                     assertArrayEquals(record.data, image.ranges.get(0).bytes());
                     assertTrue(verify);
@@ -82,7 +82,7 @@ class M749CliUploadTest {
         assertTrue(called[0]);
         assertEquals(0, M749Cli.execute(new String[]{"--upload", file.toString(), "--calibration", "--socketcan", "can2"},
                 noDevices, (channel, image, verify, immo, out) -> {
-                    assertEquals("socketcan:can2", channel);
+                    assertEquals("can2", channel.socketcan);
                     assertArrayEquals(record.data, image.ranges.get(0).bytes());
                 }, s -> {}));
         assertEquals(0, M749Cli.execute(new String[]{"--upload", file.toString(), "--calibration", "--socketcan", "can2", "--dry-run"},

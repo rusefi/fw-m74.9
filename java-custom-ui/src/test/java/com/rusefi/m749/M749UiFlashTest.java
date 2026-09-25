@@ -195,6 +195,7 @@ class M749UiFlashTest {
         SwingUtilities.invokeAndWait(() -> {
             M749Panel panel = new M749Panel(backend, () -> image);
             reference.set(panel);
+            find(panel, JComboBox.class, "transferTransport").setSelectedIndex(0);
             panel.addNotify();
         });
         return reference.get();
@@ -238,6 +239,10 @@ class M749UiFlashTest {
     }
 
     private Path writeSoftware() throws IOException {
+        return writeSoftware(directory);
+    }
+
+    static Path writeSoftware(Path directory) throws IOException {
         StringBuilder output = new StringBuilder();
         char[] hex = "0123456789ABCDEF".toCharArray();
         for (com.rusefi.libopenblt.file.SrecParser.SRecord range : M749ImageTest.records(M749Image.Domain.SOFTWARE)) {

@@ -15,17 +15,19 @@ final class M749TargetCli {
     static int execute(String[] args, M749ReadFlashCli.TransportFactory factory, Consumer<String> out)
             throws IOException, InterruptedException {
         String usage = "m749-cli --check-target FILE [--slcan PORT|auto | --socketcan IFACE | --channel CHANNEL|auto] " +
-                "[--pair-file ECU.pair | --immo-backup PAIRED_FULLFLASH.bin]";
+                "[--pair-file ECU.pair | --immo-backup PAIRED_FULLFLASH.bin] [--calibration]";
         String file = null;
+        boolean calibration = false;
         List<String> transport = new ArrayList<>();
         transport.add("--read-flash");
         for (int i = 0; i < args.length; i++) {
             String option = args[i];
-            if (option.equals("--help") || option.equals("-h")) { out.accept(usage); return 0; }
+            if (option.equals("--help") || option.equals("-h")) { out.accept(usage); M749ConnectionOptions.usage(out); return 0; }
+            if (option.equals("--calibration") && !calibration) { calibration = true; continue; }
             if (i + 1 >= args.length || args[i + 1].startsWith("--")) { out.accept(usage); return 2; }
             String value = args[++i];
             if (option.equals("--check-target") && file == null) { file = value; continue; }
-            if (!List.of("--slcan", "--socketcan", "--channel", "--serial-baud", "--slcan-bus", "--pair-file", "--immo-backup").contains(option)) {
+            if (!M749ConnectionOptions.FLAGS.contains(option) && !List.of("--pair-file", "--immo-backup").contains(option)) {
                 out.accept(usage); return 2;
             }
             transport.add(option);
@@ -35,7 +37,7 @@ final class M749TargetCli {
         M749ReadFlashCli.Options options;
         try { options = M749ReadFlashCli.parse(transport.toArray(new String[0])); }
         catch (IllegalArgumentException e) { out.accept(e.getMessage()); return 2; }
-        M749Image image = M749Image.load(Path.of(file), M749Image.Domain.SOFTWARE);
+        M749Image image = M749Image.load(Path.of(file), calibration ? M749Image.Domain.CALIBRATION : M749Image.Domain.SOFTWARE);
         image.requireActivationSupport();
         M749Immo credential = options.pair != null ? M749PairFile.load(Path.of(options.pair)).credential() :
                 options.immo == null ? null : M749Immo.load(Path.of(options.immo));
@@ -43,7 +45,7 @@ final class M749TargetCli {
         out.accept("Preflight enters programming session 02 and leaves the loader active; flash is not changed.");
         try (RawCanTransport can = factory.open(options)) {
             if (credential != null) { credential.authorize(can, out); }
-            new M749Uploader(new UdsClient(can, options.block, options.stmin), out).checkTarget(image);
+            new M749Uploader(options.client(can), out).checkTarget(image);
         }
         return 0;
     }

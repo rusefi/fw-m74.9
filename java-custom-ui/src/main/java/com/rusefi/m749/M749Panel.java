@@ -17,8 +17,8 @@ public final class M749Panel extends JPanel {
     static final Color DETECTED_COLOR = new Color(0, 140, 45);
     static final Color MISSING_COLOR = new Color(190, 35, 35);
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm:ss");
-    private final JLabel detection = new JLabel("PCAN not detected");
-    private final JLabel detail = new JLabel("Scanning for PCAN adapters...");
+    private final JLabel detection = new JLabel("SLCAN not detected");
+    private final JLabel detail = new JLabel("Select a connector and endpoint; auto requires one adapter.");
     private final JLabel activity = new JLabel(" ");
     private final JButton retry = new JButton("Scan / query again");
     private final JLabel firmwareStatus = new JLabel("Installed firmware: unknown");
@@ -32,6 +32,14 @@ public final class M749Panel extends JPanel {
     private final JButton writeFlash = new JButton("Write firmware...");
     private final JComboBox<String> transferTransport = new JComboBox<>(new String[]{"PCAN", "SLCAN", "SocketCAN"});
     private final JTextField transferEndpoint = new JTextField("auto", 18);
+    private final JTextField serialBaud = new JTextField("115200", 7);
+    private final JTextField slcanBus = new JTextField("1", 2);
+    private final JTextField blockSize = new JTextField("16", 3);
+    private final JTextField stmin = new JTextField("auto", 4);
+    private volatile M749ConnectionOptions selectedConnection;
+    private volatile int selectionRevision;
+    private int activeSelection;
+    private boolean changingOptions;
     private final TransferChooser transferChooser;
     private final JTextArea status = new JTextArea();
     private final JTextArea messages = new JTextArea();
@@ -49,7 +57,7 @@ public final class M749Panel extends JPanel {
     private volatile int generation;
 
     public M749Panel() {
-        this(M749Monitor.pcanBackend());
+        this(M749Monitor.canBackend());
     }
 
     M749Panel(M749Monitor.Backend backend) {
@@ -92,13 +100,30 @@ public final class M749Panel extends JPanel {
         top.add(new JLabel("CAN: 500 kbit/s   Request: 0x7E0   Response: 0x7E8"));
         top.add(Box.createVerticalStrut(12));
         JPanel adapterRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        adapterRow.add(new JLabel("PCAN channel: "));
+        adapterRow.add(new JLabel("Connector: "));
+        transferTransport.setName("transferTransport");
+        transferTransport.setSelectedIndex(1);
+        adapterRow.add(transferTransport);
+        transferEndpoint.setName("transferEndpoint");
+        transferEndpoint.setToolTipText("SLCAN serial port or auto; SocketCAN interface already up at 500 kbit/s. Press Enter to query.");
+        adapterRow.add(transferEndpoint);
         channels.setName("channels");
         adapterRow.add(channels);
         adapterRow.add(Box.createHorizontalStrut(8));
         adapterRow.add(retry);
         adapterRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, adapterRow.getPreferredSize().height));
         top.add(adapterRow);
+        JPanel settings = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        JTextField[] fields = {serialBaud, slcanBus, blockSize, stmin};
+        String[] names = {"serialBaud", "slcanBus", "blockSize", "stmin"};
+        String[] labels = {"Serial baud:", "SLCAN bus:", "Receive block:", "STmin ms:"};
+        for (int i = 0; i < fields.length; i++) {
+            fields[i].setName(names[i]);
+            settings.add(new JLabel(labels[i]));
+            settings.add(fields[i]);
+        }
+        settings.setMaximumSize(new Dimension(Integer.MAX_VALUE, settings.getPreferredSize().height));
+        top.add(settings);
         firmwareStatus.setName("firmwareStatus");
         firmwareStatus.setFont(detail.getFont().deriveFont(Font.BOLD));
         top.add(firmwareStatus);
@@ -118,12 +143,6 @@ public final class M749Panel extends JPanel {
         flash.setEnabled(false);
         top.add(flash);
         JPanel transferRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 4));
-        transferRow.add(new JLabel("File transfer: "));
-        transferTransport.setName("transferTransport");
-        transferRow.add(transferTransport);
-        transferEndpoint.setName("transferEndpoint");
-        transferEndpoint.setToolTipText("SLCAN: serial port or auto. SocketCAN: configured interface, e.g. can0. PCAN uses selected channel above.");
-        transferRow.add(transferEndpoint);
         readFlash.setName("readFlash");
         writeFlash.setName("writeFlash");
         transferRow.add(readFlash);
@@ -157,14 +176,13 @@ public final class M749Panel extends JPanel {
         split.setResizeWeight(0.35);
         split.setBorder(null);
         add(split, BorderLayout.CENTER);
-        retry.addActionListener(event -> queryAgain());
+        retry.addActionListener(event -> { selectionChanged(); queryAgain(); });
         channels.addActionListener(event -> {
             if (changingChannels) return;
             PcanDevice.Channel channel = (PcanDevice.Channel) channels.getSelectedItem();
             selectedChannel = channel == null ? null : channel.handle.name();
             autoSelect = false;
-            setFirmware(M749FirmwareDetection.Result.UNKNOWN);
-            status.setText("");
+            selectionChanged();
             queryAgain();
         });
         browseCredential.addActionListener(event -> {
@@ -179,12 +197,72 @@ public final class M749Panel extends JPanel {
         writeFlash.addActionListener(event -> transferFile(false));
         transferTransport.addActionListener(event -> {
             transferEndpoint.setText(transferTransport.getSelectedIndex() == 2 ? "can0" : "auto");
-            updateControls();
+            selectionChanged();
+            queryAgain();
         });
+        for (JTextField field : new JTextField[]{transferEndpoint, serialBaud, slcanBus, blockSize, stmin}) {
+            field.addActionListener(event -> { selectionChanged(); queryAgain(); });
+            field.addFocusListener(new java.awt.event.FocusAdapter() {
+                @Override public void focusLost(java.awt.event.FocusEvent event) {
+                    if (selectedConnection == null) { selectionChanged(); queryAgain(); }
+                }
+            });
+            field.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+                public void insertUpdate(javax.swing.event.DocumentEvent e) { edited(); }
+                public void removeUpdate(javax.swing.event.DocumentEvent e) { edited(); }
+                public void changedUpdate(javax.swing.event.DocumentEvent e) { edited(); }
+                private void edited() {
+                    if (changingOptions) return;
+                    selectedConnection = null;
+                    selectionRevision++;
+                    querying = false;
+                    setFirmware(M749FirmwareDetection.Result.UNKNOWN);
+                    status.setText("");
+                }
+            });
+        }
+        selectionChanged();
+    }
+
+    private M749ConnectionOptions connectionOptions() {
+        M749ConnectionOptions options = new M749ConnectionOptions();
+        int connector = transferTransport.getSelectedIndex();
+        options.accept(connector == 0 ? "--channel" : connector == 1 ? "--slcan" : "--socketcan",
+                connector == 0 ? selectedChannel == null ? "auto" : selectedChannel : transferEndpoint.getText().trim());
+        if (connector == 1) {
+            options.accept("--serial-baud", serialBaud.getText().trim());
+            options.accept("--slcan-bus", slcanBus.getText().trim());
+        }
+        options.accept("--block-size", blockSize.getText().trim());
+        if (!stmin.getText().trim().equalsIgnoreCase("auto")) options.accept("--stmin", stmin.getText().trim());
+        options.validate();
+        return options;
+    }
+
+    private void selectionChanged() {
+        if (changingOptions) return;
+        M749ConnectionOptions next;
+        try { next = connectionOptions(); }
+        catch (IllegalArgumentException e) {
+            selectedConnection = null;
+            detail.setText(e.getMessage());
+            setFirmware(M749FirmwareDetection.Result.UNKNOWN);
+            return;
+        }
+        if (selectedConnection == null || !selectedConnection.key().equals(next.key())) {
+            selectionRevision++;
+            querying = false;
+            setFirmware(M749FirmwareDetection.Result.UNKNOWN);
+            status.setText("");
+            detection.setText(next.connector() + " not detected");
+            detection.setForeground(MISSING_COLOR);
+        }
+        selectedConnection = next;
+        updateControls();
     }
 
     private void queryAgain() {
-        if (worker == null || uploading || querying) return;
+        if (worker == null || uploading || querying || selectedConnection == null) return;
         querying = true;
         updateControls();
         int current = generation;
@@ -235,7 +313,9 @@ public final class M749Panel extends JPanel {
             }
             // Do not switch a chosen upload target to a different adapter on disconnect.
             if (selection == null && autoSelect) {
-                selection = available.stream().filter(c -> c.available).findFirst().orElse(null);
+                List<PcanDevice.Channel> usable = new java.util.ArrayList<>();
+                for (PcanDevice.Channel candidate : available) if (candidate.available) usable.add(candidate);
+                if (usable.size() == 1) selection = usable.get(0);
             }
             channels.setSelectedItem(selection);
             selectedChannel = selection == null ? previous : selection.handle.name();
@@ -267,18 +347,26 @@ public final class M749Panel extends JPanel {
     private void updateControls() {
         boolean idle = worker != null && !uploading && !querying;
         retry.setEnabled(idle);
-        channels.setEnabled(idle);
-        boolean needsCredential = !installed.m749 || transferTransport.getSelectedIndex() != 0;
+        boolean pcan = transferTransport.getSelectedIndex() == 0;
+        boolean slcan = transferTransport.getSelectedIndex() == 1;
+        channels.setVisible(pcan);
+        channels.setEnabled(idle && pcan);
+        transferEndpoint.setVisible(!pcan);
+        serialBaud.setEnabled(idle && slcan);
+        slcanBus.setEnabled(idle && slcan);
+        blockSize.setEnabled(idle);
+        stmin.setEnabled(idle);
+        boolean needsCredential = !installed.m749;
         credential.setEnabled(idle && needsCredential);
         browseCredential.setEnabled(idle && needsCredential);
         PcanDevice.Channel channel = (PcanDevice.Channel) channels.getSelectedItem();
-        flash.setEnabled(idle && imagePath != null && channel != null && channel.available
+        flash.setEnabled(idle && selectedConnection != null && imagePath != null && (!pcan || channel != null && channel.available)
                 && installed != M749FirmwareDetection.Result.RUSEFI);
         transferTransport.setEnabled(idle);
         transferEndpoint.setEnabled(idle && transferTransport.getSelectedIndex() != 0);
-        boolean canTransfer = idle && (transferTransport.getSelectedIndex() != 0 || channel != null && channel.available);
+        boolean canTransfer = idle && selectedConnection != null && (!pcan || channel != null && channel.available);
         readFlash.setEnabled(canTransfer);
-        writeFlash.setEnabled(canTransfer && (transferTransport.getSelectedIndex() != 0 || installed != M749FirmwareDetection.Result.RUSEFI));
+        writeFlash.setEnabled(canTransfer && installed != M749FirmwareDetection.Result.RUSEFI);
     }
 
     private static Selection chooseTransfer(Component parent, boolean read) {
@@ -311,16 +399,9 @@ public final class M749Panel extends JPanel {
         java.util.ArrayList<String> args = new java.util.ArrayList<>();
         args.add(read ? "--read-flash" : "--write-flash");
         args.add(selection.path.toString());
-        int transport = transferTransport.getSelectedIndex();
-        if (transport == 0) {
-            PcanDevice.Channel channel = (PcanDevice.Channel) channels.getSelectedItem();
-            if (channel == null || !channel.available) return;
-            args.add("--channel");
-            args.add(channel.handle.name());
-        } else {
-            args.add(transport == 1 ? "--slcan" : "--socketcan");
-            args.add(transferEndpoint.getText().trim());
-        }
+        M749ConnectionOptions options = selectedConnection;
+        if (options == null) return;
+        args.addAll(options.arguments());
         if (read) {
             args.add("--reset-after");
             if (selection.resume) args.add("--resume");
@@ -368,12 +449,12 @@ public final class M749Panel extends JPanel {
 
     private void flashFirmware() {
         if (!flash.isEnabled()) return;
-        PcanDevice.Channel channel = (PcanDevice.Channel) channels.getSelectedItem();
+        M749ConnectionOptions options = selectedConnection.copy();
         Path image = imagePath;
         String credentialText = installed.m749 ? "" : credential.getText().trim();
         uploading = true;
         updateControls();
-        activity.setText("Flashing firmware - keep ECU power and PCAN connected.");
+        activity.setText("Flashing firmware - keep ECU power and CAN connected.");
         int current = generation;
         M749Monitor activeMonitor = monitor;
         long start = System.nanoTime();
@@ -386,8 +467,8 @@ public final class M749Panel extends JPanel {
             synchronized (backend) {
                 try {
                     if (generation != current || Thread.currentThread().isInterrupted()) return;
-                    log.accept("Flashing " + image + " on " + channel.handle);
-                    activeMonitor.flash(channel, image, credentialText.isEmpty() ? null : Path.of(credentialText), log);
+                    log.accept("Flashing " + image + " on " + options.connector() + " " + options.endpoint());
+                    activeMonitor.flash(options, image, credentialText.isEmpty() ? null : Path.of(credentialText), log);
                     onEdt(current, () -> {
                         setFirmware(M749FirmwareDetection.Result.M749_READY);
                         status.setText("Upload complete: CRCs and boot marker verified after reset.");
@@ -425,8 +506,9 @@ public final class M749Panel extends JPanel {
         status.setText("");
         monitor = new M749Monitor(backend, new M749Monitor.View() {
             public void detection(boolean detected, String text) {
-                onEdt(current, () -> {
-                    detection.setText(detected ? "PCAN detected" : "PCAN not detected");
+                onConnectionEdt(current, () -> {
+                    String connector = (String) transferTransport.getSelectedItem();
+                    detection.setText(connector + (detected ? " detected" : " not detected"));
                     detection.setForeground(detected ? DETECTED_COLOR : MISSING_COLOR);
                     detail.setText(text);
                     detail.setToolTipText(text);
@@ -434,43 +516,39 @@ public final class M749Panel extends JPanel {
             }
 
             public void identification(java.util.List<String> summary) {
-                onEdt(current, () -> status.setText(String.join("\n", summary)));
-            }
-
-            public void identification(PcanDevice.Channel channel, List<String> summary) {
-                onEdt(current, () -> {
-                    if (!uploading && (autoSelect || channel.handle.name().equals(selectedChannel))) {
-                        status.setText(String.join("\n", summary));
-                    }
-                });
+                onConnectionEdt(current, () -> status.setText(String.join("\n", summary)));
             }
 
             public void channels(List<PcanDevice.Channel> available) {
-                onEdt(current, () -> showChannels(available));
+                onConnectionEdt(current, () -> showChannels(available));
             }
 
-            public void firmware(PcanDevice.Channel channel, M749FirmwareDetection.Result result) {
-                onEdt(current, () -> {
-                    if (uploading || (!autoSelect && !channel.handle.name().equals(selectedChannel))) return;
-                    if (result != M749FirmwareDetection.Result.UNKNOWN) {
-                        changingChannels = true;
-                        for (int i = 0; i < channels.getItemCount(); i++) {
-                            if (channels.getItemAt(i).handle == channel.handle) channels.setSelectedIndex(i);
-                        }
-                        changingChannels = false;
-                        selectedChannel = channel.handle.name();
-                        autoSelect = false;
-                    }
-                    setFirmware(result);
+            public void connection(M749ConnectionOptions options, M749Monitor.Identification result) {
+                onConnectionEdt(current, () -> {
+                    if (uploading) return;
+                    changingOptions = true;
+                    changingChannels = true;
+                    try {
+                        if (options.channel != null && !options.channel.equalsIgnoreCase("auto")) {
+                            selectedChannel = options.channel;
+                            autoSelect = false;
+                            for (int i = 0; i < channels.getItemCount(); i++) {
+                                if (channels.getItemAt(i).handle.name().equals(options.channel)) channels.setSelectedIndex(i);
+                            }
+                        } else if (options.channel == null) transferEndpoint.setText(options.endpoint());
+                        selectedConnection = options.copy();
+                    } finally { changingOptions = false; changingChannels = false; }
+                    status.setText(String.join("\n", result.summary));
+                    setFirmware(result.firmware);
                 });
             }
 
             public void message(String message) {
-                onEdt(current, () -> appendMessage(message));
+                onConnectionEdt(current, () -> appendMessage(message));
             }
 
             public void busy(boolean busy) {
-                onEdt(current, () -> {
+                onConnectionEdt(current, () -> {
                     querying = busy;
                     updateControls();
                     if (!uploading) activity.setText(busy ? "Reading ECU identification..." : " ");
@@ -478,7 +556,7 @@ public final class M749Panel extends JPanel {
             }
         });
         worker = Executors.newSingleThreadScheduledExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "m749-pcan");
+            Thread thread = new Thread(runnable, "m749-can");
             thread.setDaemon(true);
             return thread;
         });
@@ -492,7 +570,11 @@ public final class M749Panel extends JPanel {
         // A removed/reinserted panel waits for the previous query to release its channel.
         synchronized (backend) {
             if (generation == current && !uploading && !Thread.currentThread().isInterrupted()) {
-                activeMonitor.poll(force, autoSelect ? null : selectedChannel == null ? "" : selectedChannel);
+                M749ConnectionOptions options = selectedConnection;
+                if (options != null) {
+                    activeSelection = selectionRevision;
+                    activeMonitor.pollConnection(force, options);
+                }
             }
         }
     }
@@ -506,6 +588,11 @@ public final class M749Panel extends JPanel {
         }
         updateControls();
         super.removeNotify();
+    }
+
+    private void onConnectionEdt(int current, Runnable action) {
+        int revision = activeSelection;
+        onEdt(current, () -> { if (selectionRevision == revision) action.run(); });
     }
 
     private void onEdt(int current, Runnable action) {

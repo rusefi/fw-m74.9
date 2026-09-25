@@ -1,7 +1,7 @@
 # Complete main-flash backup
 
-The M74.9 tab's **Read flash...** button runs this same reader. Select the file
-transfer transport, choose a destination in the save dialog and watch Messages
+The M74.9 tab's **Read flash...** button runs this same reader. Select the shared
+Connector and transport settings, choose a destination in the save dialog and watch Messages
 for verified byte counts, percentage, speed and SHA-256. The dialog supports
 `--resume` and `--helper-running`; the UI adds `--reset-after` on successful reads.
 Completed backups are never overwritten, even if an existing path is selected.
@@ -20,6 +20,9 @@ Application session `60` must be available on the target. A rejected session
 or security response stops the operation. A resident loader in session `02`
 does not provide this bootstrap. Normal application operation stops while the
 RAM helper runs.
+
+Transport selection, serial settings and flow-control defaults are shared with
+all other hardware commands; see [shared options](cli-uploader.md#shared-transport-options).
 
 ## Run
 

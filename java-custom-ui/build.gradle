@@ -32,7 +32,7 @@ tasks.register('installM749Cli', Sync) {
 tasks.register('runM749Tab', JavaExec) {
     dependsOn testClasses
     group = 'Execution'
-    description = 'Open the standalone M74.9 custom tab with PCAN detection'
+    description = 'Open the standalone M74.9 custom tab with PCAN, SLCAN and SocketCAN identification'
     classpath = sourceSets.test.runtimeClasspath
     mainClass = 'com.rusefi.m749.M749TabSandbox'
     workingDir = rootProject.file('java_console')
