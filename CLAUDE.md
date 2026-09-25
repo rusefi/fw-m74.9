@@ -10,6 +10,11 @@
 
 ## M74.9 loader and tools
 
+- Keep `use_canbus_connector=true` in
+  `shared_io.resources/shared_io.properties`; this is a key setting for this
+  repository's UI. It makes console discovery treat serial adapters as SLCAN
+  CAN endpoints. Setting it to false switches discovery to direct serial ECU
+  connections and prevents the intended SLCAN discovery path.
 - The I865 OEM resident loader is not OpenBLT. OpenBLT replacement and generic
   AT32 MFS memory layouts must not be applied to an ECU retaining the OEM loader.
   M74.9 uses its own two 256 KiB MFS banks at 0x08300000-0x0837FFFF. Preserve
