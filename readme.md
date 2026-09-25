@@ -1,188 +1,169 @@
-Custom firmware for M74.9 ECUs
+# rusEFI for M74.9 ECUs
+
+Custom rusEFI firmware for the Lada M74.9 engine control unit. This guide covers
+installing and updating the firmware. Build instructions, memory layout and
+tooling internals are in [readme-technical-details.md](readme-technical-details.md).
+
+Download the latest bundle:
 
 https://rusefi.com/build_server/rusefi_bundle_re74.9.zip
 
-Board configuration starts from rusEFI `firmware/config/boards/m74_9`
-for the AT32F435ZMT7 MCU and L9779 driver. The build entry point is
-`bash compile_firmware.sh`.
+Hardware notes and wiring: https://github.com/rusefi/m74.9
 
-See https://github.com/rusefi/rusefi/wiki/Custom-Firmware
+## What you need
 
-## Windows build with Pixi
+- An M74.9 ECU on the bench or in the vehicle, with the engine stopped.
+- A CAN adapter connected to the ECU diagnostic CAN bus at 500 kbit/s:
+  - PEAK PCAN-USB on Windows, with the PEAK driver installed, or
+  - an SLCAN serial adapter such as CANable on Linux, macOS or Windows.
+- Java, version 11 or newer recommended. On Windows the Java installation must match the PCAN
+  driver architecture (64-bit Java for a 64-bit driver).
+- The extracted rusEFI bundle. Run `rusefi_updater.exe` on Windows or
+  `rusefi_updater.sh` on Linux/macOS to open the console.
 
-With Pixi, Git and Python 3 (available as `python3`) on PATH, run:
+Close any other software that uses the CAN adapter before starting. Windows
+Subsystem for Linux cannot use a PCAN adapter; use native Windows Java there.
 
-```bat
-git submodule update --init --recursive
-compile_firmware.bat
-```
+## Before you start: back up your ECU
 
-The batch file uses `ext/rusefi/pixi.toml` to install/activate the build
-toolchain and runs this board's `compile_firmware.sh`. It works from any
-working directory and returns the build's exit code. Additional make arguments
-are forwarded, for example `compile_firmware.bat -j8`.
+The firmware keeps the OEM bootloader, calibration and identity data, but a
+complete backup is the only way to return to the original state. Make one before
+the first installation and keep it somewhere safe.
 
-## Resident bootloader compatibility
-
-The firmware follows [the M74.9 memory contract](docs/memory-layout-and-bootloader-details.md).
-Build with `bash compile_firmware.sh`. The resulting
-`ext/rusefi/firmware/build/rusefi.hex` and `rusefi.srec` contain complete,
-4 KiB-aligned software ranges at `0x08001000-0x0805FFFF` and
-`0x08080000-0x080FFFFF`, including erased padding and the software CRC.
-Calibration and every bootloader/NVM region are excluded. Vectors start at
-`0x08001000`, the initial SP is `0x20020000`, and Thumb startup at `0x08080000`
-relocates VTOR before entering the C runtime. SRAM `0x20000000` is reserved
-without initialization so both OEM boot-intent tokens survive startup.
-
-Raw BIN, generic DFU, and replacement bootloader builds are disabled. Do not use
-old `.bin`/`.dfu` files left over from earlier builds. ELF files are debugging
-inputs, not ready-to-flash images: CRC trailers are added to HEX/SREC by
-`bin/m749_image.py`. Bundle builds include these addressed images.
-
-See [deployment artifacts and tools](docs/memory-layout-and-bootloader-details.md#deployment-artifacts-and-tools)
-for why a single `.bin` is unsuitable and the exact address/length of each upload
-range. The [Java PCAN uploader](docs/cli-uploader.md) implements the I865 OEM
-loader transaction and persistent activation. Live bench validation is still pending.
-
-Calibration must be handled separately. Given a complete, retained or deliberately
-modified dump of `0x08060000-0x0807FFFB` (131,068 bytes, without its CRC), generate
-its addressed payload with:
+Linux/macOS, SLCAN adapter:
 
 ```sh
-python3 bin/m749_image.py --calibration --format hex calibration.bin calibration.hex
+bin/read-flash.sh
 ```
 
-The tool checks the write whitelist and complete page ranges and computes each
-CRC independently using CRC-32/MPEG-2. It performs no device writes or activation.
-The Java tab and CLI validate both CRC domains,
-activation and application startup before reporting a completed upload;
-transfer-exit alone is insufficient. See [CLI usage and limitations](docs/cli-uploader.md).
+Windows:
 
-Physical CAN diagnostics use `0x7E0/0x7E8` at 500 kbit/s. With the engine stopped,
-ISO-TP single-frame `02 10 02` receives `06 50 02 00 32 01 F4 00`. Only after
-confirmed CAN transmission does the application write `0x4DF9123B` to SRAM and
-reset. Timeout/error leaves the application running. Suppressed-response requests
-are rejected, since this handoff requires the positive response.
+```bat
+bin\read-flash.bat
+bin\read-flash-pcan.bat
+```
 
-Tune and learned-data persistence uses two 256 KiB MFS banks at
-`0x08300000-0x0833FFFF` and `0x08340000-0x0837FFFF`. Primary and backup tune
-records are managed by MFS; its banks alternate during garbage collection.
-Software uploads preserve both banks. This storage is separate from the OEM
-calibration domain and does not change its CRC.
+Each command finds the single connected adapter and writes a timestamped
+`m749-full-...bin` file in the current directory. Reading takes several minutes
+and shows progress. If it stops, run it again with the same filename and
+`--resume`. Details and options are in [the backup guide](docs/cli-flash-reader.md).
 
-These banks allocate part of the previously unclassified high flash. OEM use of
-these pages has not been ruled out on hardware. MFS can initialize/erase them on
-first boot; preserve their original contents before deploying this firmware.
-Tune retention, interrupted writes and garbage collection need bench validation.
-Bench verification of CAN acknowledgement/reset timing and actual resident-loader
-boot remains required; host tests and cross-compilation cannot establish it.
+Some ECUs require the original pairing (immobilizer) credential before they
+allow reading. See [readme-grab-key.md](readme-grab-key.md) for reading a
+`.pair` file from an ECU that already has one.
 
-Run the contract tests with
-`python3 -m unittest discover -s tests -p 'test_memory_contract.py' -v`.
-After building both bundles, run `python3 tests/check_bundles.py` to check their
-payloads and ensure obsolete binaries or generic flash tools are absent.
+## Check which firmware is installed
+
+Before changing anything, confirm the console sees your ECU:
+
+```sh
+bash bin/m749-cli.sh --identify --slcan auto
+```
+
+```bat
+bin\m749-cli.bat --identify --channel PCAN_USBBUS1
+```
+
+The output reports either the OEM firmware identity or an installed rusEFI
+version. No response usually means ECU power, CAN wiring or the bus speed is
+wrong. A running rusEFI image can be quiet between requests; a single timeout
+does not mean the ECU is missing.
 
 ## M74.9 Java UI
 
-The custom console tab scans for PCAN adapters in the background. Its indicator
-shows green **PCAN detected** or red **PCAN not detected**. On detection it uses
-the first available channel at 500 kbit/s to query the ECU automatically.
-Channels already in use are reported without opening them.
+Open the rusEFI console and select the **M74.9** tab.
 
-The **Installed firmware** label distinguishes positively detected OEM firmware
-and rusEFI, including older M74.9 images without the general rusEFI identity DID.
-No response leaves the firmware status unknown. Select the intended **PCAN
-channel** before flashing; the upload never switches to another adapter.
+1. The adapter indicator shows green **PCAN detected** or red **PCAN not
+   detected**. When an adapter is present, the tab queries the ECU on its own
+   and fills in **Installed firmware**.
+2. Select the intended **PCAN channel** if more than one adapter is connected.
+   The upload only ever uses the channel you selected.
+3. For a first installation over OEM firmware, choose the ECU's `.pair` file or
+   the original paired `.bin` backup under **OEM credentials**. An already
+   installed M74.9 rusEFI application updates without a credential.
+4. Press **Flash rusEFI**. The button reads **Update rusEFI** when a rusEFI
+   M74.9 application is already installed. The bundled firmware file name is
+   shown next to the button; **Scan / query again** re-reads it.
+5. Watch the **Messages** tab. When it asks you to power-cycle the ECU, switch
+   ECU power off and on while leaving the adapter connected. An installed
+   rusEFI application updates without a power cycle.
+6. Wait until Messages reports the completed upload. The tab checks the written
+   image and the application startup after reset; a message saying the transfer
+   finished is not yet a completed installation.
 
-**Flash rusEFI** installs the bundled software SREC through the OEM resident
-loader. It becomes **Update rusEFI** when an M74.9 rusEFI application is detected.
-The tab uses the console updater's SREC discovery helpers: a `re74.9` target
-artifact in the bundle or firmware archive, then the usual input-directory/current-
-directory SREC lookup. The selected filename is shown, with its full path in the
-tooltip and Messages. **Scan / query again** refreshes the file selection. The
-standalone Gradle launcher searches `ext/rusefi/firmware/build`.
+The scan and other buttons are disabled during an upload. Do not close the tab
+or unplug the adapter while it runs; an interrupted flash usually needs a full
+retry from step 4. Your calibration is preserved: the button only replaces the
+engine software.
 
-For OEM conversion requiring authorization, select the ECU's `.pair` file or
-original paired `.bin` backup in **OEM credentials**. Follow the startup power-cycle
-prompt in Messages. An installed M74.9 rusEFI application updates without a pair
-file or startup power cycle. Generic rusEFI identity alone does not establish
-M74.9 update support, so that state disables flashing.
+The **Messages** tab also lists the VIN and identity records read from the ECU.
+If the ECU does not answer, check ECU power and CAN wiring, then use
+**Scan / query again**. Unplugging and reconnecting the adapter also starts a
+new query.
 
-Image/credential validation, transfers, verification and activation run in the
-background. Scanning and other actions are disabled during upload. Completion
-requires the same CRC/boot-marker checks across reset as the CLI. Calibration is
-preserved; the UI button only uploads the software domain. Closing the tab stops
-the worker and releases its channel; an interrupted flash may need a full retry.
+## Command-line installation and update
 
-The lower **Messages** tab shows VIN (DID F190), identity records and metadata
-as hex and printable ASCII, along with any unavailable-record responses or
-communication errors. Other records retain their raw DID labels because their
-meaning and availability depend on ECU firmware and stored data.
-
-Identification uses physical CAN IDs 0x7E0/0x7E8, extended diagnostic session 03,
-selector-00 security access, and 17 individual ReadDataByIdentifier requests.
-It supports ISO-TP multi-frame responses and response-pending replies. A failed
-authentication or transport timeout stops the query. The adapter indicator
-reports PCAN presence even if the ECU does not respond. Use **Scan / query again**
-to retry after checking ECU power and CAN wiring. Unplugging and reconnecting
-the adapter also permits a new automatic query.
-
-### Build and standalone Sandbox
-
-Use Java 11 with the checked-in Gradle wrapper. From the repository root:
+The same installation is available without the console UI. Linux/macOS with
+an SLCAN adapter:
 
 ```sh
-# Tests and custom module JAR
-bash bin/java-ui.sh :custom-java-ui:test :custom-java-ui:jar
+# Check the connected ECU against the firmware file without writing anything
+bash bin/m749-cli.sh --check-target rusefi.hex --slcan auto
 
-# Open just the M74.9 tab
-bash bin/java-ui.sh :custom-java-ui:runM749Tab
+# Install or update
+bash bin/m749-cli.sh --upload rusefi.hex --slcan auto
 ```
 
-On Windows:
+Windows with PCAN:
 
 ```bat
-bin\java-ui.bat
-bin\java-ui.bat :custom-java-ui:runM749Tab
+bin\m749-cli.bat --check-target rusefi.hex --channel PCAN_USBBUS1
+bin\m749-cli.bat --upload rusefi.hex --channel PCAN_USBBUS1
 ```
 
-The standalone launcher is `com.rusefi.m749.M749TabSandbox` in the module's
-test sources. Its Gradle task sets the working directory and native library
-path to `ext/rusefi/java_console`, using the existing `PCANBasic.dll` and
-`PCANBasic_JNI.dll`. Install the PEAK driver and use a JVM matching the DLL
-architecture. In an IDE, import the Gradle build under `ext/rusefi` with
-`RUSEFI_CUSTOM_JAVA_UI_DIR` set to the absolute path of `java-custom-ui`; use
-the same working directory/native library path when launching the Sandbox.
+Use the `rusefi.hex` or `rusefi_update.srec` file from the bundle. When the
+ECU still runs OEM firmware and needs its pairing credential, add
+`--pair-file ecu.pair` or `--immo-backup backup.bin`. Follow the power-cycle
+prompt printed by the command. The command exits successfully only after the
+new firmware has been verified and has started. All options, exit codes and
+recovery steps are in [the uploader guide](docs/cli-uploader.md).
 
-Windows DLLs cannot be loaded by the Linux JVM in WSL2. Build and unit tests
-work there; live PCAN access requires native Windows Java or the Linux PCAN
-driver and matching native libraries. Missing libraries are reported in Messages.
+## Tuning
 
-The packaged console is `ext/rusefi/console/rusefi_console.jar`. Local bundle
-and CI builds also include the custom module through `RUSEFI_CUSTOM_JAVA_UI_DIR`.
-Build both ZIPs with `bash _compile_bundle.sh`. Extract the full bundle and run
-`rusefi_updater.exe` on Windows or `rusefi_updater.sh` on Linux/macOS to open the
-console. Windows PCAN DLLs are included beside the JAR; the PEAK driver and a
-compatible Java installation are still required. STM32 flashing tools and
-replacement bootloaders remain excluded because M74.9 uses its OEM loader.
-Closing the Sandbox or disposing the tab cancels the query and releases its
-PCAN channel.
+After installation, connect TunerStudio to the ECU using the
+`rusefi_re74.9.ini` file from the bundle. Tune changes are stored in the ECU's
+own flash and survive later firmware updates. The OEM calibration area is kept
+unchanged; the firmware only uploads a new calibration when you explicitly ask
+for it on the command line.
 
-## Java PCAN uploader
+## Troubleshooting
 
-```sh
-# Validate the rebuilt software without opening a CAN adapter
-bash bin/m749-cli.sh --upload ext/rusefi/firmware/build/rusefi.hex --dry-run
+- **PCAN not detected**: install the PEAK driver, use 64-bit Java with the
+  64-bit driver, and close other programs using the adapter. Only native
+  Windows Java can use PCAN; WSL cannot.
+- **No SLCAN adapter found**: the wrappers need exactly one SLCAN adapter.
+  Select it explicitly with `--slcan /dev/ttyACM0` or `--slcan COM5` when
+  several serial devices are present.
+- **ECU does not respond**: check ECU power, the CAN high/low wiring and that
+  the bus runs at 500 kbit/s. The ECU must be powered and the engine stopped.
+- **rusEFI detected but flashing is disabled**: the installed rusEFI build is
+  not an M74.9 image with the update interface. Use the OEM credential route.
+- **Upload interrupted**: the ECU may stay in its bootloader or return to the
+  OEM application after a timeout. Power-cycle the ECU and start the upload
+  again from the beginning.
+- **Old firmware files**: use only the `.hex` and `.srec` files from the
+  bundle. Do not flash `.bin`, `.dfu` or `.elf` files from earlier builds, and
+  do not use generic STM32 or DFU tools on this ECU.
 
-# Program via one explicitly selected adapter, then activate and check boot
-bash bin/m749-cli.sh --upload ext/rusefi/firmware/build/rusefi.hex --channel PCAN_USBBUS1
-```
+## Status
 
-Use `bin\m749-cli.bat` on native Windows. Software must include the current
-`M749ACT1` activation ABI; calibration uses a separate `--calibration` upload.
-See [the uploader guide](docs/cli-uploader.md) for the required metadata handshake,
-verification choices, exit codes and pending hardware validation.
+Installation, update and flash-read transactions have been exercised on bench
+ECUs. Tune retention in the ECU's storage banks, recovery from power loss during
+an upload and long-term running behavior still need more hardware validation.
+Keep your backup until you are satisfied with the installed firmware.
 
-## Hardware
+## Getting help
 
-We have some notes at https://github.com/rusefi/m74.9
+Questions and hardware findings are welcome at https://github.com/rusefi/m74.9
+and in the rusEFI community. Include the console **Messages** output or the
+command-line output when reporting a problem.
