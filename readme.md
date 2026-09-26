@@ -219,3 +219,15 @@ Keep your backup until you are satisfied with the installed firmware.
 Questions and hardware findings are welcome at https://github.com/rusefi/m74.9
 and in the rusEFI community. Include the console **Messages** output or the
 command-line output when reporting a problem.
+
+## PN
+
+8450044227 Granta
+
+8450086873 Niva
+
+8450110707 Granta
+
+8450111218 Granta
+
+8450111508 Granta
