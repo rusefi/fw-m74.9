@@ -68,7 +68,11 @@ rusEFI submodule; leave those generated changes unstaged.
 - The packaging fixture includes bundle.mk without the normal top-level make
   defaults, so test_bundle_packaging.py passes PYTHON=sys.executable to make
   itself. Without it, make tries to execute the non-executable image script
-  directly. This does not require changing the script mode.
+  directly. This does not require changing the script mode. Since upstream
+  GeneratedIniValidator (bundle.mk validate-bundle-ini), every bundle zip also
+  needs CONFIG_DEFINITION_JAR; java_tools.mk normally defines it, so the fixture
+  sets it to the real config_definition-all.jar and runs Gradle
+  :config_definition:shadowJar only when that jar is missing.
 - The default host test configuration does not enable EFI_CAN_SUPPORT. Test
   receive sensors through CanListener::processFrame and the sensor registry;
   the full shared receive dispatcher is validated by the production build and

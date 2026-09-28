@@ -9,10 +9,27 @@ import zipfile
 
 from test_memory_contract import ROOT, elf_fixture, image
 
+CONFIG_DEFINITION_JAR = (ROOT / "ext/rusefi/java_tools/configuration_definition"
+                         "/build/libs/config_definition-all.jar")
+
+
+def config_definition_jar():
+    """bundle.mk validates the INI with the real generator jar before zipping.
+
+    The firmware Makefile builds it through java_tools.mk, which the fixture
+    does not include: its jar rule is forced on every run and depends on the
+    documentation sentinel. Build it once here with the same Gradle task.
+    """
+    if not CONFIG_DEFINITION_JAR.is_file():
+        subprocess.run(["./gradlew", "-q", "--console=plain", ":config_definition:shadowJar"],
+                       cwd=ROOT / "ext/rusefi", check=True)
+    return CONFIG_DEFINITION_JAR
+
 
 class BundlePackagingTest(unittest.TestCase):
     def test_desktop_runtime_and_clean_archives(self):
         repo = ROOT / "ext/rusefi"
+        jar = config_definition_jar()
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
             firmware = work / "firmware"
@@ -37,6 +54,7 @@ BUNDLE_SIMULATOR = false
 CONSOLE_JAR = ../rusefi_console.jar
 TS_PLUGIN_LAUNCHER_JAR = ../rusefi_ts_plugin_launcher.jar
 INI_FILE = ../rusefi_re74.9.ini
+CONFIG_DEFINITION_JAR = {jar}
 include {ROOT / 'board.mk'}
 include {repo / 'firmware/bundle.mk'}
 """)
