@@ -180,6 +180,10 @@ prompt printed by the command. The command exits successfully only after the
 new firmware has been verified and has started. All options, exit codes and
 recovery steps are in [the uploader guide](docs/cli-uploader.md).
 
+## Bench harness
+
+![Bench harness](docs/images/bench-harness.png)
+
 ## Tuning
 
 After installation, connect TunerStudio to the ECU using the
