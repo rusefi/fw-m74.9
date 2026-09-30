@@ -48,7 +48,7 @@ class M749EcuProbeTest {
             public byte[] exchange(byte[] request, byte[] prefix, long timeout) throws IOException {
                 sent.add(request);
                 if ((request[2] & 255) == 0xa4) { return bytes(0x62, 0xf1, 0xa4, 'r', 'E', 'F', 'I'); }
-                throw new UdsClient.Timeout();
+                throw new UdsClient.Timeout(0x22, "awaiting the response");
             }
         }, log::add);
         assertEquals(5, sent.size());

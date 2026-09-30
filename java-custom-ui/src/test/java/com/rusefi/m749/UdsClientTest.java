@@ -82,6 +82,36 @@ class UdsClientTest {
         assertEquals(1, silent.tx.size());
     }
 
+    @Test void timeoutNamesRequestAndIsoTpPhase() {
+        Bus silent = new Bus();
+        UdsClient.Timeout response = assertThrows(UdsClient.Timeout.class,
+                () -> silent.client().exchange(bytes(0x28, 1, 1), bytes(0x68, 1), 500));
+        assertEquals(0x28, response.sid);
+        assertEquals("ISO-TP/UDS timeout: SID 28 awaiting the response; request was not retried", response.getMessage());
+
+        Bus noFlowControl = new Bus();
+        byte[] write = new byte[520]; write[0] = 0x3D;
+        UdsClient.Timeout fc = assertThrows(UdsClient.Timeout.class,
+                () -> noFlowControl.client().exchange(write, bytes(0x7D), 500));
+        assertEquals(1, noFlowControl.tx.size());
+        assertEquals("ISO-TP/UDS timeout: SID 3D awaiting flow control for a 520-byte request (6 bytes sent); request was not retried",
+                fc.getMessage());
+
+        Bus pending = new Bus();
+        pending.rx.add(bytes(3, 0x7F, 0x31, 0x78));
+        UdsClient.Timeout afterPending = assertThrows(UdsClient.Timeout.class,
+                () -> pending.client().exchange(bytes(0x31, 1), bytes(0x71, 1), 500));
+        assertEquals("ISO-TP/UDS timeout: SID 31 awaiting the response after a 7F 78 pending reply; request was not retried",
+                afterPending.getMessage());
+
+        Bus truncated = new Bus();
+        truncated.rx.add(bytes(0x10, 10, 0x62, 0xF1, 0x98, 1, 2, 3));
+        UdsClient.Timeout partial = assertThrows(UdsClient.Timeout.class,
+                () -> truncated.client().exchange(bytes(0x22, 0xF1, 0x98), bytes(0x62, 0xF1, 0x98), 500));
+        assertEquals("ISO-TP/UDS timeout: SID 22 receiving a 10-byte multi-frame response (6 bytes received); request was not retried",
+                partial.getMessage());
+    }
+
     @Test void rejectsOutOfOrderResponsesAndNegativeReply() {
         Bus bus = new Bus();
         bus.rx.add(bytes(0x10, 10, 0x62, 0xF1, 0x98, 1, 2, 3));

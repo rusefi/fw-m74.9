@@ -10,9 +10,19 @@ final class UdsClient implements M749Uploader.Connection {
     private final M749Identification.Timing clock;
     private final int receiveBlockSize;
     private final int receiveStmin;
+    private int sid;
+    private String phase = "before any request";
 
+    /** Names the request and ISO-TP phase that expired; nothing was retried. */
     static final class Timeout extends IOException {
-        Timeout() { super("ISO-TP/UDS timeout; request was not retried"); }
+        final int sid;
+        final String phase;
+
+        Timeout(int sid, String phase) {
+            super(String.format("ISO-TP/UDS timeout: SID %02X %s; request was not retried", sid, phase));
+            this.sid = sid;
+            this.phase = phase;
+        }
     }
 
     static final class NegativeResponse extends IOException {
@@ -58,8 +68,10 @@ final class UdsClient implements M749Uploader.Connection {
             throw new IllegalArgumentException("Invalid UDS request/prefix/timeout");
         }
         long deadline = clock.now() + timeout;
+        sid = request[0] & 255;
         transmit(request, deadline);
         long responseDeadline = Math.min(deadline, clock.now() + FRAME_TIMEOUT);
+        phase = "awaiting the response";
         while (true) {
             byte[] response = receive(prefix, responseDeadline, deadline);
             if (response == null) {
@@ -73,6 +85,7 @@ final class UdsClient implements M749Uploader.Connection {
                     throw new NegativeResponse(request[0] & 255, response[2] & 255);
                 }
                 responseDeadline = Math.min(deadline, clock.now() + 5_000);
+                phase = "awaiting the response after a 7F 78 pending reply";
             } else if (startsWith(response, prefix)) {
                 return response;
             }
@@ -80,6 +93,7 @@ final class UdsClient implements M749Uploader.Connection {
     }
 
     private void transmit(byte[] payload, long deadline) throws IOException, InterruptedException {
+        phase = "before sending the request";
         check(deadline);
         byte[] frame = padded();
         if (payload.length <= 7) {
@@ -95,7 +109,9 @@ final class UdsClient implements M749Uploader.Connection {
         int position = 6;
         int sequence = 1;
         while (position < payload.length) {
+            phase = String.format("awaiting flow control for a %d-byte request (%d bytes sent)", payload.length, position);
             byte[] fc = flowControl(deadline);
+            phase = String.format("sending consecutive frames of a %d-byte request", payload.length);
             int blockSize = fc[1] & 255;
             int stMin = fc[2] & 255;
             // Millisecond sleep rounds the ISO-TP 100-900 us range upwards.
@@ -169,6 +185,7 @@ final class UdsClient implements M749Uploader.Connection {
         }
         byte[] payload = new byte[length];
         System.arraycopy(frame, 2, payload, 0, 6);
+        phase = String.format("receiving a %d-byte multi-frame response", length);
         byte[] fc = padded();
         fc[0] = 0x30;
         fc[1] = (byte) receiveBlockSize;
@@ -178,6 +195,7 @@ final class UdsClient implements M749Uploader.Connection {
         int sequence = 1;
         int receivedInBlock = 0;
         while (position < length) {
+            phase = String.format("receiving a %d-byte multi-frame response (%d bytes received)", length, position);
             frame = next(Math.min(deadline, clock.now() + FRAME_TIMEOUT));
             int count = Math.min(7, length - position);
             if ((frame[0] & 255) != (0x20 | sequence) || frame.length < count + 1) {
@@ -213,7 +231,7 @@ final class UdsClient implements M749Uploader.Connection {
             throw new InterruptedException("Diagnostic operation interrupted");
         }
         if (clock.now() >= deadline) {
-            throw new Timeout();
+            throw new Timeout(sid, phase);
         }
     }
 

@@ -51,8 +51,8 @@ final class M749RamHelper {
                 exact(bytes(0x27, 2, key >>> 24, key >>> 16, key >>> 8, key), bytes(0x67, 2), 2);
             }
             out.accept("Application security accepted");
-            prepare(bytes(0x85, 2), bytes(0xC5, 2), out);
-            prepare(bytes(0x28, 1, 1), bytes(0x68, 1), out);
+            prepare(bytes(0x85, 2), bytes(0xC5, 2), "DTC control", out);
+            prepare(bytes(0x28, 1, 1), bytes(0x68, 1), "communication control", out);
             for (int offset = 0; offset < helper.length; offset += 512) {
                 int address = 0x2001BA00 + offset;
                 byte[] request = Arrays.copyOf(bytes(0x3D, 0x24, address >>> 24, address >>> 16,
@@ -117,9 +117,12 @@ final class M749RamHelper {
 
     void reset() throws IOException, InterruptedException { exact(bytes(0x11, 1), bytes(0x51, 1), 2); }
 
-    private void prepare(byte[] request, byte[] expected, Consumer<String> out) throws IOException, InterruptedException {
-        try { exact(request, expected, expected.length); }
-        catch (UdsClient.NegativeResponse e) {
+    private void prepare(byte[] request, byte[] expected, String name, Consumer<String> out)
+            throws IOException, InterruptedException {
+        try {
+            exact(request, expected, expected.length);
+            out.accept(String.format("Preparation SID %02X (%s) accepted", request[0] & 255, name));
+        } catch (UdsClient.NegativeResponse e) {
             // Some applications omit DTC/communication control in session 60.
             // Only explicit service-unavailable responses permit the RAM upload
             // to be attempted; admission, security and every write still must pass.

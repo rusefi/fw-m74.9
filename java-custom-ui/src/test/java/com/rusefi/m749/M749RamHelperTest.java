@@ -20,13 +20,28 @@ class M749RamHelperTest {
             };
             M749RamHelper helper = new M749RamHelper(ecu);
             if (nrc == 0x11 || nrc == 0x7f) {
-                helper.start(M749RamHelper.load(), false, s -> {});
+                List<String> out = new ArrayList<>();
+                helper.start(M749RamHelper.load(), false, out::add);
                 assertEquals(13, ecu.requests.stream().filter(q -> q[0] == 0x3d).count());
+                assertTrue(out.contains(String.format(
+                        "Optional preparation SID 85 unavailable (NRC %02X); continuing to RAM upload", nrc)), out.toString());
+                assertTrue(out.contains(String.format(
+                        "Optional preparation SID 28 unavailable (NRC %02X); continuing to RAM upload", nrc)), out.toString());
             } else {
                 assertThrows(UdsClient.NegativeResponse.class, () -> helper.start(M749RamHelper.load(), false, s -> {}));
                 assertFalse(ecu.requests.stream().anyMatch(q -> q[0] == 0x3d));
             }
         }
+    }
+
+    @Test void acceptedPreparationStepsAreReported() throws Exception {
+        Ecu ecu = new Ecu();
+        List<String> out = new ArrayList<>();
+        new M749RamHelper(ecu).start(M749RamHelper.load(), false, out::add);
+        assertTrue(out.contains("Preparation SID 85 (DTC control) accepted"), out.toString());
+        assertTrue(out.contains("Preparation SID 28 (communication control) accepted"), out.toString());
+        assertTrue(out.indexOf("Preparation SID 28 (communication control) accepted")
+                < out.indexOf("RAM helper upload: 512/6656 bytes acknowledged"), out.toString());
     }
 
     static class Ecu implements M749Uploader.Connection {
