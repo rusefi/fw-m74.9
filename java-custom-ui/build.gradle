@@ -5,6 +5,46 @@ dependencies {
     implementation project(':peak-can-basic')
 }
 
+// Build provenance: board repository and rusEFI submodule git hashes plus the build time.
+// Written to build.properties (printed by M749Cli at startup) and copied into the jar
+// manifests, including rusefi_console.jar, so a stale build is recognizable from its
+// first output line. providers.exec keeps this compatible with the configuration cache.
+def gitDescribe = { File dir ->
+    providers.exec {
+        commandLine 'git', '-C', dir.absolutePath, 'describe', '--always', '--dirty', '--abbrev=12', '--exclude=*'
+        ignoreExitValue = true
+    }.standardOutput.asText.map { text -> text.trim().isEmpty() ? 'unknown' : text.trim() }
+}
+def boardGit = gitDescribe(projectDir.parentFile)
+def rusefiGit = gitDescribe(rootProject.projectDir)
+def buildInfoDir = layout.buildDirectory.dir('generated-resources/m749')
+def buildInfoFile = buildInfoDir.map { it.file('com/rusefi/m749/build.properties') }
+tasks.register('generateM749BuildInfo') {
+    inputs.property('boardGit', boardGit)
+    inputs.property('rusefiGit', rusefiGit)
+    outputs.file(buildInfoFile)
+    outputs.upToDateWhen { false }
+    doLast {
+        def file = buildInfoFile.get().asFile
+        file.parentFile.mkdirs()
+        def date = java.time.ZonedDateTime.now(java.time.ZoneOffset.UTC)
+            .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"))
+        file.text = "board.git=${boardGit.get()}\nrusefi.git=${rusefiGit.get()}\nbuild.date=${date}\n"
+    }
+}
+sourceSets.main.resources.srcDir buildInfoDir
+tasks.named('processResources') { dependsOn 'generateM749BuildInfo' }
+tasks.named('jar') {
+    doFirst {
+        def properties = new Properties()
+        buildInfoFile.get().asFile.withInputStream { properties.load(it) }
+        manifest.attributes(
+            'Board-Git': properties.getProperty('board.git', 'unknown'),
+            'Rusefi-Git': properties.getProperty('rusefi.git', 'unknown'),
+            'Build-Date': properties.getProperty('build.date', 'unknown'))
+    }
+}
+
 test {
     systemProperty 'java.awt.headless', 'true'
 }

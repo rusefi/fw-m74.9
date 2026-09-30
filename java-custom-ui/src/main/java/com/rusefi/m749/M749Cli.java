@@ -24,6 +24,7 @@ public final class M749Cli {
 
     public static void main(String[] args) {
         ElapsedTimeOutputStream.install();
+        System.out.println(M749BuildInfo.describe());
         int exit;
         try {
             exit = execute(args, M749Monitor.canBackend(), M749Cli::upload, System.out::println);
