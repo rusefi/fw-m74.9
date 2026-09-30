@@ -1,6 +1,7 @@
 package com.rusefi.m749;
 
 import com.fazecast.jSerialComm.SerialPort;
+import com.rusefi.io.can.slcan.SlcanVersion;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
@@ -205,10 +206,11 @@ final class SlcanTransport implements RawCanTransport {
     }
 
     private void accept(String value) throws IOException {
-        if (initializingCommand != null && value.matches("[0-9a-fA-F]{7,40}(-dirty)? github\\.com/normaldotcom/canable2(-fw)?(\\.git)?")) {
+        if (initializingCommand != null && SlcanVersion.isCanableFamily(value)) {
+            // CANable 2 or WeAct USB2CANFDV1: no acknowledgements, the V reply is the barrier.
             canable = true;
             versionReceived = true;
-            log.accept("CANable version: " + value);
+            log.accept("CANable family version: " + value);
             return;
         }
         if (value.isEmpty() || value.equals("z") || value.equals("Z")) { acknowledgements++; return; }

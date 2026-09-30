@@ -98,6 +98,10 @@ rusEFI submodule; leave those generated changes unstaged.
   acknowledgements. A close timeout triggers a bounded V probe; only a
   recognized CANable revision enables setup with fresh V response checks.
   Version replies establish serial responsiveness, not ECU presence.
+  WeAct USB2CANFDV1 answers V with `WeAct Studio V1.0.0.3_bb264e71` and is
+  treated as CANable family. SlcanVersion in java_console/io is the single
+  V-reply rule for discovery, the console connector and SlcanTransport; do
+  not add adapter-specific regexes elsewhere.
 - Live I812TA01_w2243v21 / 8450086874 accepts session 60 and application
   security, but rejects 85 02 with NRC 7F. Continuing without that optional
   DTC-control step allowed communication control, thirteen 512-byte RAM writes,

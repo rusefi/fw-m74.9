@@ -38,6 +38,36 @@ class SlcanTransportTest {
         }
     }
 
+    @Test void weActWithoutAcknowledgementsIsSetUpLikeCanable() throws Exception {
+        Port port = new Port() {
+            public void write(byte[] data) {
+                super.write(data);
+                if (writes.get(writes.size() - 1).equals("V\r")) {
+                    offer("WeAct Studio V1.0.0.3_bb264e71\r");
+                }
+            }
+        };
+        List<String> log = new ArrayList<>();
+        try (SlcanTransport t = new SlcanTransport(port, 1, log::add)) {
+            t.initialize();
+            assertEquals(Arrays.asList("C\r", "V\r", "S6\r", "V\r", "O\r", "V\r"), port.writes);
+            assertTrue(log.contains("CANable family version: WeAct Studio V1.0.0.3_bb264e71"), log.toString());
+            port.offer("t7E840362F186\r");
+            assertArrayEquals(bytes(3, 0x62, 0xf1, 0x86), t.receiveCan().data);
+        }
+    }
+
+    @Test void unrelatedVersionBannerWithoutAcknowledgementsDoesNotOpenCan() {
+        Port port = new Port() {
+            public void write(byte[] data) {
+                super.write(data);
+                if (writes.get(writes.size() - 1).equals("V\r")) { offer("WeAct Studio\r"); }
+            }
+        };
+        assertThrows(IOException.class, () -> new SlcanTransport(port, 1).initialize());
+        assertEquals(Arrays.asList("C\r", "V\r"), port.writes);
+    }
+
     @Test void silentUnknownAdapterDoesNotOpenCan() {
         Port port = new Port();
         assertThrows(IOException.class, () -> new SlcanTransport(port, 1).initialize());
