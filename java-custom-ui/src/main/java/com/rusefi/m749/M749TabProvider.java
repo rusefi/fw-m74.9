@@ -2,10 +2,11 @@ package com.rusefi.m749;
 
 import com.rusefi.ui.UIContext;
 import com.rusefi.ui.plugins.ConsoleTabProvider;
+import com.rusefi.ui.plugins.StartupTabProvider;
 
 import javax.swing.JComponent;
 
-public final class M749TabProvider implements ConsoleTabProvider {
+public final class M749TabProvider implements ConsoleTabProvider, StartupTabProvider {
     @Override
     public String getTitle() {
         return "M74.9";
