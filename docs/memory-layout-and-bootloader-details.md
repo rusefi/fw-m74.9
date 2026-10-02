@@ -105,7 +105,7 @@ bash compile_firmware.sh
 | Artifact | Device destination, inclusive | Purpose |
 | --- | --- | --- |
 | `ext/rusefi/firmware/build/rusefi.hex` | `0x08001000-0x0805FFFF` **and** `0x08080000-0x080FFFFF` | Intel HEX application software, with the application CRC already included at `0x080FFFFC`. |
-| `ext/rusefi/firmware/build/rusefi.srec` | The same two software ranges | Equivalent Motorola S-record payload. In bundles it is named `rusefi_update.srec`. Choose one format; do not program both. |
+| `ext/rusefi/firmware/build/rusefi.srec` | The same two software ranges | Equivalent Motorola S-record payload. In bundles it is named `rusefi_<release>_<date>_re74.9_<signature>_<commit>_update.srec`. Choose one format; do not program both. |
 | Separately generated `calibration.hex` or `calibration.srec` | `0x08060000-0x0807FFFF` only | An intentional calibration update, including its CRC at `0x0807FFFC`. Preserve existing calibration during a software-only update. |
 | `rusefi.elf`, `.map`, `.list` | No deployment destination | Link/debug artifacts. The ELF lacks the final CRC trailers; do not use debugger ELF auto-download as a substitute for the generated HEX/SREC payload. |
 | Full or autoupdate `.zip` | No deployment destination | Distribution containers. Extract the addressed payload; use the documented I865 CLI; archive naming does not establish hardware validation. |

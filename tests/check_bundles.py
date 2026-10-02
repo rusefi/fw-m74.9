@@ -1,9 +1,19 @@
 """Check built archives, including stale entries left by incremental ZIP updates."""
 from io import BytesIO
 from pathlib import Path
+import re
 import zipfile
 
 from test_memory_contract import ROOT, decode_records, image
+
+
+def bundled_srec(archive, prefix):
+    names = [name for name in archive.namelist() if name.endswith(".srec")]
+    assert len(names) == 1, f"Expected exactly one SREC, found: {names}"
+    pattern = (re.escape(prefix)
+               + r"rusefi_[^/]+_[^/]+_re74\.9_(?:[0-9]+|nohash)_[^/]+_update\.srec")
+    assert re.fullmatch(pattern, names[0]), f"Unexpected SREC name: {names[0]}"
+    return names[0]
 
 
 def main():
@@ -13,9 +23,10 @@ def main():
         path = ROOT / f"ext/rusefi/artifacts/rusefi_bundle_re74.9{suffix}.zip"
         with zipfile.ZipFile(path) as archive:
             prefix = "" if suffix else "rusefi.snapshot.re74.9/"
+            srec = bundled_srec(archive, prefix)
             required = {"console/rusefi_console.jar", "console/rusefi_ts_plugin_launcher.jar",
                         "console/release.txt", "console/PCANBasic.dll", "console/PCANBasic_JNI.dll",
-                        "rusefi_re74.9.ini", "readme.md", "rusefi.hex", "rusefi_update.srec"}
+                        "rusefi_re74.9.ini", "readme.md", "rusefi.hex", srec.removeprefix(prefix)}
             if not suffix:
                 required.update({"rusefi_updater.exe", "rusefi_updater.sh"})
             for name in required:
@@ -30,7 +41,7 @@ def main():
                 if filename.endswith((".bin", ".dfu")) or filename.startswith(
                         ("flash_", "blt_", "openblt_")):
                     raise AssertionError(f"Unsafe/stale bundle entry: {name}")
-                if filename in ("rusefi.hex", "rusefi_update.srec"):
+                if name in (prefix + "rusefi.hex", srec):
                     fmt = filename.rsplit(".", 1)[1]
                     decoded = decode_records(archive.read(name).decode("ascii"), fmt)
                     actual = [(address, bytes(decoded.pop(address + i) for i in range(len(data))))
