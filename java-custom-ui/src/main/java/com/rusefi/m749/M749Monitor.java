@@ -34,6 +34,14 @@ final class M749Monitor {
             return inspect(selectedPcan(options), messages);
         }
 
+        /** Report adapter opening on the calling thread; older backends report only after a successful query. */
+        default Identification inspect(M749ConnectionOptions options, Consumer<String> messages, Runnable adapterOpened)
+                throws IOException, InterruptedException {
+            Identification result = inspect(options, messages);
+            adapterOpened.run();
+            return result;
+        }
+
         default void flash(M749ConnectionOptions options, M749Image image, M749Immo credential, Consumer<String> messages)
                 throws IOException, InterruptedException {
             flash(selectedPcan(options), image, credential, messages);
@@ -131,9 +139,15 @@ final class M749Monitor {
 
             public Identification inspect(M749ConnectionOptions options, Consumer<String> messages)
                     throws IOException, InterruptedException {
+                return inspect(options, messages, () -> { });
+            }
+
+            public Identification inspect(M749ConnectionOptions options, Consumer<String> messages, Runnable adapterOpened)
+                    throws IOException, InterruptedException {
                 Identification[] result = new Identification[1];
                 access.run(() -> {
                     try (RawCanTransport transport = factory.open(options, messages)) {
+                        adapterOpened.run();
                         result[0] = M749EcuProbe.inspect(options.client(transport), messages);
                     }
                     return 0;
@@ -194,10 +208,14 @@ final class M749Monitor {
         connectionAttempt = now;
         connectionReady = false;
         view.busy(true);
+        M749ConnectionOptions selected = requested.copy();
+        boolean[] adapterOpened = {false};
         try {
-            M749ConnectionOptions selected = requested.copy();
             view.message("Querying M74.9 via " + selected.connector() + " " + selected.endpoint());
-            Identification result = backend.inspect(selected, view::message);
+            Identification result = backend.inspect(selected, view::message, () -> {
+                adapterOpened[0] = true;
+                view.detection(true, selected.connector() + " " + selected.endpoint() + ": adapter opened; querying ECU");
+            });
             connectionKey = selected.key();
             connectionReady = true;
             view.detection(true, selected.connector() + " " + selected.endpoint() + ": ECU identified");
@@ -205,9 +223,15 @@ final class M749Monitor {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (IOException | RuntimeException | LinkageError e) {
-            view.detection(false, requested.connector() + " identification failed: " + e.getMessage());
-            view.connection(requested, new Identification(M749FirmwareDetection.Result.UNKNOWN, java.util.Collections.emptyList()));
-            view.message("Identification failed: " + e.getMessage());
+            // Keep an opened auto-selected endpoint even if the ECU cannot identify itself.
+            // Use its key for retry throttling as well as for subsequent user operations.
+            M749ConnectionOptions endpoint = adapterOpened[0] ? selected : requested;
+            connectionKey = endpoint.key();
+            String failure = selected.connector() + " " + selected.endpoint() + ": "
+                    + (adapterOpened[0] ? "adapter opened; ECU query failed: " : "adapter access failed: ") + e.getMessage();
+            view.detection(adapterOpened[0], failure);
+            view.connection(endpoint, new Identification(M749FirmwareDetection.Result.UNKNOWN, java.util.Collections.emptyList()));
+            view.message(failure);
         } finally { view.busy(false); }
     }
 

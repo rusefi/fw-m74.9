@@ -23,7 +23,7 @@ class M749PanelTest {
         assertEquals("M74.9", provider.getTitle());
         SwingUtilities.invokeAndWait(() -> {
             JComponent panel = provider.createTab(null);
-            JLabel label = find(panel, JLabel.class, "SLCAN not detected");
+            JLabel label = find(panel, JLabel.class, "SLCAN not checked");
             assertEquals(M749Panel.MISSING_COLOR, label.getForeground());
             JTabbedPane tabs = find(panel, JTabbedPane.class, null);
             assertEquals("Messages", tabs.getTitleAt(0));

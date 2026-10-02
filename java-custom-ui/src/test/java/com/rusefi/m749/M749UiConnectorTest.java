@@ -16,6 +16,37 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class M749UiConnectorTest {
     @TempDir Path directory;
+
+    @Test void adapterStatusDistinguishesOpenFailureFromUnidentifiedEcu() throws Exception {
+        for (boolean openFails : new boolean[]{false, true}) {
+            M749Monitor.Backend backend = M749Monitor.canBackend(action -> action.run(), (options, out) -> {
+                options.slcan = "COM42";
+                if (openFails) { throw new java.io.IOException("Port is busy"); }
+                return new SocketCanTransport(new SocketCanTransportTest.Port() {
+                    @Override public void send(com.rusefi.io.can.ClassicCanFrame frame) {
+                        super.send(frame);
+                        reply(0x7E8, M749Identification.bytes(3, 0x7F, 0x22, 0x31));
+                    }
+                });
+            });
+            M749Panel panel = open(backend, M749UiFlashTest.writeSoftware(directory), 1);
+            try {
+                String failure = openFails ? "adapter access failed: Port is busy" : "adapter opened; ECU query failed:";
+                await(() -> find(panel, JLabel.class, "connectionDetail").getText().contains(failure)
+                        && button(panel, "readFlash").isEnabled());
+                SwingUtilities.invokeAndWait(() -> {
+                    JLabel status = find(panel, JLabel.class, "adapterStatus");
+                    assertEquals(openFails ? "SLCAN unavailable" : "SLCAN detected", status.getText());
+                    assertEquals(openFails ? M749Panel.MISSING_COLOR : M749Panel.DETECTED_COLOR, status.getForeground());
+                    assertEquals(openFails ? "auto" : "COM42", find(panel, JTextField.class, "transferEndpoint").getText());
+                    assertEquals("Installed firmware: unknown", find(panel, JLabel.class, "firmwareStatus").getText());
+                    assertTrue(find(panel, JTextArea.class, "status").getText().isEmpty());
+                    assertTrue(find(panel, JTextArea.class, "messages").getText().contains(failure));
+                });
+            } finally { SwingUtilities.invokeAndWait(panel::removeNotify); }
+        }
+    }
+
     private static class Backend implements M749Monitor.Backend {
         volatile int scans, queries;
         volatile M749ConnectionOptions identified, flashed;
@@ -114,7 +145,7 @@ class M749UiConnectorTest {
         } finally { SwingUtilities.invokeAndWait(panel::removeNotify); }
     }
 
-    private static M749Panel open(Backend backend, Path image, int connector) throws Exception {
+    private static M749Panel open(M749Monitor.Backend backend, Path image, int connector) throws Exception {
         AtomicReference<M749Panel> ref = new AtomicReference<>();
         SwingUtilities.invokeAndWait(() -> {
             M749Panel panel = new M749Panel(backend, () -> image);

@@ -161,6 +161,14 @@ The UI's Connector row and transport settings feed this same connection model
 for identification, bundled updates, backup reads and selected-file writes.
 `--check-target` also accepts `--calibration`, matching calibration upload mode.
 
+The adapter status and ECU identification are separate. If the adapter opens
+but ECU identification fails, the UI keeps it marked **detected**, shows the
+query error, and leaves installed firmware **unknown**. An automatically
+selected port is retained for **Scan / query again** and file operations.
+**Unavailable** means adapter access failed; the detail line and Messages
+include the reason, such as discovery failing to stop or a serial port failing
+to open. Adapter detection alone does not confirm ECU identity or update support.
+
 ## Selected-file writes
 
 `write-flash.sh` / `write-flash.bat` invoke `m749-cli --write-flash FILE`.

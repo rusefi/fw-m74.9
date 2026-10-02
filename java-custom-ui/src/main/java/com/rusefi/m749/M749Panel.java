@@ -17,7 +17,7 @@ public final class M749Panel extends JPanel {
     static final Color DETECTED_COLOR = new Color(0, 140, 45);
     static final Color MISSING_COLOR = new Color(190, 35, 35);
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm:ss");
-    private final JLabel detection = new JLabel("SLCAN not detected");
+    private final JLabel detection = new JLabel("SLCAN not checked");
     private final JLabel detail = new JLabel("Select a connector and endpoint; auto requires one adapter.");
     private final JLabel activity = new JLabel(" ");
     private final JButton retry = new JButton("Scan / query again");
@@ -88,6 +88,8 @@ public final class M749Panel extends JPanel {
         this.firmwareLocator = firmwareLocator;
         this.transferChooser = transferChooser;
         setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        detection.setName("adapterStatus");
+        detail.setName("connectionDetail");
         detection.setForeground(MISSING_COLOR);
         detection.setFont(detection.getFont().deriveFont(Font.BOLD, 20f));
         JPanel top = new JPanel();
@@ -254,7 +256,7 @@ public final class M749Panel extends JPanel {
             querying = false;
             setFirmware(M749FirmwareDetection.Result.UNKNOWN);
             status.setText("");
-            detection.setText(next.connector() + " not detected");
+            detection.setText(next.connector() + " not checked");
             detection.setForeground(MISSING_COLOR);
         }
         selectedConnection = next;
@@ -508,7 +510,7 @@ public final class M749Panel extends JPanel {
             public void detection(boolean detected, String text) {
                 onConnectionEdt(current, () -> {
                     String connector = (String) transferTransport.getSelectedItem();
-                    detection.setText(connector + (detected ? " detected" : " not detected"));
+                    detection.setText(connector + (detected ? " detected" : " unavailable"));
                     detection.setForeground(detected ? DETECTED_COLOR : MISSING_COLOR);
                     detail.setText(text);
                     detail.setToolTipText(text);
