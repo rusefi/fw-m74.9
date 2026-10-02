@@ -16,7 +16,7 @@ final class M749EcuProbe {
             throws IOException, InterruptedException {
         int positive = 0;
         boolean oem = false;
-        byte[] identity = null, activation = null;
+        byte[] identity = null, activation = null, software = null;
         java.util.List<String> summary = new java.util.ArrayList<>();
         for (int did : new int[]{0xF186, 0xF189, 0xF192, 0xF1A4, 0xF1A0}) {
             byte[] prefix = bytes(0x62, did >>> 8, did);
@@ -30,6 +30,7 @@ final class M749EcuProbe {
                         M749Identification.hex(value), M749Identification.ascii(value));
                 out.accept(line);
                 summary.add(line);
+                if (did == 0xF189) software = value;
                 if (did == 0xF1A4) identity = response;
                 else if (did == 0xF1A0) activation = response;
                 else oem = true;
@@ -41,7 +42,7 @@ final class M749EcuProbe {
         if (positive == 0) { throw new IOException("ECU identity was not confirmed: no positive identification response on 7E8"); }
         out.accept("ECU presence confirmed; no session change, security access or RAM upload requested");
         M749FirmwareDetection.Result firmware = M749FirmwareDetection.classify(identity, activation);
-        if (firmware == M749FirmwareDetection.Result.UNKNOWN && oem) firmware = M749FirmwareDetection.Result.OEM;
+        if (firmware == M749FirmwareDetection.Result.UNKNOWN && oem) firmware = M749FirmwareDetection.classifyOem(software);
         return new M749Monitor.Identification(firmware, summary);
     }
 }

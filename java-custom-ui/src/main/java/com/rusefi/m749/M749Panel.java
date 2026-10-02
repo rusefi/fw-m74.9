@@ -22,6 +22,7 @@ public final class M749Panel extends JPanel {
     private final JLabel activity = new JLabel(" ");
     private final JButton retry = new JButton("Scan / query again");
     private final JLabel firmwareStatus = new JLabel("Installed firmware: unknown");
+    private final JLabel oemBackupHint = new JLabel("please backup OEM and share it with the rusEFI team");
     private final JLabel imageLabel = new JLabel("SREC: searching...");
     private final JLabel uploadHint = new JLabel();
     private final JComboBox<PcanDevice.Channel> channels = new JComboBox<>();
@@ -129,6 +130,10 @@ public final class M749Panel extends JPanel {
         firmwareStatus.setName("firmwareStatus");
         firmwareStatus.setFont(detail.getFont().deriveFont(Font.BOLD));
         top.add(firmwareStatus);
+        oemBackupHint.setName("oemBackupHint");
+        oemBackupHint.setFont(detail.getFont().deriveFont(Font.BOLD));
+        oemBackupHint.setVisible(false);
+        top.add(oemBackupHint);
         imageLabel.setName("firmwareImage");
         top.add(imageLabel);
         JPanel credentialRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 4));
@@ -334,13 +339,16 @@ public final class M749Panel extends JPanel {
     private void setFirmware(M749FirmwareDetection.Result result) {
         installed = result;
         uploadHint.setText(result.m749 ? "rusEFI updates use the resident loader; no pair file or startup power cycle is needed."
+                : result == M749FirmwareDetection.Result.OEM_UNKNOWN ? "Use Read flash... to save a full OEM backup."
                 : "For OEM authorization, choose your pair file and cycle ECU power when Messages asks.");
         String label = result == M749FirmwareDetection.Result.UNKNOWN ? "Installed firmware: unknown"
                 : result == M749FirmwareDetection.Result.OEM ? "OEM firmware installed"
+                : result == M749FirmwareDetection.Result.OEM_UNKNOWN ? "OEM firmware installed - unknown build"
                 : "rusEFI installed - " + (result == M749FirmwareDetection.Result.M749_READY ? "ready to update"
                 : result == M749FirmwareDetection.Result.M749_NOT_READY ? "activation not ready"
                 : "M74.9 update support not confirmed");
         firmwareStatus.setText(label);
+        oemBackupHint.setVisible(result == M749FirmwareDetection.Result.OEM_UNKNOWN);
         firmwareStatus.setForeground(result.m749 ? DETECTED_COLOR : getForeground());
         flash.setText(result.m749 ? "Update rusEFI" : "Flash rusEFI");
         updateControls();

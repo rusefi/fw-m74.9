@@ -75,6 +75,11 @@ does not mean the ECU is missing.
 
 Open the rusEFI console and select the **M74.9** tab.
 
+For an unfamiliar OEM software version, the tab shows **OEM firmware installed -
+unknown build** and **please backup OEM and share it with the rusEFI team**.
+Use **Read flash...** to save the backup. A recognized version still requires
+the loader compatibility checks before programming.
+
 1. Select **Connector**: SLCAN (default), PCAN or SocketCAN. The tab queries
    the selected endpoint automatically and fills in **Installed firmware** using
    read-only identification requests.

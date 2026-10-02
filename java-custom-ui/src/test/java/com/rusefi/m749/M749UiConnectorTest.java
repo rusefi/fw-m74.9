@@ -99,6 +99,28 @@ class M749UiConnectorTest {
         }
     }
 
+    @Test void unknownOemBuildShowsBackupRequestAndClearsItAfterAnotherIdentity() throws Exception {
+        Backend backend = new Backend();
+        backend.firmware = M749FirmwareDetection.Result.OEM_UNKNOWN;
+        M749Panel panel = open(backend, M749UiFlashTest.writeSoftware(directory), 1);
+        try {
+            await(() -> find(panel, JLabel.class, "oemBackupHint").isVisible() && button(panel, "readFlash").isEnabled());
+            SwingUtilities.invokeAndWait(() -> {
+                assertEquals("OEM firmware installed - unknown build", find(panel, JLabel.class, "firmwareStatus").getText());
+                assertEquals("please backup OEM and share it with the rusEFI team", find(panel, JLabel.class, "oemBackupHint").getText());
+            });
+            for (M749FirmwareDetection.Result result : new M749FirmwareDetection.Result[]{
+                    M749FirmwareDetection.Result.OEM, M749FirmwareDetection.Result.M749_READY,
+                    M749FirmwareDetection.Result.UNKNOWN}) {
+                backend.firmware = result;
+                int before = backend.queries;
+                SwingUtilities.invokeAndWait(() -> find(panel, JTextField.class, "transferEndpoint").postActionEvent());
+                await(() -> backend.queries > before && button(panel, "readFlash").isEnabled());
+                SwingUtilities.invokeAndWait(() -> assertFalse(find(panel, JLabel.class, "oemBackupHint").isVisible()));
+            }
+        } finally { SwingUtilities.invokeAndWait(panel::removeNotify); }
+    }
+
     @Test void connectorChangeClearsOldFirmwareAndIgnoresLateIdentification() throws Exception {
         CountDownLatch started = new CountDownLatch(1), release = new CountDownLatch(1);
         Backend backend = new Backend() {

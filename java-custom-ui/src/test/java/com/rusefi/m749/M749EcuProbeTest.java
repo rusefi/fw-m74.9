@@ -2,11 +2,52 @@ package com.rusefi.m749;
 
 import org.junit.jupiter.api.Test;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 import static com.rusefi.m749.M749Identification.bytes;
 
 class M749EcuProbeTest {
+    private M749Monitor.Identification inspectOem(String build, boolean rusefi) throws Exception {
+        List<Integer> requests = new ArrayList<>();
+        M749Monitor.Identification result = M749EcuProbe.inspect(new M749Uploader.Connection() {
+            public void pause(long ms) { fail("Identification must not pause for a session change"); }
+            public byte[] exchange(byte[] request, byte[] prefix, long timeout) throws IOException {
+                assertEquals(3, request.length);
+                assertEquals(0x22, request[0], "Identification must only read DIDs");
+                int did = (request[1] & 255) << 8 | request[2] & 255;
+                requests.add(did);
+                if (did == 0xF186) return bytes(0x62, 0xF1, 0x86, 1);
+                if (did == 0xF189 && build != null) {
+                    byte[] value = build.getBytes(StandardCharsets.US_ASCII);
+                    byte[] response = Arrays.copyOf(prefix, 3 + value.length);
+                    System.arraycopy(value, 0, response, 3, value.length);
+                    return response;
+                }
+                if (did == 0xF1A4 && rusefi) return bytes(0x62, 0xF1, 0xA4, 'r', 'E', 'F', 'I');
+                throw new UdsClient.NegativeResponse(0x22, 0x31);
+            }
+        }, s -> {});
+        assertEquals(List.of(0xF186, 0xF189, 0xF192, 0xF1A4, 0xF1A0), requests);
+        return result;
+    }
+
+    @Test void recognizesExactOemBuildsWithOptionalPadding() throws Exception {
+        for (String build : new String[]{"I812NA01_w2243v21", "I812TA01_w2243v21", "I832GA01_w2304v2", "I865LB52_w2404b1"}) {
+            for (String padding : new String[]{"", "\0\0  "}) {
+                assertEquals(M749FirmwareDetection.Result.OEM, inspectOem(build + padding, false).firmware);
+            }
+        }
+    }
+
+    @Test void unfamiliarOrUnavailableOemBuildIsExplicitlyUnknown() throws Exception {
+        for (String build : new String[]{null, " ", "\0\0", "I835LB52_w2404b1", "I832GA02_w2304v2",
+                "I832GA01_w9999v1", "I832GA01", "I832GA01_w2304v2_extra", "I832GA01_w2304v2\0extra"}) {
+            assertEquals(M749FirmwareDetection.Result.OEM_UNKNOWN, inspectOem(build, false).firmware, build);
+        }
+        assertEquals(M749FirmwareDetection.Result.RUSEFI, inspectOem("unfamiliar OEM build", true).firmware);
+    }
+
     private static final class View implements M749Monitor.View {
         final List<Boolean> detection = new ArrayList<>();
         final List<String> details = new ArrayList<>();

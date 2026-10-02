@@ -169,6 +169,15 @@ selected port is retained for **Scan / query again** and file operations.
 include the reason, such as discovery failing to stop or a serial port failing
 to open. Adapter detection alone does not confirm ECU identity or update support.
 
+An OEM response with an unfamiliar or unavailable software version shows
+**OEM firmware installed - unknown build**, followed by the explicit label
+**please backup OEM and share it with the rusEFI team**. Use **Read flash...**
+to save the backup. The prompt clears when another firmware identity is queried
+or the connector changes; an unanswered ECU query alone does not identify OEM.
+Known versions are I812NA01_w2243v21, I812TA01_w2243v21, I832GA01_w2304v2 and
+I865LB52_w2404b1. Recognition requires the full version, ignoring trailing NUL
+or space padding; loader compatibility is still checked separately before erase.
+
 ## Selected-file writes
 
 `write-flash.sh` / `write-flash.bat` invoke `m749-cli --write-flash FILE`.
