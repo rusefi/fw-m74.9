@@ -246,14 +246,14 @@ public final class M749Cli {
 
     private static void usage(Consumer<String> out) {
         M749ConnectionOptions.usage(out);
-        out.accept("M74.9 CLI (500 kbit/s, 7E0/7E8; supported I812/I865 resident loaders)");
+        out.accept("M74.9 CLI (500 kbit/s, 7E0/7E8; supported I812/I832/I865 resident loaders)");
         out.accept("Usage: m749-cli [channel]                 identify ECU; defaults to SLCAN auto when omitted");
         out.accept("       m749-cli --identify [--slcan PORT|auto | --socketcan IFACE | --channel PCAN_USBBUS1|auto]  query ECU without session changes");
         out.accept("       m749-cli --list                    list PCAN channels");
         out.accept("       m749-cli --read-flash [OUTPUT.bin] [--slcan PORT|auto | --socketcan IFACE | --channel PCAN_USBBUS1|auto]");
         out.accept("                  [--resume] [--helper-running] [--reset-after]; add --help for read options");
         out.accept("       m749-cli --write-flash FILE [--dry-run] [--slcan PORT|auto | --socketcan IFACE | --channel CHANNEL]");
-        out.accept("       HEX/SREC: rusEFI software. BIN: I812/I865 full backup, restore application/calibration only.");
+        out.accept("       HEX/SREC: rusEFI software. BIN: I812/I832/I865 full backup, restore application/calibration only.");
         out.accept("       --upload and --write-flash are aliases; both default to SLCAN auto.");
         out.accept("       m749-cli --upload FILE --dry-run   validate HEX/SREC/OEM BIN without hardware");
         out.accept("       m749-cli --upload FILE --channel PCAN_USBBUS1 [--calibration] [--verify-bytes]");
@@ -270,7 +270,8 @@ public final class M749Cli {
         out.accept("Reads enter OEM session 02 (can reset the ECU) and authenticate. Rejected entry stops without flash writes.");
         out.accept("Pair files checkpoint each byte; unknown indices are omitted.");
         out.accept("--immo-backup enables normal I865 CAN authorization; cycle bench power when the listener reports ready.");
-        out.accept("M749ACT2 software supports both target profiles; legacy M749ACT1 supports I865 only. Calibration payloads are I865-only.");
+        out.accept("M749ACT2 software supports I812/I865; legacy M749ACT1 supports I865 only. Calibration payloads are I865-only.");
+        out.accept("I832GA01 supports OEM BIN restore only; existing rusEFI software/calibration payloads are rejected.");
         out.accept("--upload erases/programs the selected domain, preserves OEM programming metadata, and activates.");
         out.accept("Default verification: per-block sum plus application-side CRCs; --verify-bytes adds slow byte comparisons.");
     }

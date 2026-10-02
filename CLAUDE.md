@@ -139,3 +139,8 @@ rusEFI submodule; leave those generated changes unstaged.
 - OEM application return can be checked with F186=01 after the loader metadata
   transaction/reset. OEM does not implement replacement activation DIDs F1A0..3;
   session return is not evidence of those CRC/marker reports or of cold boot.
+- I832GA01 combines boot CRC E3186D26 and calibration start 08060000 with
+  OEM application vectors 00000000/08080001. Do not infer its calibration
+  layout from the zero stack vector. Java OEM BIN restore supports this
+  profile; M749ACT1/M749ACT2 replacement payloads still omit its boot CRC
+  and must be rejected on I832 before erase.

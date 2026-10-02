@@ -22,7 +22,7 @@ class M749OemImageTest {
         if (FIXTURES.containsKey(profile)) return FIXTURES.get(profile).clone();
         byte[] data = new byte[M749RamHelper.SIZE];
         Arrays.fill(data, (byte) 0xA5);
-        word(data, 0x1000, profile == M749TargetProfile.I812 ? 0 : 0x20020000);
+        word(data, 0x1000, profile == M749TargetProfile.I865 ? 0x20020000 : 0);
         word(data, 0x1004, 0x08080001);
         int split = profile.calibrationStart - 0x08000000;
         int software = crc(data, 0x1000, split, -1);
@@ -62,7 +62,7 @@ class M749OemImageTest {
         return M749Image.crc32(Arrays.copyOfRange(data, start, end), end - start, initial);
     }
 
-    @Test void validatesBothLayoutsAndSelectsOnlyApplicationAndCalibration() throws Exception {
+    @Test void validatesAllProfilesAndSelectsOnlyApplicationAndCalibration() throws Exception {
         for (M749TargetProfile profile : M749TargetProfile.values()) {
             byte[] data = backup(profile);
             Path file = directory.resolve(profile + " full backup.BIN");
@@ -77,6 +77,22 @@ class M749OemImageTest {
             assertArrayEquals(Arrays.copyOfRange(data, 0x1000, 0x100000), image.ranges.get(0).bytes());
             assertThrows(IOException.class, () -> M749Image.load(file, M749Image.Domain.CALIBRATION));
         }
+    }
+
+    @Test void i832RequiresItsOwnCrcLayoutAndZeroStackVector() throws Exception {
+        byte[] data = backup(M749TargetProfile.I832);
+        // I832GA01 combines the 0x60000 calibration split with a zero stack vector.
+        word(data, 0x1000, 0);
+        word(data, 0xFFFFC, crc(data, 0x80000, 0xFFFFC, crc(data, 0x1000, 0x60000, -1)));
+        word(data, 0x7FFFC, crc(data, 0x60000, 0x7FFFC, -1));
+        assertEquals(M749TargetProfile.I832, M749Image.oem(data).oemProfile);
+        word(data, 0x1000, 0x20020000);
+        word(data, 0xFFFFC, crc(data, 0x80000, 0xFFFFC, crc(data, 0x1000, 0x60000, -1)));
+        assertTrue(assertThrows(IOException.class, () -> M749Image.oem(data)).getMessage().contains("vectors"));
+        word(data, 0x1000, 0);
+        word(data, 0xFFFFC, crc(data, 0x80000, 0xFFFFC, crc(data, 0x1000, 0x69000, -1)));
+        word(data, 0x7FFFC, crc(data, 0x69000, 0x7FFFC, -1));
+        assertTrue(assertThrows(IOException.class, () -> M749Image.oem(data)).getMessage().contains("software/calibration CRC"));
     }
 
     @Test void rejectsPartialUnknownCorruptAndInvalidVectors() {
@@ -125,7 +141,7 @@ class M749OemImageTest {
         }
     }
 
-    @Test void restoresBothProfilesPreservesProtectedFlashAndChecksOemReturn() throws Exception {
+    @Test void restoresAllProfilesPreservesProtectedFlashAndChecksOemReturn() throws Exception {
         for (M749TargetProfile profile : M749TargetProfile.values()) {
             OemEcu ecu = new OemEcu(profile);
             byte[] original = ecu.flash.clone(), data = backup(profile);
@@ -136,6 +152,21 @@ class M749OemImageTest {
             assertArrayEquals(Arrays.copyOf(original, 0x1000), Arrays.copyOf(ecu.flash, 0x1000));
             assertArrayEquals(Arrays.copyOfRange(original, 0x100000, original.length), Arrays.copyOfRange(ecu.flash, 0x100000, ecu.flash.length));
             assertTrue(ecu.messages.stream().anyMatch(s -> s.startsWith("Upload complete: OEM")));
+        }
+    }
+
+    @Test void everyOemProfileMismatchStopsBeforeErase() throws Exception {
+        for (M749TargetProfile source : M749TargetProfile.values()) {
+            for (M749TargetProfile target : M749TargetProfile.values()) {
+                if (source == target) continue;
+                OemEcu ecu = new OemEcu(target);
+                IOException error = assertThrows(IOException.class, () -> new M749Uploader(ecu, s -> {})
+                        .upload(M749Image.oem(backup(source)), false));
+                assertTrue(error.getMessage().contains("does not match connected"));
+                assertTrue(ecu.erases.isEmpty());
+                assertEquals(0, ecu.writes);
+                assertEquals(0, ecu.resets);
+            }
         }
     }
 

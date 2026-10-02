@@ -33,7 +33,7 @@ class M749TargetProfileTest {
 
     @Test void onePayloadUploadsToBothProfilesAndPreservesAllRetainedBytes() throws Exception {
         M749Image image = image();
-        for (M749TargetProfile profile : M749TargetProfile.values()) {
+        for (M749TargetProfile profile : new M749TargetProfile[]{M749TargetProfile.I812, M749TargetProfile.I865}) {
             M749UploaderTest.Ecu ecu = target(profile);
             byte[] before = ecu.flash.clone();
             new M749Uploader(ecu, ecu.messages::add).upload(image, false);
@@ -49,8 +49,40 @@ class M749TargetProfileTest {
         for (M749TargetProfile profile : M749TargetProfile.values()) {
             M749UploaderTest.Ecu ecu = target(profile, true);
             byte[] before = ecu.flash.clone();
-            new M749Uploader(ecu, s -> { }).checkTarget(image());
+            M749Image candidate = profile == M749TargetProfile.I832 ?
+                    M749Image.oem(M749OemImageTest.backup(profile)) : image();
+            new M749Uploader(ecu, s -> { }).checkTarget(candidate);
             assertArrayEquals(before, ecu.flash);
+            assertTrue(ecu.erases.isEmpty());
+            assertEquals(0, ecu.writes);
+            assertEquals(0, ecu.resets);
+        }
+    }
+
+    @Test void detectsI832Ga01AndRejectsCorruptCompatibilityBytes() throws Exception {
+        M749UploaderTest.Ecu ecu = new M749UploaderTest.Ecu();
+        ecu.putHex(0x0822DFFC, "266d18e3");
+        ecu.putHex(0x08201E2C, "2de9f04184b004460d4617461e46");
+        ecu.putHex(0x08201D84, "70b506460d46144601f024fd0128");
+        ecu.putHex(0x08204B7C, "08b50a4b1b68fff7e7ff012807d0");
+        assertEquals(M749TargetProfile.I832, new M749ChecksumReader(ecu).checkProfile());
+        for (int offset : new int[]{0x22DFFC, 0x201E2C, 0x201D84, 0x204B7C}) {
+            ecu.flash[offset] ^= 1;
+            assertThrows(IOException.class, () -> new M749ChecksumReader(ecu).checkProfile());
+            ecu.flash[offset] ^= 1;
+        }
+    }
+
+    @Test void i832RejectsExistingReplacementContractsBeforeErase() throws Exception {
+        M749Image[] images = {
+                image(),
+                M749Image.validate(M749ImageTest.records(M749Image.Domain.SOFTWARE), M749Image.Domain.SOFTWARE),
+                M749Image.validate(M749ImageTest.records(M749Image.Domain.CALIBRATION), M749Image.Domain.CALIBRATION)
+        };
+        for (M749Image image : images) {
+            M749UploaderTest.Ecu ecu = target(M749TargetProfile.I832);
+            IOException error = assertThrows(IOException.class, () -> new M749Uploader(ecu, s -> {}).upload(image, false));
+            assertTrue(error.getMessage().contains("I832 supports OEM BIN restore only"));
             assertTrue(ecu.erases.isEmpty());
             assertEquals(0, ecu.writes);
             assertEquals(0, ecu.resets);

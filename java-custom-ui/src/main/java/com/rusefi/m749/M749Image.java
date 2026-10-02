@@ -127,7 +127,7 @@ final class M749Image {
         for (M749TargetProfile candidate : M749TargetProfile.values()) {
             if (candidate.bootCrc == boot) { profile = candidate; }
         }
-        if (profile == null) { throw new IOException("Unsupported OEM BIN loader profile; only I812/I865 full backups are supported"); }
+        if (profile == null) { throw new IOException("Unsupported OEM BIN loader profile; only I812/I832/I865 full backups are supported"); }
         int bootCrc = crc32(Arrays.copyOfRange(data, 0, 0x1000), 0x1000, -1);
         bootCrc = crc32(Arrays.copyOfRange(data, 0x201000, 0x22DFFC), 0x2CFFC, bootCrc);
         if (bootCrc != boot) { throw new IOException("OEM BIN loader CRC mismatch"); }
@@ -138,9 +138,8 @@ final class M749Image {
         if (software != littleEndian(data, 0xFFFFC) || calibration != littleEndian(data, 0x7FFFC)) {
             throw new IOException("OEM BIN software/calibration CRC mismatch");
         }
-        // The I812 OEM application vector stores zero in its first word.
-        int expectedStack = profile == M749TargetProfile.I812 ? 0 : 0x20020000;
-        if (littleEndian(data, 0x1000) != expectedStack || littleEndian(data, 0x1004) != SECOND + 1) {
+        // OEM I812 and I832 store zero in the initial stack vector.
+        if (littleEndian(data, 0x1000) != profile.oemInitialStack || littleEndian(data, 0x1004) != SECOND + 1) {
             throw new IOException("Invalid OEM application vectors");
         }
         if (descriptorMatches(data, ACTIVATION_ADDRESS - M749RamHelper.BASE, ACTIVATION_ABI) ||
@@ -181,6 +180,9 @@ final class M749Image {
             return;
         }
         requireActivationSupport();
+        if (profile == M749TargetProfile.I832) {
+            throw new IOException("I832 supports OEM BIN restore only; existing rusEFI activation contracts do not support this loader");
+        }
         if (domain == Domain.CALIBRATION && profile.calibrationStart != CAL) {
             throw new IOException("This calibration payload uses the I865 layout; I812 software updates preserve its calibration");
         }
