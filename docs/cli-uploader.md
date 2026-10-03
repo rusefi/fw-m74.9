@@ -59,9 +59,15 @@ The HEX/SREC still contains only the two software ranges; the bootstrap is
 part of that software. No new CAN service or uploader write range is needed.
 
 The compiled bootstrap passes native Thumb execution with only 128 KiB SRAM
-mapped, including all three OEM loader profiles and injected failures. Physical
-CAN-only conversion starting with erased OEM options remains a bench check;
-the earlier J-Link correction and cold-boot result do not validate that path.
+mapped, including all three OEM loader profiles and injected failures. On
+2026-10-03, the I832 CAN-only installation of CRC A470151C completed the RAM
+bootstrap and activation. After the upload, J-Link confirmed both software
+ranges matched the payload and only the EOPB0 halfword differed from the saved
+OEM options (FFFF -> 05FA). The uploader initially stopped on a transient
+SLCAN rejection during readiness polling; the application subsequently reported
+all expected CRCs and the normal marker. The corrected polling also passed a
+live reset check. A physical power cycle of this image remains a bench check.
+See [installation evidence](evidence/i832-startup-poll/README.md).
 See [bootstrap validation](../tests/validate_boot_ram.py) and
 [restore dev unit to OEM](restore-dev-unit-to-oem.md) for setting up that test.
 
@@ -110,9 +116,13 @@ history, not evidence that rusEFI started. A SLCAN BELL/rejected-transmission
 error is an adapter transport failure, not an ECU activation status.
 
 The uploader logs each failed F1A0 readiness poll, including negative-response
-codes, timeouts or unexpected status values. Transport/protocol errors stop
-immediately and retain their cause in the displayed error. Neither failure
-path requests an automatic recovery reset.
+codes, timeouts or unexpected status values. During these ten bounded read-only
+polls, a SLCAN BELL rejection waits one second before trying readiness again:
+first boot can configure RAM and reset again before application CAN starts.
+Other transport/protocol errors stop immediately. BELL during programming,
+metadata writes, CRC/marker checks or reset also stops immediately; these
+requests are never automatically retried. Failures retain their cause and do
+not request a recovery reset.
 
 Identify either OEM firmware or rusEFI without a power cycle:
 

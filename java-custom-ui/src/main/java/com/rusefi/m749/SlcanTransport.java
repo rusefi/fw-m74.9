@@ -21,6 +21,7 @@ final class SlcanTransport implements RawCanTransport {
     private final Queue<Frame> frames = new ArrayDeque<>();
     private final StringBuilder line = new StringBuilder();
     private final byte[] input = new byte[4096];
+    private int inputPosition, inputCount;
     private int acknowledgements;
     private boolean closed;
     private boolean recoveringClose;
@@ -33,6 +34,10 @@ final class SlcanTransport implements RawCanTransport {
 
     private static final class AckTimeout extends IOException {
         AckTimeout(String message) { super(message); }
+    }
+
+    static final class CommandRejected extends IOException {
+        CommandRejected() { super("SLCAN adapter rejected a command or CAN transmission"); }
     }
 
     SlcanTransport(Port port, int bus) {
@@ -157,17 +162,25 @@ final class SlcanTransport implements RawCanTransport {
     }
 
     private void pump() throws IOException {
-        int count = port.read(input);
-        receivedBytes += count;
-        if (count > 0 && initializingCommand != null) {
-            log.accept("SLCAN RX while waiting for " + initializingCommand + ": " + count + " bytes: " + hex(input, count));
+        if (inputPosition == inputCount) {
+            inputCount = port.read(input);
+            inputPosition = 0;
+            receivedBytes += inputCount;
+            if (inputCount > 0 && initializingCommand != null) {
+                log.accept("SLCAN RX while waiting for " + initializingCommand + ": " + inputCount + " bytes: " + hex(input, inputCount));
+            }
         }
-        for (int i = 0; i < count; i++) {
-            int value = input[i] & 255;
+        // Keep the unread suffix if a BELL interrupts this pump. A readiness
+        // retry must still parse subsequent frames and report malformed input.
+        while (inputPosition < inputCount) {
+            int value = input[inputPosition++] & 255;
             if (value == 7) {
                 // Some adapters reject C when the channel is already closed.
                 if (recoveringClose) { acknowledgements++; line.setLength(0); continue; }
-                throw new IOException("SLCAN adapter rejected a command or CAN transmission");
+                if (line.length() != 0) {
+                    throw new IOException("SLCAN rejection interrupted a partial line");
+                }
+                throw new CommandRejected();
             }
             if (value == '\r') {
                 if (!discardingStartupLine) {

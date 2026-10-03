@@ -259,6 +259,73 @@ class M749UploaderTest {
         assertTrue(ecu.messages.stream().anyMatch(s -> s.startsWith("Upload complete")));
     }
 
+    @Test void activationRetriesStartupBellOnBothBootsAndStillChecksCrcs() throws Exception {
+        for (boolean badCrc : new boolean[]{false, true}) {
+            List<Long> pauses = new ArrayList<>();
+            int[] polls = {0, 0, 0};
+            Ecu ecu = new Ecu() {
+                public void pause(long milliseconds) { pauses.add(milliseconds); }
+                public byte[] exchange(byte[] request, byte[] prefix, long timeout) throws IOException {
+                    if (app && Arrays.equals(request, bytes(0x22, 0xF1, 0xA0)) && ++polls[resets] <= 2) {
+                        throw new SlcanTransport.CommandRejected();
+                    }
+                    return super.exchange(request, prefix, timeout);
+                }
+            };
+            ecu.badPostCrc = badCrc;
+            if (badCrc) {
+                assertTrue(assertThrows(IOException.class, () -> ecu.run(M749Image.Domain.SOFTWARE))
+                        .getMessage().contains("Application CRC or persistent boot marker mismatch"));
+                assertEquals(1, ecu.resets);
+            } else {
+                ecu.run(M749Image.Domain.SOFTWARE);
+                assertEquals(2, ecu.resets);
+                assertEquals(3, polls[2]);
+                assertTrue(ecu.messages.stream().anyMatch(s -> s.startsWith("Upload complete")));
+            }
+            assertEquals(3, polls[1]);
+            assertTrue(pauses.stream().allMatch(p -> p == 1_000));
+        }
+    }
+
+    @Test void persistentStartupBellExhaustsBoundedPollsWithoutRecoveryReset() {
+        int[] polls = {0};
+        Ecu ecu = new Ecu() {
+            public byte[] exchange(byte[] request, byte[] prefix, long timeout) throws IOException {
+                if (app && Arrays.equals(request, bytes(0x22, 0xF1, 0xA0))) {
+                    polls[0]++;
+                    throw new SlcanTransport.CommandRejected();
+                }
+                return super.exchange(request, prefix, timeout);
+            }
+        };
+        IOException failure = assertThrows(IOException.class, () -> ecu.run(M749Image.Domain.SOFTWARE));
+        assertEquals(10, polls[0]);
+        assertEquals(1, ecu.resets);
+        assertTrue(failure.getMessage().contains("SLCAN adapter rejected"));
+        assertTrue(failure.getMessage().contains("No recovery reset was sent"));
+        assertFalse(ecu.messages.stream().anyMatch(s -> s.startsWith("Upload complete")));
+    }
+
+    @Test void bellDuringProgrammingOrResetIsNeverRetried() {
+        for (int sid : new int[]{0x27, 0x31, 0x34, 0x36, 0x37, 0x2E, 0x11}) {
+            int[] failures = {0};
+            Ecu ecu = new Ecu() {
+                public byte[] exchange(byte[] request, byte[] prefix, long timeout) throws IOException {
+                    if ((request[0] & 255) == sid) {
+                        failures[0]++;
+                        throw new SlcanTransport.CommandRejected();
+                    }
+                    return super.exchange(request, prefix, timeout);
+                }
+            };
+            IOException failure = assertThrows(IOException.class, () -> ecu.run(M749Image.Domain.SOFTWARE));
+            assertEquals(1, failures[0]);
+            assertEquals(0, ecu.resets);
+            assertTrue(failure.getMessage().contains("No recovery reset was sent"));
+        }
+    }
+
     @Test void calibrationIsSeparateAndZeroSeedSkipsKey() throws Exception {
         Ecu ecu = new Ecu();
         byte[] original = ecu.flash.clone();

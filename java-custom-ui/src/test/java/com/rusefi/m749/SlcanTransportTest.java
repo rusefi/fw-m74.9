@@ -131,6 +131,25 @@ class SlcanTransportTest {
         }
     }
 
+    @Test void bellPreservesUnreadFramesAndErrorsForTheNextPoll() throws Exception {
+        Port port = new Port();
+        SlcanTransport transport = new SlcanTransport(port, 1);
+        port.offer("\u0007\rt7E8101\r");
+        assertThrows(SlcanTransport.CommandRejected.class, transport::receiveCan);
+        assertArrayEquals(bytes(1), transport.receiveCan().data);
+        port.offer("\u0007garbage\r");
+        assertThrows(SlcanTransport.CommandRejected.class, transport::receiveCan);
+        IOException malformed = assertThrows(IOException.class, transport::receiveCan);
+        assertFalse(malformed instanceof SlcanTransport.CommandRejected);
+    }
+
+    @Test void bellInsidePartialFrameIsNotRetryable() {
+        Port port = new Port();
+        port.offer("t7E8\u0007");
+        IOException failure = assertThrows(IOException.class, () -> new SlcanTransport(port, 1).receiveCan());
+        assertFalse(failure instanceof SlcanTransport.CommandRejected);
+    }
+
     @Test void busThreeOnlyAcceptsDollarFrames() throws Exception {
         Port port = new Port(); port.offer("t7E8101\r&t7E8102\r$t7E8103\r");
         SlcanTransport t = new SlcanTransport(port, 3);

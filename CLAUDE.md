@@ -165,8 +165,13 @@ rusEFI submodule; leave those generated changes unstaged.
   and live activation pass, including an I832 physical power cycle
   after the separate SRAM option correction described below.
 - Readiness polling must preserve the actual F1A0 failure in the displayed
-  message. Retry startup timeouts/negative ECU replies and not-ready values;
-  stop on generic transport/protocol failures (including SLCAN BELL). F186=02
+  message. Retry startup timeouts/negative ECU replies and not-ready values.
+  The I832 CAN-only first boot succeeded with CRC A470151C and changed only
+  EOPB0 FFFF -> 05FA, but WeAct V1.0.0.6 rejected the early F1A0 with BELL.
+  An immediate poll after a normal reset reproduced BELL followed by readiness
+  one second later. Retry a typed SLCAN rejection only for bounded read-only
+  F1A0 startup polling; stop on other transport/protocol failures and on BELL
+  during any programming/reset request. F186=02
   with F189=M749-<CRC> establishes loader session plus programming history,
   not application startup. The first I832 ACT3 hardware upload reached this
   state because the MCU was configured for insufficient SRAM.
@@ -202,3 +207,8 @@ rusEFI submodule; leave those generated changes unstaged.
   validation errors for current template fields even when the C structs exist.
   Regenerate with META_OUTPUT_ROOT_FOLDER=../../../generated/ and BOARD_DIR=../../..
   using gen_live_documentation.sh from ext/rusefi/firmware before rebuilding.
+- When building a replacement console jar with bin/java-ui.sh, set
+  ABSOLUTE_BOARD_DIR to the board checkout. RUSEFI_CUSTOM_JAVA_UI_DIR adds the
+  tab classes but does not select shared_io.resources; without the board
+  environment, :ui:shadowJar uses generic discovery settings. Verify the jar's
+  shared_io.properties includes use_canbus_connector=true before distribution.
