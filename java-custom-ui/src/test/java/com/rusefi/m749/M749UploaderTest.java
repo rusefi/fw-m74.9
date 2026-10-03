@@ -189,6 +189,22 @@ class M749UploaderTest {
         assertFalse(failure.getMessage().contains("No flash erase"));
     }
 
+    @Test void activationFailureCurrentlyHidesTheNegativeResponse() {
+        Ecu ecu = new Ecu() {
+            public byte[] exchange(byte[] request, byte[] prefix, long timeout) throws IOException {
+                if (app && Arrays.equals(request, bytes(0x22, 0xF1, 0xA0))) {
+                    throw new UdsClient.NegativeResponse(0x22, 0x31);
+                }
+                return super.exchange(request, prefix, timeout);
+            }
+        };
+        IOException failure = assertThrows(IOException.class, () -> ecu.run(M749Image.Domain.SOFTWARE));
+        assertTrue(failure.getMessage().contains("Application activation status did not become ready"));
+        assertFalse(failure.getMessage().contains("NRC 31"));
+        assertEquals(1, ecu.resets);
+        assertFalse(ecu.messages.stream().anyMatch(s -> s.startsWith("Upload complete")));
+    }
+
     @Test void calibrationIsSeparateAndZeroSeedSkipsKey() throws Exception {
         Ecu ecu = new Ecu();
         byte[] original = ecu.flash.clone();
