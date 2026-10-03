@@ -170,6 +170,14 @@ macOS bridge. STM32 flashing tools and replacement bootloaders remain excluded
 because M74.9 uses its OEM loader. Closing the Sandbox or disposing the tab
 cancels the query and releases its PCAN channel.
 
+### WeAct console tune reads
+
+The console enables automatic CAN retransmission on recognized WeAct SLCAN
+adapters before opening CAN. Their default one-shot mode can lose requests or
+flow-control frames on a busy bus, causing tune reads to stop after the first
+response frame. This is adapter setup; it does not replay tune operations.
+The fix is in the console jar and does not require reflashing the ECU.
+
 ## Java uploader and flash reader
 
 ```sh

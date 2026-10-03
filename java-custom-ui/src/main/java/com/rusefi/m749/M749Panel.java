@@ -57,6 +57,7 @@ public final class M749Panel extends JPanel {
     private ScheduledExecutorService worker;
     private M749Monitor monitor;
     private volatile int generation;
+    private volatile boolean panelShowing;
 
     public M749Panel() {
         this(M749Monitor.canBackend());
@@ -89,6 +90,11 @@ public final class M749Panel extends JPanel {
         this.backend = backend;
         this.firmwareLocator = firmwareLocator;
         this.transferChooser = transferChooser;
+        addHierarchyListener(event -> {
+            if ((event.getChangeFlags() & java.awt.event.HierarchyEvent.SHOWING_CHANGED) != 0) {
+                panelShowing = isShowing();
+            }
+        });
         setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
         detection.setName("adapterStatus");
         detail.setName("connectionDetail");
@@ -508,6 +514,7 @@ public final class M749Panel extends JPanel {
     @Override
     public void addNotify() {
         super.addNotify();
+        panelShowing = isShowing();
         if (worker != null) return;
         int current = ++generation;
         querying = false;
@@ -580,7 +587,10 @@ public final class M749Panel extends JPanel {
     private void poll(M749Monitor activeMonitor, int current, boolean force) {
         // A removed/reinserted panel waits for the previous query to release its channel.
         synchronized (backend) {
-            if (generation == current && !uploading && !Thread.currentThread().isInterrupted()) {
+            // addNotify also runs for unselected tabs. Their automatic probes would
+            // disconnect the tuning session through M749ConsoleAccess.
+            if ((force || panelShowing) && generation == current && !uploading
+                    && !Thread.currentThread().isInterrupted()) {
                 M749ConnectionOptions options = selectedConnection;
                 if (options != null) {
                     activeSelection = selectionRevision;
@@ -592,6 +602,7 @@ public final class M749Panel extends JPanel {
 
     @Override
     public void removeNotify() {
+        panelShowing = false;
         generation++;
         if (worker != null) {
             worker.shutdownNow();

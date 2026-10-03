@@ -84,6 +84,38 @@ class M749PanelTest {
         assertTrue(released.await(5, TimeUnit.SECONDS));
     }
 
+    @Test
+    void hiddenTabDoesNotQueryUntilSelected() throws Exception {
+        CountDownLatch inspected = new CountDownLatch(1);
+        AtomicReference<JTabbedPane> tabs = new AtomicReference<>();
+        M749Monitor.Backend backend = new M749Monitor.Backend() {
+            public List<PcanDevice.Channel> scan() {
+                return Collections.singletonList(new PcanDevice.Channel(TPCANHandle.PCAN_USBBUS1, true));
+            }
+            public List<String> identify(PcanDevice.Channel channel, Consumer<String> messages) {
+                inspected.countDown();
+                return Collections.singletonList("ECU present");
+            }
+        };
+        SwingUtilities.invokeAndWait(() -> {
+            JTabbedPane container = new JTabbedPane();
+            M749Panel panel = new M749Panel(backend, () -> { throw new java.io.IOException("No test firmware"); });
+            find(panel, JComboBox.class, "transferTransport").setSelectedIndex(0);
+            container.addTab("Tuning", new JPanel());
+            container.addTab("M74.9", panel);
+            container.addNotify();
+            assertFalse(panel.isShowing());
+            tabs.set(container);
+        });
+        try {
+            assertFalse(inspected.await(300, TimeUnit.MILLISECONDS), "Hidden tab must not take the adapter");
+            SwingUtilities.invokeAndWait(() -> tabs.get().setSelectedIndex(1));
+            assertTrue(inspected.await(5, TimeUnit.SECONDS), "Selected tab still identifies the ECU");
+        } finally {
+            SwingUtilities.invokeAndWait(() -> tabs.get().removeNotify());
+        }
+    }
+
     private static <T extends Component> T find(Container root, Class<T> type, String text) {
         for (Component child : root.getComponents()) {
             String caption = child instanceof JLabel ? ((JLabel) child).getText()

@@ -238,3 +238,11 @@ switch inputs; both changes are needed for MSQ export. The C++ aliases have
 identical U16 storage, so this metadata correction does not migrate tune bytes.
 For an installed image, retain its signature and offsets when correcting the
 INI; a newly generated INI also has a newly generated firmware signature.
+
+- Swing addNotify does not mean a tab is selected: both startup and connected
+  console install hidden M74.9 panels. Gate automatic identification on
+  hierarchy SHOWING_CHANGED/isShowing state; otherwise M749ConsoleAccess
+  disconnects the tuning stream and suppresses its watchdog reconnect.
+- A newer bundle INI does not replace the older firmware signature's cached
+  INI. When diagnosing a repeated metadata error, check the exact INI path
+  selected after the live signature, not only the bundle file.
