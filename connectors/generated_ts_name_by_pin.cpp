@@ -66,6 +66,8 @@ const char* getBoardSpecificPinName(brain_pin_e brainPin) {
 			return "Oxygen sensor 1 heater";
 		case Gpio::L9779_OUT_7:
 			return "Oxygen sensor 2 heater";
+		case Gpio::L9779_PIN_KEY:
+			return "Ignition key";
 		default:
 			return nullptr;
 	}
