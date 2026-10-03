@@ -9,7 +9,7 @@ This helper requires OEM application support; it is not a rusEFI backup service.
 
 `m749-cli --read-flash` reads M74.9 main flash using the bundled RAM helper.
 It supports Linux SocketCAN, SLCAN serial adapters on Linux, macOS and Windows, or PCAN with
-native Windows Java. The default range is `0x08000000..0x083EFFFF`: 4,128,768
+native Windows Java or macOS Java plus MacCAN. The default range is `0x08000000..0x083EFFFF`: 4,128,768
 bytes (4,032 KiB), including both banks, boot code, application, calibration,
 identity and main-flash NVM. This profile requires the corresponding flash
 capacity; it does not include separate user-system-data/option-memory areas.
@@ -99,10 +99,11 @@ explicit interface; `auto`, serial baud/bus options, and combining SocketCAN
 with SLCAN or PCAN selectors are rejected. Existing resume, helper and credential
 options apply unchanged. The default without a transport selector remains SLCAN.
 
-macOS SLCAN:
+macOS SLCAN or PCAN (PCAN needs MacCAN, see [the uploader guide](cli-uploader.md#macos-pcan)):
 
 ```sh
 bash bin/m749-cli.sh --read-flash m749-full.bin --slcan /dev/cu.usbmodem1
+bash bin/m749-cli.sh --read-flash m749-full.bin --channel PCAN_USBBUS1
 ```
 
 Windows SLCAN or PCAN:
@@ -113,8 +114,9 @@ bin\m749-cli.bat --read-flash "C:\backups\m749-full.bin" --channel PCAN_USBBUS1
 ```
 
 The output directory must already exist. An existing completed output is never
-overwritten. PCAN needs the PEAK driver and matching PCAN-Basic/JNI libraries;
-use native Windows Java, not a WSL JVM. SLCAN uses the included jSerialComm
+overwritten. PCAN needs the PEAK driver and matching PCAN-Basic/JNI libraries on
+native Windows Java, not a WSL JVM, or MacCAN with the bundled JNI bridge on
+macOS; Linux has no PCAN-Basic binding. SLCAN uses the included jSerialComm
 dependency. With an explicit `--slcan PORT`, unrelated ports are not scanned.
 
 Start with a bounded read when validating a target/adapter combination:

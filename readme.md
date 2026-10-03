@@ -14,7 +14,8 @@ Hardware notes and wiring: https://github.com/rusefi/m74.9
 
 - An M74.9 ECU on the bench or in the vehicle, with the engine stopped.
 - A CAN adapter connected to the ECU diagnostic CAN bus at 500 kbit/s:
-  - PEAK PCAN-USB on Windows, with the PEAK driver installed, or
+  - PEAK PCAN-USB on Windows, with the PEAK driver installed, or on macOS with
+    MacCAN installed (`brew tap mac-can/maccan && brew install pcbusb`), or
   - an SLCAN serial adapter such as CANable on Linux, macOS or Windows, or
   - a Linux SocketCAN interface for command-line use.
 - Java, version 11 or newer recommended. On Windows the Java installation must match the PCAN
@@ -24,7 +25,10 @@ Hardware notes and wiring: https://github.com/rusefi/m74.9
 
 Close any other software that uses the CAN adapter before starting. Windows
 Subsystem for Linux cannot load Windows PCAN libraries; use native Windows Java
-or expose the adapter as a Linux SocketCAN interface.
+or expose the adapter as a Linux SocketCAN interface. On macOS, plug the PCAN
+adapter in before opening the console; MacCAN cannot enumerate adapters, so the
+PCAN selector offers `PCAN_USBBUS1 (assumed)` and reports a missing adapter only
+when the channel is opened.
 
 ## Before you start: back up your ECU
 
@@ -181,6 +185,13 @@ bin\m749-cli.bat --check-target rusefi.hex --channel PCAN_USBBUS1
 bin\m749-cli.bat --upload rusefi.hex --channel PCAN_USBBUS1
 ```
 
+macOS with PCAN and MacCAN installed:
+
+```sh
+bash bin/m749-cli.sh --check-target rusefi.hex --channel PCAN_USBBUS1
+bash bin/m749-cli.sh --upload rusefi.hex --channel PCAN_USBBUS1
+```
+
 Linux with SocketCAN, after [configuring `can0` at 500 kbit/s](docs/cli-uploader.md#linux-socketcan):
 
 ```sh
@@ -218,6 +229,8 @@ for it on the command line.
 - **PCAN not detected**: install the PEAK driver, use 64-bit Java with the
   64-bit driver, and close other programs using the adapter. Only native
   Windows Java can use the PEAK libraries; Linux CLI users can use `--socketcan`.
+  On macOS install MacCAN and start Java from the bundle launcher or
+  `bin/m749-cli.sh`, which put `libpcanbasic_jni.dylib` on `java.library.path`.
 - **No SLCAN adapter found**: the wrappers need exactly one SLCAN adapter.
   Select it explicitly with `--slcan /dev/ttyACM0` or `--slcan COM5` when
   several serial devices are present.

@@ -34,7 +34,7 @@ public final class M749Cli {
             exit = 1;
         } catch (IOException | RuntimeException | LinkageError e) {
             System.err.println(e instanceof LinkageError
-                    ? "PCAN native library unavailable. Install the PCAN driver and matching PCAN-Basic/JNI libraries."
+                    ? "PCAN native library unavailable. " + nativeLibraryHint()
                     : e.getMessage());
             exit = 1;
         }
@@ -204,6 +204,18 @@ public final class M749Cli {
         }
     }
 
+    /** Platform-specific remedy for a missing PCAN JNI library; Linux has no PCAN-Basic binding at all. */
+    static String nativeLibraryHint() {
+        if (PcanDevice.isLinux()) {
+            return "Linux has no PCAN-Basic binding; use --slcan or --socketcan.";
+        }
+        if (PcanDevice.isMacOs()) {
+            return "Install MacCAN (brew tap mac-can/maccan && brew install pcbusb) and start Java with"
+                    + " libpcanbasic_jni.dylib on java.library.path.";
+        }
+        return "Install the PEAK driver and matching PCAN-Basic/JNI libraries.";
+    }
+
     static int run(String requested, boolean listOnly, M749Monitor.Backend backend, Consumer<String> out)
             throws IOException, InterruptedException {
         List<PcanDevice.Channel> channels = backend.scan();
@@ -249,7 +261,7 @@ public final class M749Cli {
         out.accept("M74.9 CLI (500 kbit/s, 7E0/7E8; supported I812/I832/I865 resident loaders)");
         out.accept("Usage: m749-cli [channel]                 identify ECU; defaults to SLCAN auto when omitted");
         out.accept("       m749-cli --identify [--slcan PORT|auto | --socketcan IFACE | --channel PCAN_USBBUS1|auto]  query ECU without session changes");
-        out.accept("       m749-cli --list                    list PCAN channels");
+        out.accept("       m749-cli --list                    list PCAN channels (macOS: MacCAN cannot enumerate; PCAN_USBBUS1 is assumed)");
         out.accept("       m749-cli --read-flash [OUTPUT.bin] [--slcan PORT|auto | --socketcan IFACE | --channel PCAN_USBBUS1|auto]");
         out.accept("                  [--resume] [--helper-running] [--reset-after]; add --help for read options");
         out.accept("       m749-cli --write-flash FILE [--dry-run] [--slcan PORT|auto | --socketcan IFACE | --channel CHANNEL]");

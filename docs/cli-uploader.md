@@ -76,7 +76,7 @@ The first command enters session 02 and checks authentication, loader sentinels,
 payload compatibility, the retained CRC trailer and journal space. It sends no
 erase/download, metadata write or reset; the loader can later time out back to
 the OEM application. The second command performs the update. Both also accept
-`--socketcan can0` on Linux or `--channel PCAN_USBBUS1` on native Windows. I865 paired authorization still uses
+`--socketcan can0` on Linux or `--channel PCAN_USBBUS1` on native Windows or macOS. I865 paired authorization still uses
 `--pair-file` or `--immo-backup` when needed; those credentials do not apply to
 I812. Calibration-only uploads remain I865-only.
 
@@ -86,7 +86,7 @@ was empty. Subsequent identification confirmed OEM session 01 and the same ECU
 identity. The historical M749ACT2 image passed software checks for both profiles;
 that preflight did not establish physical upload or power-cycle success.
 
-For a complete main-flash backup over SLCAN, Linux SocketCAN or Windows PCAN, see
+For a complete main-flash backup over SLCAN, Linux SocketCAN or Windows/macOS PCAN, see
 [the flash-reader guide](cli-flash-reader.md).
 
 The Java CLI programs the supported OEM resident loaders over standard CAN IDs
@@ -153,6 +153,29 @@ bash bin/m749-cli.sh --upload ext/rusefi/firmware/build/rusefi.hex --channel PCA
 On native Windows, use `bin\m749-cli.bat` with the same arguments and Windows
 file paths. Install the PEAK driver and matching PCAN-Basic/JNI libraries.
 Windows DLLs cannot be used from a WSL JVM. Use SLCAN or SocketCAN for Linux live access.
+
+### macOS PCAN
+
+PEAK ships no macOS driver. The rusEFI submodule provides `libpcanbasic_jni.dylib`,
+a JNI bridge onto MacCAN's user-space `libPCBUSB`, and `bin/m749-cli.sh` passes
+`java.library.path` so Java finds it. Install MacCAN first:
+
+```sh
+brew tap mac-can/maccan && brew install pcbusb
+bash bin/m749-cli.sh --list
+bash bin/m749-cli.sh --identify --channel PCAN_USBBUS1
+bash bin/m749-cli.sh --upload rusefi.hex --channel PCAN_USBBUS1
+```
+
+Plug the adapter in before the first command: MacCAN has been seen to stay unable
+to claim an adapter that was connected after a failed open until Java restarts.
+MacCAN is single-client, so close other PCAN software first. With a bridge that
+cannot report channel conditions, `--list` and `--channel auto` show
+`PCAN_USBBUS1 (assumed)` instead of enumerating adapters; a missing adapter is
+only reported when the channel is opened, and `--channel PCAN_USBBUSn` opens
+another USB channel explicitly. A bridge built from the current upstream source
+enumerates channels like Windows. Live macOS PCAN transfers still need bench
+validation.
 The launchers retain the caller's working
 directory and preserve quoted paths containing spaces.
 

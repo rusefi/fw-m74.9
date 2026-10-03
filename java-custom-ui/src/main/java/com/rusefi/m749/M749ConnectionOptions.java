@@ -100,8 +100,8 @@ class M749ConnectionOptions {
             o.slcan = port;
             return SlcanTransport.open(port, o.baud, o.bus, out);
         }
-        if (!System.getProperty("os.name").toLowerCase(Locale.ROOT).startsWith("windows")) {
-            throw new IOException("PCAN requires native Windows Java; use --slcan or Linux --socketcan");
+        if (PcanDevice.isLinux()) {
+            throw new IOException("PCAN requires Windows or macOS Java; use --slcan or --socketcan on Linux");
         }
         PcanDevice device = new PcanDevice();
         List<PcanDevice.Channel> channels = device.scan();
@@ -114,10 +114,18 @@ class M749ConnectionOptions {
         for (PcanDevice.Channel channel : channels) {
             if (channel.handle.name().equalsIgnoreCase(selected)) {
                 if (!channel.available) { throw new IOException("PCAN channel is in use: " + o.channel); }
-                out.accept("Using PCAN " + channel.handle.name());
+                out.accept("Using PCAN " + channel);
                 o.channel = channel.handle.name();
                 return device.open(channel);
             }
+        }
+        if (device.channelsAssumed() && selected.toUpperCase(Locale.ROOT).startsWith("PCAN_USBBUS")) {
+            // MacCAN cannot enumerate adapters; an explicitly named USB channel is opened as requested.
+            PcanDevice.Channel channel = PcanDevice.assumedChannel(
+                    peak.can.basic.TPCANHandle.valueOf(selected.toUpperCase(Locale.ROOT)));
+            out.accept("Using PCAN " + channel);
+            o.channel = channel.handle.name();
+            return device.open(channel);
         }
         throw new IOException("PCAN channel not found: " + o.channel);
     }

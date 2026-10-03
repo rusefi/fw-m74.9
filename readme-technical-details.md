@@ -89,6 +89,12 @@ payloads and ensure obsolete binaries or generic flash tools are absent.
 The custom console tab scans for PCAN adapters in the background. On detection
 it uses the first available channel at 500 kbit/s to query the ECU
 automatically. Channels already in use are reported without opening them.
+The scan reads `PCAN_CHANNEL_CONDITION` through PCAN-Basic. On macOS the JNI
+bridge forwards that query to MacCAN, and a bridge built before upstream added
+buffer marshalling never copies the answer back; the scan seeds the buffer with
+an impossible value, detects that case and reports `PCAN_USBBUS1 (assumed)`
+once, like the upstream console's fixed channel. An assumed channel is tried
+once per scan cycle; the ECU query reports a missing adapter when the open fails.
 
 The **Installed firmware** label distinguishes positively detected OEM firmware
 and rusEFI, including older M74.9 images without the general rusEFI identity DID.
@@ -149,14 +155,18 @@ architecture. In an IDE, import the Gradle build under `ext/rusefi` with
 the same working directory/native library path when launching the Sandbox.
 
 Windows DLLs cannot be loaded by the Linux JVM in WSL2. Build and unit tests
-work there; live PCAN access requires native Windows Java or the Linux PCAN
-driver and matching native libraries. Missing libraries are reported in Messages.
+work there; live PCAN access requires native Windows Java or macOS Java with
+MacCAN and `libpcanbasic_jni.dylib` from `ext/rusefi/java_console`. Linux has
+no PCAN-Basic binding; the CLI rejects `--channel` there before loading any
+library. Missing libraries are reported in Messages with the platform remedy.
 
 The packaged console is `ext/rusefi/console/rusefi_console.jar`. Local bundle
 and CI builds also include the custom module through `RUSEFI_CUSTOM_JAVA_UI_DIR`.
-Build both ZIPs with `bash _compile_bundle.sh`. Windows PCAN DLLs are included
-beside the JAR; the PEAK driver and a compatible Java installation are still
-required. STM32 flashing tools and replacement bootloaders remain excluded
+Build both ZIPs with `bash _compile_bundle.sh`. Windows PCAN DLLs and the macOS
+JNI bridge are included beside the JAR (`tests/check_bundles.py` requires all
+three); the PEAK driver or MacCAN and a compatible Java installation are still
+required. `rusefi_updater.sh` starts Java with `-Djava.library.path=.` for the
+macOS bridge. STM32 flashing tools and replacement bootloaders remain excluded
 because M74.9 uses its OEM loader. Closing the Sandbox or disposing the tab
 cancels the query and releases its PCAN channel.
 
@@ -180,6 +190,9 @@ transaction, resume behavior and adapter pacing options.
 The Java launchers build the CLI runtime, then invoke Java directly. Linux
 tests and dry runs need no PCAN native library; live Windows PCAN requires
 native Windows Java and matching PEAK JNI/driver libraries, not a WSL JVM.
+`bin/m749-cli.sh` sets `java.library.path` to `ext/rusefi/java_console` so
+macOS Java finds `libpcanbasic_jni.dylib`; the `.bat` wrapper relies on the
+Windows DLL search of `PATH`.
 
 ## Hardware
 

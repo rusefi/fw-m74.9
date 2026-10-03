@@ -104,6 +104,13 @@ rusEFI submodule; leave those generated changes unstaged.
   are manifest attributes Board-Git, Rusefi-Git and Build-Date in custom-java-ui.jar and rusefi_console.jar.
   A CLI run that rejects a known-good adapter is suspect until this line
   proves the build postdates the fix.
+- PCAN works on Windows (PEAK DLLs) and macOS (libpcanbasic_jni.dylib over
+  MacCAN libPCBUSB, brew install pcbusb); Linux has no PCAN-Basic binding and
+  the CLI rejects --channel there. The macOS bridge built before upstream
+  buffer marshalling never copies GetValue results back: PcanDevice seeds
+  PCAN_CHANNEL_CONDITION with -1 and reports "PCAN_USBBUS1 (assumed)" when it
+  stays untouched. MacCAN is single-client and CAN_Read never blocks; plug the
+  adapter in before the first open. bin/m749-cli.sh must pass java.library.path.
 - bin/m749-cli.sh is stored without an executable bit. Wrappers must invoke
   it with bash; direct exec fails even when the wrapper itself is executable.
 

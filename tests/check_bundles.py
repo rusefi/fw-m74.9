@@ -26,6 +26,7 @@ def main():
             srec = bundled_srec(archive, prefix)
             required = {"console/rusefi_console.jar", "console/rusefi_ts_plugin_launcher.jar",
                         "console/release.txt", "console/PCANBasic.dll", "console/PCANBasic_JNI.dll",
+                        "console/libpcanbasic_jni.dylib",
                         "rusefi_re74.9.ini", "readme.md", "rusefi.hex", srec.removeprefix(prefix)}
             if not suffix:
                 required.update({"rusefi_updater.exe", "rusefi_updater.sh"})

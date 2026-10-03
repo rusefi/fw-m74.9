@@ -245,7 +245,7 @@ final class M749Monitor {
             channels = backend.scan();
         } catch (IOException | RuntimeException | LinkageError e) {
             String error = e instanceof LinkageError
-                    ? "PCAN native library unavailable. Install the PCAN driver and matching PCAN-Basic/JNI libraries, then restart."
+                    ? "PCAN native library unavailable. " + M749Cli.nativeLibraryHint() + " Then restart."
                     : "PCAN scan failed: " + e.getMessage();
             view.detection(false, error);
             view.channels(java.util.Collections.emptyList());
