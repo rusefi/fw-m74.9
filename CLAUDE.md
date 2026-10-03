@@ -212,3 +212,29 @@ rusEFI submodule; leave those generated changes unstaged.
   tab classes but does not select shared_io.resources; without the board
   environment, :ui:shadowJar uses generic discovery settings. Verify the jar's
   shared_io.properties includes use_canbus_connector=true before distribution.
+
+- Live tune reads on WeAct V1.0.0.6 can stall after the first ISO-TP
+  response frame (four TS body bytes received), even with F1A0 ready.
+  Independent Java/Python readers completed identical five-page reads with
+  20 ms SLCAN command pacing, but a later paced Java read still timed out;
+  do not treat pacing as a validated fix or assume a smaller block cures it.
+  The 2026-10-03 bundle also omits Gpio::L9779_PIN_KEY (280) from gpio_list,
+  causing MSQ serialization of the board-default ignitionKeyDigitalPin to
+  fail after a successful read. Preserve a multi-page binary backup rather
+  than replacing that pin value to force export.
+
+- The console tune-read stall above was resolved by enabling WeAct automatic
+  CAN retransmission (`A1` before `O`) in SLCANConnector. One-shot adapter TX
+  drops frames under bus contention; fixed host delays are not the fix.
+  This console change adds no UDS/tune-operation replay and does not change
+  the M74.9 loader uploader code. The ignition-key INI correction is described below.
+
+### Ignition-key pin metadata
+
+M74.9 stores L9779_PIN_KEY (280) as its ignition-key input. The generic
+Gpio INI list only includes MCU pins 0..177. Use switch_input_pin_e for
+ignitionKeyDigitalPin and include BF2/L9779_PIN_KEY in the board connector
+switch inputs; both changes are needed for MSQ export. The C++ aliases have
+identical U16 storage, so this metadata correction does not migrate tune bytes.
+For an installed image, retain its signature and offsets when correcting the
+INI; a newly generated INI also has a newly generated firmware signature.
