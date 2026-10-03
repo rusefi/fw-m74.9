@@ -12,6 +12,23 @@ All ranges below use inclusive CPU addresses.
 
 ## Memory layout
 
+### SRAM prerequisite
+
+The current linker script reserves low SRAM for the loader and places the
+application process stack, data, BSS and heap at `0x20020000-0x2005FFFF`.
+The MCU must therefore have at least 384 KiB of SRAM configured. A matching
+loader profile and valid flash CRCs do not establish this prerequisite.
+
+For this 4 MiB AT32, EOPB0 bits 2:0 select SRAM capacity: erased `111` selects
+128 KiB and `010` selects 384 KiB. See Artery's
+[AT32F435/437 memory configuration note](https://www.arterytek.com/file/download/1302),
+section 2.2. The I832 bench required EOPB0 `FA` with complement `05` at
+`0x1FFFC010` before the installed rusEFI image could start. The CAN uploader
+does not configure this option. See the [installation prerequisite](cli-uploader.md)
+and [J-Link evidence](evidence/i832-jlink/README.md).
+
+### Flash
+
 | Address range | Size | Contents | Update rule |
 | --- | --- | --- | --- |
 | `0x08000000-0x08000FFF` | 4 KiB | Bootloader vector page | Never erase or write during a main-firmware update. |

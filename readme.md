@@ -153,8 +153,10 @@ new query.
 Current M749ACT3 software supports the I812NA01, I812TA01, I832GA01 and I865LB52
 backups across three validated loader profiles. For I832, update both the
 uploader and firmware: older M749ACT1/M749ACT2 files cannot activate on its
-loader. Offline checks pass; physical I832 installation and power-cycle testing
-remain outstanding. See the [compatibility table](docs/cli-uploader.md).
+loader. The binary requires at least 384 KiB of configured SRAM. The I832
+bench passed activation and a physical power cycle after correcting its OEM
+128 KiB RAM option with J-Link; the CAN uploader does not yet check or change
+that option. See the [compatibility table and prerequisite](docs/cli-uploader.md).
 
 The same installation is available without the console UI. Linux/macOS with
 an SLCAN adapter:

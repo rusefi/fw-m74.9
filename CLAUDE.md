@@ -149,10 +149,24 @@ rusEFI submodule; leave those generated changes unstaged.
 - M749ACT3 retains the 32-byte descriptor at 0805FFE0 by encoding magic plus
   three CRC/calibration-start pairs; count 3 and activation protocol 1 are
   implicit. Update firmware and uploader together. I832 offline native loader
-  execution passes, but physical upload and power-cycle validation are pending.
+  execution and live activation pass, including an I832 physical power cycle
+  after the separate SRAM option correction described below.
 - Readiness polling must preserve the actual F1A0 failure in the displayed
   message. Retry startup timeouts/negative ECU replies and not-ready values;
   stop on generic transport/protocol failures (including SLCAN BELL). F186=02
   with F189=M749-<CRC> establishes loader session plus programming history,
   not application startup. The first I832 ACT3 hardware upload reached this
-  state after restart; its activation/startup cause is still under investigation.
+  state because the MCU was configured for insufficient SRAM.
+- firmware/m749.ld places application RAM at 20020000..2005FFFF, requiring
+  at least 384 KiB total SRAM. The live I832GA01 had erased EOPB0=FF at
+  1FFFC010, selecting 128 KiB; it HardFaulted during C++ constructors before
+  activation. Loader/CRC checks alone cannot establish RAM compatibility.
+  The CAN uploader does not currently inspect or change this option.
+- On that I832 bench, programming only erased EOPB0 to FA through the AT32 USD
+  controller produced halfword 05FA (hardware complement), selecting 384 KiB.
+  No option erase was needed; a full 4 KiB before/after comparison confirmed
+  only those two bytes changed. The same software CRC 2EE6A467 then activated
+  and answered all ready/CRC/marker DIDs after software reset and a physical
+  power cycle. Preserve all other USD bytes and access protection; do not
+  generalize the erased-option
+  procedure to non-erased options. Evidence: docs/evidence/i832-jlink/.

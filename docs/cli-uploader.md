@@ -15,19 +15,33 @@ M749ACT2 supports I812/I865. I832 requires both rebuilt firmware and uploader.
 | I832GA01_w2304v2 | E3186D26 | Supported |
 | I865LB52_w2404b1 | D7B6B894 | Supported |
 
-These are four recognized builds across three loader profiles. Compatibility
-is checked against the resident loader, not inferred from the firmware name.
+These are four recognized builds across three loader profiles. All require at
+least 384 KiB of configured SRAM for the current binary. The loader preflight
+does not check or change the MCU RAM option, so a passing preflight alone does
+not establish that the application can start. Compatibility is checked against
+the resident loader, not inferred from the firmware name.
 The production payload passes the C++ activation checker over all four full
 backups, including corruption checks and retention of every non-software byte.
 The saved I832 loader also passes offline native execution of programming and
 metadata/reset/boot selection. See [overlay results](evidence/i832-activation/firmware-overlays.json)
-and [loader results](evidence/i832-activation/native-loader.json). Physical I832
-installation and power-cycle validation of M749ACT3 remain outstanding. The
-first reported I832 hardware attempt (software CRC 2EE6A467) completed both
-software transfers, block checks, metadata readback and the reset request, but
-did not confirm application readiness. After ECU/adapter power cycling, F186
-reported programming session 02 and F189 retained M749-2EE6A467. The cause of
-the startup/activation failure is still under investigation.
+and [loader results](evidence/i832-activation/native-loader.json).
+
+The first I832 hardware upload (software CRC 2EE6A467) transferred correctly,
+but J-Link showed a HardFault during C++ constructors before activation. Its
+erased EOPB0 option selected only 128 KiB of SRAM. After programming that option
+to 384 KiB, the same installed image completed activation and reported ready,
+software CRC 2EE6A467, retained calibration CRC D7BA65B9 and normal marker
+43A0C212 over CAN, including after a software reset and a physical power cycle.
+See [bench evidence](evidence/i832-jlink/README.md).
+
+An ECU with the 128 KiB option needs a separate RAM configuration step before
+this binary can run; the CAN uploader currently does not provide it. Read and
+back up the user-system-data options with a debugger first. On this bench,
+only the erased EOPB0 halfword at 0x1FFFC010 changed from FFFF to 05FA (data FA,
+hardware-generated complement 05), without an option-page erase. Do not apply
+that programming sequence to a non-erased option or substitute a whole-page
+erase: the other option bytes must be preserved. The software HEX/SREC does
+not contain option bytes.
 
 Check a payload against the connected ECU without writing flash:
 
