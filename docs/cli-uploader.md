@@ -15,16 +15,17 @@ M749ACT2 supports I812/I865. I832 requires both rebuilt firmware and uploader.
 | I832GA01_w2304v2 | E3186D26 | Supported |
 | I865LB52_w2404b1 | D7B6B894 | Supported |
 
-These are four recognized builds across three loader profiles. All require at
-least 384 KiB of configured SRAM for the current binary. The loader preflight
-does not check or change the MCU RAM option, so a passing preflight alone does
-not establish that the application can start. Compatibility is checked against
-the resident loader, not inferred from the firmware name.
+These are four recognized builds across three loader profiles. The application
+needs at least 384 KiB of SRAM. New firmware includes an early bootstrap that
+configures an erased OEM RAM option automatically on first boot, so the
+installation can use the existing CAN upload without a debugger. The loader
+preflight does not inspect options; the firmware handles them before C startup.
+Compatibility is checked against the resident loader and MCU options, not
+inferred from the firmware name.
 The production payload passes the C++ activation checker over all four full
 backups, including corruption checks and retention of every non-software byte.
-The saved I832 loader also passes offline native execution of programming and
-metadata/reset/boot selection. See [overlay results](evidence/i832-activation/firmware-overlays.json)
-and [loader results](evidence/i832-activation/native-loader.json).
+Offline I832 checks also cover programming and metadata/reset/boot selection.
+See [overlay results](evidence/i832-activation/firmware-overlays.json).
 
 The first I832 hardware upload (software CRC 2EE6A467) transferred correctly,
 but J-Link showed a HardFault during C++ constructors before activation. Its
@@ -34,14 +35,35 @@ software CRC 2EE6A467, retained calibration CRC D7BA65B9 and normal marker
 43A0C212 over CAN, including after a software reset and a physical power cycle.
 See [bench evidence](evidence/i832-jlink/README.md).
 
-An ECU with the 128 KiB option needs a separate RAM configuration step before
-this binary can run; the CAN uploader currently does not provide it. Read and
-back up the user-system-data options with a debugger first. On this bench,
-only the erased EOPB0 halfword at 0x1FFFC010 changed from FFFF to 05FA (data FA,
-hardware-generated complement 05), without an option-page erase. Do not apply
-that programming sequence to a non-erased option or substitute a whole-page
-erase: the other option bytes must be preserved. The software HEX/SREC does
-not contain option bytes.
+### Automatic RAM configuration on first boot
+
+Firmware containing `m749PrepareRam` in `firmware/boot_ram.cpp` handles the
+erased EOPB0 halfword FFFF at 0x1FFFC010, which selects only 128 KiB on this MCU.
+Earlier M749ACT3 images, including software CRC 2EE6A467, do not have this
+bootstrap; use a newly built HEX/SREC for CAN-only conversion.
+
+Before touching application RAM, the bootstrap uses the OEM's low SRAM stack
+and checks the supported MCU ID, option complement, access protection and SLIB
+state. Valid 384/448/512 KiB settings proceed without changes. For erased EOPB0,
+it validates the software, retained calibration and loader CRCs and boot intent,
+copies a small programming routine into low SRAM, writes FA and verifies the
+hardware-generated complement 05. It also compares a CRC of every other USD
+byte before and after the write. It uses no option erase and resets through the
+resident loader before entering normal C startup. The usual application CRC,
+marker, readiness and second-reset checks then complete the CAN upload.
+
+Non-erased options selecting less than 384 KiB, malformed option complements,
+unsupported hardware/protection settings and programming errors return to the
+resident programming loader. They never trigger a whole-option-page rewrite.
+The HEX/SREC still contains only the two software ranges; the bootstrap is
+part of that software. No new CAN service or uploader write range is needed.
+
+The compiled bootstrap passes native Thumb execution with only 128 KiB SRAM
+mapped, including all three OEM loader profiles and injected failures. Physical
+CAN-only conversion starting with erased OEM options remains a bench check;
+the earlier J-Link correction and cold-boot result do not validate that path.
+See [bootstrap validation](../tests/validate_boot_ram.py) and
+[restore dev unit to OEM](restore-dev-unit-to-oem.md) for setting up that test.
 
 Check a payload against the connected ECU without writing flash:
 

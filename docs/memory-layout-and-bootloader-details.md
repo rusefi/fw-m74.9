@@ -23,9 +23,21 @@ For this 4 MiB AT32, EOPB0 bits 2:0 select SRAM capacity: erased `111` selects
 128 KiB and `010` selects 384 KiB. See Artery's
 [AT32F435/437 memory configuration note](https://www.arterytek.com/file/download/1302),
 section 2.2. The I832 bench required EOPB0 `FA` with complement `05` at
-`0x1FFFC010` before the installed rusEFI image could start. The CAN uploader
-does not configure this option. See the [installation prerequisite](cli-uploader.md)
-and [J-Link evidence](evidence/i832-jlink/README.md).
+`0x1FFFC010` before the installed rusEFI image could start.
+
+New software handles the erased OEM EOPB0 automatically in `m749PrepareRam`,
+before `_crt0_entry` sets up the process stack or initializes data/BSS. It uses
+MSP below `0x20020000`; the option-writing routine is copied from the addressed
+software payload into `0x20001000-0x20001FFF`. That low RAM scratch area is used
+only after leaving the resident loader, and the next reset reinitializes loader
+RAM. The boot intent word at `0x20000000` remains separate.
+
+Only the erased halfword `FFFF` may be programmed to `05FA`. The bootstrap
+validates all flash CRCs first, preserves other USD bytes and never erases USD.
+Valid settings with enough RAM are untouched. Failures request the programming
+loader before C startup; success requests application return after option reload.
+See the [CAN installation flow](cli-uploader.md) and
+[original J-Link evidence](evidence/i832-jlink/README.md).
 
 ### Flash
 

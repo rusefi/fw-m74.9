@@ -153,10 +153,15 @@ new query.
 Current M749ACT3 software supports the I812NA01, I812TA01, I832GA01 and I865LB52
 backups across three validated loader profiles. For I832, update both the
 uploader and firmware: older M749ACT1/M749ACT2 files cannot activate on its
-loader. The binary requires at least 384 KiB of configured SRAM. The I832
-bench passed activation and a physical power cycle after correcting its OEM
-128 KiB RAM option with J-Link; the CAN uploader does not yet check or change
-that option. See the [compatibility table and prerequisite](docs/cli-uploader.md).
+loader. New firmware configures an erased OEM RAM option to 384 KiB before
+C startup, using the existing CAN upload. Other insufficient or invalid option
+settings return to the resident loader without an option erase. The bootstrap
+passes emulator checks; physical CAN-only conversion from erased OEM options
+remains to be checked. See the [compatibility and RAM details](docs/cli-uploader.md).
+
+To prepare the development ECU for another first-install test, follow
+[restore dev unit to OEM](docs/restore-dev-unit-to-oem.md), including the saved
+[OEM option bytes](docs/oem-fuses.bin).
 
 The same installation is available without the console UI. Linux/macOS with
 an SLCAN adapter:

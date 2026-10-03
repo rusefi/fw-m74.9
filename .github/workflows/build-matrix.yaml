@@ -67,8 +67,8 @@ jobs:
           fi
 
 #
-# export ABSOLUTE_BOARD_DIR=/home/rusefi/fw-custom-example/boards/board1
-# cd /home/rusefi/fw-custom-example/ext/rusefi
+# export ABSOLUTE_BOARD_DIR="$(pwd)/boards/board1"
+# cd ext/rusefi
 # export
 
 

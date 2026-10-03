@@ -1,5 +1,11 @@
 # Local development knowledge
 
+- This is a public repository. Use repository-relative paths or portable
+  placeholders in documentation, reports, comments and examples; do not include
+  machine-specific absolute paths. Do not name, link to or expose private
+  repositories or their contents. Keep private supporting material outside this
+  checkout; public guidance should stand on its own.
+
 - Never commit or push; leave changes for the human. Preserve unrelated local
   changes, especially generated configuration files and submodule worktrees.
 - Append completed work and validation to `docs/report.md`. Record durable
@@ -148,8 +154,8 @@ rusEFI submodule; leave those generated changes unstaged.
   still omit its boot CRC and must be rejected on I832 before erase.
 - M749ACT3 retains the 32-byte descriptor at 0805FFE0 by encoding magic plus
   three CRC/calibration-start pairs; count 3 and activation protocol 1 are
-  implicit. Update firmware and uploader together. I832 offline native loader
-  execution and live activation pass, including an I832 physical power cycle
+  implicit. Update firmware and uploader together. I832 offline loader checks
+  and live activation pass, including an I832 physical power cycle
   after the separate SRAM option correction described below.
 - Readiness polling must preserve the actual F1A0 failure in the displayed
   message. Retry startup timeouts/negative ECU replies and not-ready values;
@@ -161,7 +167,9 @@ rusEFI submodule; leave those generated changes unstaged.
   at least 384 KiB total SRAM. The live I832GA01 had erased EOPB0=FF at
   1FFFC010, selecting 128 KiB; it HardFaulted during C++ constructors before
   activation. Loader/CRC checks alone cannot establish RAM compatibility.
-  The CAN uploader does not currently inspect or change this option.
+  The CAN uploader itself does not inspect or change this option. New firmware
+  handles the erased option before C startup in m749PrepareRam; older ACT3
+  images (including 2EE6A467) require the separate debugger correction.
 - On that I832 bench, programming only erased EOPB0 to FA through the AT32 USD
   controller produced halfword 05FA (hardware complement), selecting 384 KiB.
   No option erase was needed; a full 4 KiB before/after comparison confirmed
@@ -170,3 +178,20 @@ rusEFI submodule; leave those generated changes unstaged.
   power cycle. Preserve all other USD bytes and access protection; do not
   generalize the erased-option
   procedure to non-erased options. Evidence: docs/evidence/i832-jlink/.
+- The RAM bootstrap must precede _crt0_entry: ChibiOS selects PSP in high RAM
+  before __early_init. Use a low MSP and no initialized globals/FPU/HAL. Copy
+  USD programming code and its literals into low SRAM, validate all image CRCs
+  before mutation, and keep other options unchanged. A correct existing
+  384/448/512 KiB option needs no write; non-erased insufficient options must
+  return to the loader instead of erasing USD. Test the compiled Thumb path
+  with tests/validate_boot_ram.py, which maps only 128 KiB SRAM.
+- To reproduce first installation on the development ECU, restore OEM software
+  before docs/oem-fuses.bin. That exact 4096-byte USD backup has EOPB0 FFFF.
+  A CAN OEM BIN restore does not touch USD; a rusEFI image left installed would
+  either fail at 128 KiB (old image) or change the erased option again (new image).
+  See docs/restore-dev-unit-to-oem.md. The generic fuses-default.bin is not the
+  original OEM option state.
+- Stale generated/console/binary/generated live-data fragments can cause INI
+  validation errors for current template fields even when the C structs exist.
+  Regenerate with META_OUTPUT_ROOT_FOLDER=../../../generated/ and BOARD_DIR=../../..
+  using gen_live_documentation.sh from ext/rusefi/firmware before rebuilding.
