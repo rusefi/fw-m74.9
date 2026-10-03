@@ -67,7 +67,7 @@ class M749UiConnectorTest {
         public void flash(M749ConnectionOptions options, M749Image image, M749Immo immo, Consumer<String> out) {
             assertFalse(SwingUtilities.isEventDispatchThread());
             assertEquals(M749Image.Domain.SOFTWARE, image.domain);
-            assertNull(immo, "Recognized rusEFI must not load stale credentials");
+            assertNull(immo, "UI updates use no credential");
             flashed = options.copy();
             out.accept("Upload complete");
         }
@@ -80,15 +80,16 @@ class M749UiConnectorTest {
             M749Panel panel = open(backend, image, connector);
             try {
                 await(() -> find(panel, JLabel.class, "firmwareStatus").getText().contains("ready to update") && button(panel, "flash").isEnabled());
-                SwingUtilities.invokeAndWait(() -> {
-                    find(panel, JTextField.class, "credential").setText("missing credentials.pair");
-                    button(panel, "flash").doClick();
-                });
+                SwingUtilities.invokeAndWait(() -> button(panel, "flash").doClick());
                 await(() -> find(panel, JLabel.class, "activity").getText().equals("Upload complete"));
                 assertNotNull(backend.flashed);
                 assertEquals(backend.identified.key(), backend.flashed.key());
-                assertEquals(8, backend.flashed.block);
-                assertEquals(4, backend.flashed.stmin);
+                assertEquals(16, backend.flashed.block);
+                assertEquals(connector == 1 ? 3 : 1, backend.flashed.stmin);
+                if (connector == 1) {
+                    assertEquals(115200, backend.flashed.baud);
+                    assertEquals(1, backend.flashed.bus);
+                }
                 if (connector == 0) assertEquals("PCAN_USBBUS2", backend.flashed.channel);
                 else {
                     assertEquals(0, backend.scans, "Non-PCAN operations must not load PCAN");
@@ -149,21 +150,22 @@ class M749UiConnectorTest {
         } finally { release.countDown(); SwingUtilities.invokeAndWait(panel::removeNotify); }
     }
 
-    @Test void invalidTransportSettingsDisableWritesUntilCorrected() throws Exception {
+    @Test void invalidEndpointDisablesWritesUntilCorrected() throws Exception {
         Backend backend = new Backend();
-        M749Panel panel = open(backend, M749UiFlashTest.writeSoftware(directory), 1);
+        M749Panel panel = open(backend, M749UiFlashTest.writeSoftware(directory), 2);
         try {
             await(() -> button(panel, "flash").isEnabled() && backend.identified != null);
             SwingUtilities.invokeAndWait(() -> {
-                JTextField stmin = find(panel, JTextField.class, "stmin");
-                stmin.setText("128");
-                stmin.postActionEvent();
+                JTextField endpoint = find(panel, JTextField.class, "transferEndpoint");
+                endpoint.setText("auto");
+                endpoint.postActionEvent();
                 assertFalse(button(panel, "flash").isEnabled());
                 assertFalse(button(panel, "writeFlash").isEnabled());
-                stmin.setText("7");
-                stmin.postActionEvent();
+                assertTrue(find(panel, JLabel.class, "connectionDetail").getText().contains("explicit interface name"));
+                endpoint.setText("can1");
+                endpoint.postActionEvent();
             });
-            await(() -> backend.identified.stmin == 7 && button(panel, "flash").isEnabled());
+            await(() -> "can1".equals(backend.identified.socketcan) && button(panel, "flash").isEnabled());
         } finally { SwingUtilities.invokeAndWait(panel::removeNotify); }
     }
 
@@ -172,10 +174,6 @@ class M749UiConnectorTest {
         SwingUtilities.invokeAndWait(() -> {
             M749Panel panel = new M749Panel(backend, () -> image);
             find(panel, JComboBox.class, "transferTransport").setSelectedIndex(connector);
-            find(panel, JTextField.class, "blockSize").setText("8");
-            JTextField stmin = find(panel, JTextField.class, "stmin");
-            stmin.setText("4");
-            stmin.postActionEvent();
             ref.set(panel);
             panel.addNotify();
         });

@@ -191,8 +191,11 @@ bash bin/m749-cli.sh --upload rusefi.hex --socketcan can0
 
 For a backup, use `bash bin/m749-cli.sh --read-flash backup.bin --socketcan can0`.
 
-Use the `rusefi.hex` or `rusefi_update.srec` file from the bundle. When the
-ECU still runs OEM firmware and needs its pairing credential, add
+Use the `rusefi.hex` or
+`rusefi_<release>_<date>_re74.9_<signature>_<commit>_update.srec` file from the
+bundle. Local builds use `yymmdd` and `local` when date and commit metadata
+are not supplied. When the ECU still runs OEM firmware and needs its pairing
+credential, add
 `--pair-file ecu.pair` or `--immo-backup backup.bin`. Follow the power-cycle
 prompt printed by the command. The command exits successfully only after the
 new firmware has been verified and has started. All options, exit codes and

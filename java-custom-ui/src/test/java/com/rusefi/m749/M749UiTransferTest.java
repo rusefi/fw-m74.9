@@ -71,10 +71,7 @@ class M749UiTransferTest {
             try {
                 await(() -> button(panel, "writeFlash").isEnabled());
                 int selected = transport;
-                SwingUtilities.invokeAndWait(() -> {
-                    find(panel, JComboBox.class, "transferTransport").setSelectedIndex(selected);
-                    find(panel, JTextField.class, "credential").setText("paired key.pair");
-                });
+                SwingUtilities.invokeAndWait(() -> find(panel, JComboBox.class, "transferTransport").setSelectedIndex(selected));
                 await(() -> button(panel, "writeFlash").isEnabled());
                 SwingUtilities.invokeAndWait(() -> button(panel, "writeFlash").doClick());
                 assertTrue(backend.entered.await(5, TimeUnit.SECONDS));
@@ -82,7 +79,7 @@ class M749UiTransferTest {
                 String value = transport == 0 ? "PCAN_USBBUS2" : transport == 1 ? "auto" : "can0";
                 java.util.ArrayList<String> expected = new java.util.ArrayList<>(List.of("--write-flash", "selected firmware.bin", option, value));
                 if (transport == 1) expected.addAll(List.of("--serial-baud", "115200", "--slcan-bus", "1"));
-                expected.addAll(List.of("--block-size", "16", "--stmin", transport == 1 ? "3" : "1", "--pair-file", "paired key.pair"));
+                expected.addAll(List.of("--block-size", "16", "--stmin", transport == 1 ? "3" : "1"));
                 assertEquals(expected, backend.args);
                 backend.release.countDown();
                 await(() -> label(panel).startsWith("Write complete"));

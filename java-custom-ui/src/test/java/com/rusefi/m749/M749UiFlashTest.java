@@ -73,24 +73,19 @@ class M749UiFlashTest {
         }
     }
 
-    @Test void oemInstallUsesPairCredentialAndShowsRusEfiOnlyAfterUploadCompletes() throws Exception {
+    @Test void oemInstallUsesNoCredentialAndShowsRusEfiOnlyAfterUploadCompletes() throws Exception {
         Backend backend = new Backend(M749FirmwareDetection.Result.OEM);
-        Path pair = directory.resolve("ecu.pair");
-        M749PairFile saved = new M749PairFile();
-        for (int i = 0; i < 24; i++) saved.put(i, i);
-        saved.save(pair);
         M749Panel panel = open(backend, writeSoftware());
         try {
             awaitEdt(() -> text(panel, "firmwareStatus").equals("OEM firmware installed") && button(panel).isEnabled());
             SwingUtilities.invokeAndWait(() -> {
-                find(panel, JTextField.class, "credential").setText(pair.toString());
                 button(panel).doClick();
                 assertFalse(button(panel).isEnabled());
                 assertFalse(find(panel, JComboBox.class, "channels").isEnabled());
-                assertFalse(find(panel, JTextField.class, "credential").isEnabled());
+                assertFalse(find(panel, JComboBox.class, "transferTransport").isEnabled());
             });
             assertTrue(backend.entered.await(5, TimeUnit.SECONDS));
-            assertNotNull(backend.credential);
+            assertNull(backend.credential);
             SwingUtilities.invokeAndWait(() -> {
                 assertEquals("OEM firmware installed", text(panel, "firmwareStatus"));
                 assertFalse(find(panel, JTextArea.class, "status").getText().contains("Upload complete"));
@@ -112,11 +107,7 @@ class M749UiFlashTest {
         M749Panel panel = open(backend, writeSoftware());
         try {
             awaitEdt(() -> button(panel).isEnabled() && button(panel).getText().equals("Update rusEFI"));
-            SwingUtilities.invokeAndWait(() -> {
-                // A leftover OEM path must not block an installed rusEFI update.
-                find(panel, JTextField.class, "credential").setText("no-longer-present.pair");
-                button(panel).doClick();
-            });
+            SwingUtilities.invokeAndWait(() -> button(panel).doClick());
             assertTrue(backend.entered.await(5, TimeUnit.SECONDS));
             assertNull(backend.credential);
             backend.proceed.countDown();

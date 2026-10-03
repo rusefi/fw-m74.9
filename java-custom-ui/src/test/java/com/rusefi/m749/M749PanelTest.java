@@ -29,6 +29,16 @@ class M749PanelTest {
             assertEquals("Messages", tabs.getTitleAt(0));
             assertFalse(find(panel, JTextArea.class, "messages").isEditable());
             assertFalse(find(panel, JTextArea.class, "status").isEditable());
+            assertNotNull(find(panel, JComboBox.class, "transferTransport"));
+            assertNotNull(find(panel, JTextField.class, "transferEndpoint"));
+            for (String field : new String[]{"serialBaud", "slcanBus", "blockSize", "stmin", "credential"}) {
+                assertNull(find(panel, JTextField.class, field), field + " should not appear in the panel");
+            }
+            for (String caption : new String[]{"Serial baud:", "SLCAN bus:", "Receive block:", "STmin ms:",
+                    "OEM credentials (optional): ", "CAN: 500 kbit/s   Request: 0x7E0   Response: 0x7E8"}) {
+                assertNull(find(panel, JLabel.class, caption), caption + " should not appear in the panel");
+            }
+            assertNull(find(panel, JButton.class, "Choose pair file / backup..."));
         });
     }
 
