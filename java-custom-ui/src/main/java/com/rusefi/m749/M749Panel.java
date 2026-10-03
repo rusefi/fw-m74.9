@@ -13,6 +13,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+// see M749PanelSandbox
 public final class M749Panel extends JPanel {
     static final Color DETECTED_COLOR = new Color(0, 140, 45);
     static final Color MISSING_COLOR = new Color(190, 35, 35);
@@ -100,7 +101,7 @@ public final class M749Panel extends JPanel {
         top.add(detail);
         top.add(Box.createVerticalStrut(12));
         top.add(new JLabel("M74.9 identification and firmware update"));
-        top.add(new JLabel("CAN: 500 kbit/s   Request: 0x7E0   Response: 0x7E8"));
+        // top.add(new JLabel("CAN: 500 kbit/s   Request: 0x7E0   Response: 0x7E8"));
         top.add(Box.createVerticalStrut(12));
         JPanel adapterRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         adapterRow.add(new JLabel("Connector: "));
@@ -117,9 +118,9 @@ public final class M749Panel extends JPanel {
         adapterRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, adapterRow.getPreferredSize().height));
         top.add(adapterRow);
         JPanel settings = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
-        JTextField[] fields = {serialBaud, slcanBus, blockSize, stmin};
-        String[] names = {"serialBaud", "slcanBus", "blockSize", "stmin"};
-        String[] labels = {"Serial baud:", "SLCAN bus:", "Receive block:", "STmin ms:"};
+        JTextField[] fields = {/*serialBaud, slcanBus, blockSize , stmin*/};
+        String[] names = {/*"serialBaud", "slcanBus", "blockSize" , "stmin"*/};
+        String[] labels = {/*"Serial baud:", "SLCAN bus:", "Receive block:" , "STmin ms:"*/};
         for (int i = 0; i < fields.length; i++) {
             fields[i].setName(names[i]);
             settings.add(new JLabel(labels[i]));
@@ -144,7 +145,7 @@ public final class M749Panel extends JPanel {
         credentialRow.add(Box.createHorizontalStrut(8));
         credentialRow.add(browseCredential);
         credentialRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, credentialRow.getPreferredSize().height));
-        top.add(credentialRow);
+        // top.add(credentialRow);
         top.add(uploadHint);
         flash.setName("flash");
         flash.setEnabled(false);
