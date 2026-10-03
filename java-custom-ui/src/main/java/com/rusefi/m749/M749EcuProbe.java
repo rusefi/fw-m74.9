@@ -26,8 +26,8 @@ final class M749EcuProbe {
                     throw new IOException(String.format("Malformed identity response for DID %04X", did));
                 }
                 byte[] value = Arrays.copyOfRange(response, 3, response.length);
-                String line = String.format("ECU present on 7E8: DID %04X | hex=%s | ASCII=%s", did,
-                        M749Identification.hex(value), M749Identification.ascii(value));
+                String line = String.format("ECU present on 7E8: DID %04X | %s", did,
+                        M749Identification.describe(did, value));
                 out.accept(line);
                 summary.add(line);
                 if (did == 0xF189) software = value;

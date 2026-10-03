@@ -130,6 +130,16 @@ class M749IdentificationTest {
     }
 
     @Test
+    void textDidsShowTrimmedAsciiOnly() {
+        assertEquals("I832GA01_w2304v2",
+                M749Identification.describe(0xF189, "I832GA01_w2304v2\0\0\0".getBytes(StandardCharsets.US_ASCII)));
+        assertEquals("8450110707",
+                M749Identification.describe(0xF192, "8450110707".getBytes(StandardCharsets.US_ASCII)));
+        assertEquals("hex=01 | ASCII=.", M749Identification.describe(0xF186, bytes(1)));
+        assertEquals("hex=00 00 | ASCII=..", M749Identification.describe(0xF189, bytes(0, 0)));
+    }
+
+    @Test
     void zeroSeedSkipsKey() throws Exception {
         Harness h = new Harness();
         h.zeroSeed = true;

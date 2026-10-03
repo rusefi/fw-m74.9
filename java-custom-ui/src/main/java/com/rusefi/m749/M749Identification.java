@@ -66,8 +66,7 @@ final class M749Identification {
             try {
                 byte[] response = exchange(bytes(0x22, did >>> 8, did));
                 byte[] value = Arrays.copyOfRange(response, 3, response.length);
-                messages.accept(String.format("%s: %d bytes | hex=%s | ASCII=%s",
-                        label(did), value.length, hex(value), ascii(value)));
+                messages.accept(String.format("%s: %d bytes | %s", label(did), value.length, describe(did, value)));
                 values.put(did, value);
             } catch (NegativeResponse e) {
                 messages.accept(String.format("%s: unavailable (NRC %02X)", label(did), e.code));
@@ -97,6 +96,15 @@ final class M749Identification {
         if (main != null) {
             summary.add(prefix + main + (extra == null ? "" : separator + extra));
         }
+    }
+
+    /** Text-only DIDs (software and part number) show trimmed ASCII; others show hex and ASCII. */
+    static String describe(int did, byte[] value) {
+        if (did == 0xF189 || did == 0xF192) {
+            String text = text(value);
+            if (text != null) return text;
+        }
+        return "hex=" + hex(value) + " | ASCII=" + ascii(value);
     }
 
     /** Printable text with trailing padding (NULs etc) removed, or null when nothing printable. */
