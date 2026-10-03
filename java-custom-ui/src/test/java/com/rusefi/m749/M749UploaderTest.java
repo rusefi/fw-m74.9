@@ -189,7 +189,7 @@ class M749UploaderTest {
         assertFalse(failure.getMessage().contains("No flash erase"));
     }
 
-    @Test void activationFailureCurrentlyHidesTheNegativeResponse() {
+    @Test void activationFailureReportsTheNegativeResponseWithoutAnotherReset() {
         Ecu ecu = new Ecu() {
             public byte[] exchange(byte[] request, byte[] prefix, long timeout) throws IOException {
                 if (app && Arrays.equals(request, bytes(0x22, 0xF1, 0xA0))) {
@@ -200,9 +200,63 @@ class M749UploaderTest {
         };
         IOException failure = assertThrows(IOException.class, () -> ecu.run(M749Image.Domain.SOFTWARE));
         assertTrue(failure.getMessage().contains("Application activation status did not become ready"));
-        assertFalse(failure.getMessage().contains("NRC 31"));
+        assertTrue(failure.getMessage().contains("F1A0: UDS 22 rejected: NRC 31"));
+        assertEquals(10, ecu.messages.stream().filter(s -> s.startsWith("Application readiness ")).count());
         assertEquals(1, ecu.resets);
         assertFalse(ecu.messages.stream().anyMatch(s -> s.startsWith("Upload complete")));
+    }
+
+    @Test void activationReportsTimeoutAndUnexpectedStatus() {
+        for (boolean timeout : new boolean[]{true, false}) {
+            Ecu ecu = new Ecu() {
+                public byte[] exchange(byte[] request, byte[] prefix, long limit) throws IOException {
+                    if (app && Arrays.equals(request, bytes(0x22, 0xF1, 0xA0))) {
+                        if (timeout) { throw new UdsClient.Timeout(0x22, "awaiting the response"); }
+                        return bytes(0x62, 0xF1, 0xA0, 0x4D, 0x74, 1, 0);
+                    }
+                    return super.exchange(request, prefix, limit);
+                }
+            };
+            IOException failure = assertThrows(IOException.class, () -> ecu.run(M749Image.Domain.SOFTWARE));
+            assertTrue(failure.getMessage().contains(timeout ? "ISO-TP/UDS timeout" : "F1A0 returned 4D740100"));
+            assertEquals(1, ecu.resets);
+            assertEquals(10, ecu.messages.stream().filter(s -> s.startsWith("Application readiness ")).count());
+        }
+    }
+
+    @Test void activationStopsOnAdapterFailureInsteadOfRepeatingCanTransmissions() {
+        int[] polls = {0};
+        Ecu ecu = new Ecu() {
+            public byte[] exchange(byte[] request, byte[] prefix, long timeout) throws IOException {
+                if (app && Arrays.equals(request, bytes(0x22, 0xF1, 0xA0))) {
+                    polls[0]++;
+                    throw new IOException("SLCAN adapter rejected a command or CAN transmission");
+                }
+                return super.exchange(request, prefix, timeout);
+            }
+        };
+        IOException failure = assertThrows(IOException.class, () -> ecu.run(M749Image.Domain.SOFTWARE));
+        assertTrue(failure.getMessage().contains("Application readiness query F1A0 failed: SLCAN adapter rejected"));
+        assertEquals(1, polls[0]);
+        assertEquals(1, ecu.resets);
+        assertTrue(failure.getMessage().contains("No recovery reset was sent"));
+        assertFalse(ecu.messages.stream().anyMatch(s -> s.startsWith("Upload complete")));
+    }
+
+    @Test void activationCanBecomeReadyAfterTransientLoaderReply() throws Exception {
+        int[] polls = {0};
+        Ecu ecu = new Ecu() {
+            public byte[] exchange(byte[] request, byte[] prefix, long timeout) throws IOException {
+                if (app && Arrays.equals(request, bytes(0x22, 0xF1, 0xA0)) && polls[0]++ == 0) {
+                    throw new UdsClient.NegativeResponse(0x22, 0x31);
+                }
+                return super.exchange(request, prefix, timeout);
+            }
+        };
+        ecu.run(M749Image.Domain.SOFTWARE);
+        assertEquals(2, ecu.resets);
+        assertEquals(3, polls[0]);
+        assertTrue(ecu.messages.stream().anyMatch(s -> s.startsWith("Upload complete")));
     }
 
     @Test void calibrationIsSeparateAndZeroSeedSkipsKey() throws Exception {

@@ -22,7 +22,12 @@ backups, including corruption checks and retention of every non-software byte.
 The saved I832 loader also passes offline native execution of programming and
 metadata/reset/boot selection. See [overlay results](evidence/i832-activation/firmware-overlays.json)
 and [loader results](evidence/i832-activation/native-loader.json). Physical I832
-installation and power-cycle validation of M749ACT3 remain outstanding.
+installation and power-cycle validation of M749ACT3 remain outstanding. The
+first reported I832 hardware attempt (software CRC 2EE6A467) completed both
+software transfers, block checks, metadata readback and the reset request, but
+did not confirm application readiness. After ECU/adapter power cycling, F186
+reported programming session 02 and F189 retained M749-2EE6A467. The cause of
+the startup/activation failure is still under investigation.
 
 Check a payload against the connected ECU without writing flash:
 
@@ -61,6 +66,17 @@ after a bench power cycle, with the OEM loader regions preserved. Recovery from
 power interruption during flashing remains unvalidated.
 
 ## Commands
+
+If an upload stops while checking application readiness, retain its log and run
+**Scan / query again** or `--identify` before another upload. F186=02 reports the
+resident programming session; F189 containing the uploaded CRC is programming
+history, not evidence that rusEFI started. A SLCAN BELL/rejected-transmission
+error is an adapter transport failure, not an ECU activation status.
+
+The uploader logs each failed F1A0 readiness poll, including negative-response
+codes, timeouts or unexpected status values. Transport/protocol errors stop
+immediately and retain their cause in the displayed error. Neither failure
+path requests an automatic recovery reset.
 
 Identify either OEM firmware or rusEFI without a power cycle:
 

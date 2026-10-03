@@ -244,18 +244,28 @@ final class M749Uploader {
 
     private void awaitApplication() throws IOException, InterruptedException {
         IOException last = null;
+        String observation = "no F1A0 reply";
         connection.pause(1_000);
         for (int attempt = 0; attempt < 10; attempt++) {
             try {
-                if (applicationWord(0xF1A0) == 0x4D740101) {
+                int status = applicationWord(0xF1A0);
+                if (status == 0x4D740101) {
                     return;
                 }
-            } catch (IOException e) {
+                observation = String.format("F1A0 returned %08X; expected 4D740101", status);
+                last = null;
+            } catch (UdsClient.Timeout | UdsClient.NegativeResponse e) {
+                // Startup may be slow or the resident loader may still answer.
                 last = e;
+                observation = "F1A0: " + e.getMessage();
+            } catch (IOException e) {
+                // A transport/protocol failure is not evidence of a slow boot.
+                throw new IOException("Application readiness query F1A0 failed: " + e.getMessage(), e);
             }
+            out.accept("Application readiness " + (attempt + 1) + "/10: " + observation);
             connection.pause(250);
         }
-        throw new IOException("Application activation status did not become ready", last);
+        throw new IOException("Application activation status did not become ready; last observation: " + observation, last);
     }
 
     private void awaitOemApplication() throws IOException, InterruptedException {

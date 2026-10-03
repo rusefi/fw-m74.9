@@ -150,3 +150,9 @@ rusEFI submodule; leave those generated changes unstaged.
   three CRC/calibration-start pairs; count 3 and activation protocol 1 are
   implicit. Update firmware and uploader together. I832 offline native loader
   execution passes, but physical upload and power-cycle validation are pending.
+- Readiness polling must preserve the actual F1A0 failure in the displayed
+  message. Retry startup timeouts/negative ECU replies and not-ready values;
+  stop on generic transport/protocol failures (including SLCAN BELL). F186=02
+  with F189=M749-<CRC> establishes loader session plus programming history,
+  not application startup. The first I832 ACT3 hardware upload reached this
+  state after restart; its activation/startup cause is still under investigation.
