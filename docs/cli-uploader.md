@@ -1,11 +1,28 @@
 # M74.9 firmware uploader
 
-New builds use M749ACT2: one software HEX/SREC payload supports the known I812
-and I865 loader profiles. The CLI detects the target before erase; it preserves
+New builds use M749ACT3: one software HEX/SREC payload supports the known I812,
+I832 and I865 loader profiles. The CLI detects the target before erase; it preserves
 the loader, identity, pairing data and the complete 0x08060000-0x0807FFFF gap.
-I812 calibration starts at 0x08069000, I865 at 0x08060000. The application selects
+I812 calibration starts at 0x08069000, I832/I865 at 0x08060000. The application selects
 the retained calibration CRC domain from the validated loader CRC. Unknown
-I8xx profiles are rejected. Legacy M749ACT1 software remains I865-only.
+I8xx profiles are rejected. Legacy M749ACT1 software remains I865-only;
+M749ACT2 supports I812/I865. I832 requires both rebuilt firmware and uploader.
+
+| Known OEM build | Loader CRC | M749ACT3 software |
+| --- | --- | --- |
+| I812NA01_w2243v21 | 4F256CD9 | Supported |
+| I812TA01_w2243v21 | 4F256CD9 | Supported |
+| I832GA01_w2304v2 | E3186D26 | Supported |
+| I865LB52_w2404b1 | D7B6B894 | Supported |
+
+These are four recognized builds across three loader profiles. Compatibility
+is checked against the resident loader, not inferred from the firmware name.
+The production payload passes the C++ activation checker over all four full
+backups, including corruption checks and retention of every non-software byte.
+The saved I832 loader also passes offline native execution of programming and
+metadata/reset/boot selection. See [overlay results](evidence/i832-activation/firmware-overlays.json)
+and [loader results](evidence/i832-activation/native-loader.json). Physical I832
+installation and power-cycle validation of M749ACT3 remain outstanding.
 
 Check a payload against the connected ECU without writing flash:
 
@@ -20,13 +37,13 @@ erase/download, metadata write or reset; the loader can later time out back to
 the OEM application. The second command performs the update. Both also accept
 `--socketcan can0` on Linux or `--channel PCAN_USBBUS1` on native Windows. I865 paired authorization still uses
 `--pair-file` or `--immo-backup` when needed; those credentials do not apply to
-I812. I812 calibration-only uploads are deliberately rejected.
+I812. Calibration-only uploads remain I865-only.
 
 On 2026-09-24 the I812TA01_w2243v21 bench passed the complete SLCAN preflight
 without a pairing credential. Its retained CRC was A5EC33E0 and journal slot 0
 was empty. Subsequent identification confirmed OEM session 01 and the same ECU
-identity. The new M749ACT2 image has passed software checks for both profiles;
-physical upload and power-cycle validation of this build remain outstanding.
+identity. The historical M749ACT2 image passed software checks for both profiles;
+that preflight did not establish physical upload or power-cycle success.
 
 For a complete main-flash backup over SLCAN, Linux SocketCAN or Windows PCAN, see
 [the flash-reader guide](cli-flash-reader.md).
@@ -121,8 +138,8 @@ adapter/native library does not prevent `--help` or `--dry-run`.
 Software HEX and SREC are equivalent inputs. Unsupported BIN, ELF, sparse images,
 overlaps, mixed software/calibration domains, bad record checksums, missing
 terminators, invalid vectors and bad CRC trailers are rejected before opening
-an adapter. Software upload also requires the `M749ACT1` or `M749ACT2` descriptor emitted by
-the current firmware build. Supported OEM full-flash BIN files use the restore
+an adapter. Software upload also requires a supported `M749ACT1`, `M749ACT2` or `M749ACT3` descriptor;
+new builds emit `M749ACT3`. Supported OEM full-flash BIN files use the restore
 path below. PCAN uploads accept a named channel or `--channel auto` when exactly one
 available channel exists; upload never tries another ECU after a failure.
 
@@ -205,9 +222,9 @@ with OEM BIN because restoring OEM software requires its matching calibration.
 
 I832GA01 is identified by loader CRC E3186D26 and compatibility bytes at
 0x08201E2C, 0x08201D84 and 0x08204B7C. Its OEM application vectors are
-00000000/08080001. Support covers OEM BIN application/calibration restores;
-existing rusEFI M749ACT1/M749ACT2 software and calibration-only payloads are
-rejected on I832 before erase because their activation contracts omit I832.
+00000000/08080001. Support covers OEM BIN application/calibration restores and
+M749ACT3 rusEFI software installation. M749ACT1/M749ACT2 software and
+calibration-only payloads remain rejected on I832 before erase.
 
 OEM restore writes only 0x08001000..0x080FFFFF, including calibration. The rest of
 the source file is not copied to the ECU: the boot page, resident loader, identity,

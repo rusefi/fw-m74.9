@@ -20,6 +20,12 @@ final class M749Image {
             2, 0, 0, 0, 1, 0, 0, 0,
             (byte) 0x94, (byte) 0xB8, (byte) 0xB6, (byte) 0xD7, 0, 0, 6, 8,
             (byte) 0xD9, 0x6C, 0x25, 0x4F, 0, (byte) 0x90, 6, 8};
+    // ACT3 keeps the 32-byte reservation: magic followed by three profile pairs.
+    // Activation protocol 1 and the profile count are implied by this version.
+    static final byte[] ACTIVATION_ABI_V3 = new byte[]{0x4D, 0x37, 0x34, 0x39, 0x41, 0x43, 0x54, 0x33,
+            (byte) 0x94, (byte) 0xB8, (byte) 0xB6, (byte) 0xD7, 0, 0, 6, 8,
+            (byte) 0xD9, 0x6C, 0x25, 0x4F, 0, (byte) 0x90, 6, 8,
+            0x26, 0x6D, 0x18, (byte) 0xE3, 0, 0, 6, 8};
     static final class Range {
         final int address;
         private final byte[] data;
@@ -143,7 +149,8 @@ final class M749Image {
             throw new IOException("Invalid OEM application vectors");
         }
         if (descriptorMatches(data, ACTIVATION_ADDRESS - M749RamHelper.BASE, ACTIVATION_ABI) ||
-                descriptorMatches(data, ACTIVATION_ADDRESS - M749RamHelper.BASE, ACTIVATION_ABI_V2)) {
+                descriptorMatches(data, ACTIVATION_ADDRESS - M749RamHelper.BASE, ACTIVATION_ABI_V2) ||
+                descriptorMatches(data, ACTIVATION_ADDRESS - M749RamHelper.BASE, ACTIVATION_ABI_V3)) {
             throw new IOException("BIN contains rusEFI; use its addressed HEX/SREC update instead");
         }
         return new M749Image(Domain.OEM, List.of(new Range(START, Arrays.copyOfRange(data, 0x1000, 0x100000))),
@@ -164,8 +171,9 @@ final class M749Image {
         if (domain == Domain.SOFTWARE) {
             byte[] first = ranges.get(0).data;
             int offset = ACTIVATION_ADDRESS - START;
-            if (!descriptorMatches(first, offset, ACTIVATION_ABI) && !descriptorMatches(first, offset, ACTIVATION_ABI_V2)) {
-                throw new IOException("Software lacks a supported M749ACT1/M749ACT2 persistent-activation ABI; rebuild first");
+            if (!descriptorMatches(first, offset, ACTIVATION_ABI) && !descriptorMatches(first, offset, ACTIVATION_ABI_V2) &&
+                    !descriptorMatches(first, offset, ACTIVATION_ABI_V3)) {
+                throw new IOException("Software lacks a supported M749ACT1/M749ACT2/M749ACT3 persistent-activation ABI; rebuild first");
             }
         }
     }
@@ -180,15 +188,18 @@ final class M749Image {
             return;
         }
         requireActivationSupport();
-        if (profile == M749TargetProfile.I832) {
-            throw new IOException("I832 supports OEM BIN restore only; existing rusEFI activation contracts do not support this loader");
+        if (domain == Domain.CALIBRATION && profile != M749TargetProfile.I865) {
+            throw new IOException("Calibration-only uploads are I865-only; I812/I832 software updates preserve calibration");
         }
-        if (domain == Domain.CALIBRATION && profile.calibrationStart != CAL) {
-            throw new IOException("This calibration payload uses the I865 layout; I812 software updates preserve its calibration");
-        }
-        if (domain == Domain.SOFTWARE && profile == M749TargetProfile.I812 &&
-                !descriptorMatches(ranges.get(0).data, ACTIVATION_ADDRESS - START, ACTIVATION_ABI_V2)) {
-            throw new IOException("I812 requires M749ACT2 software; the M749ACT1 image supports only I865");
+        if (domain == Domain.SOFTWARE) {
+            boolean v3 = descriptorMatches(ranges.get(0).data, ACTIVATION_ADDRESS - START, ACTIVATION_ABI_V3);
+            if (profile == M749TargetProfile.I832 && !v3) {
+                throw new IOException("I832 requires M749ACT3 software; rebuild firmware and uploader together");
+            }
+            if (profile == M749TargetProfile.I812 && !v3 &&
+                    !descriptorMatches(ranges.get(0).data, ACTIVATION_ADDRESS - START, ACTIVATION_ABI_V2)) {
+                throw new IOException("I812 requires M749ACT2/M749ACT3 software; the M749ACT1 image supports only I865");
+            }
         }
     }
 

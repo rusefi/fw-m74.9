@@ -116,12 +116,14 @@ rusEFI submodule; leave those generated changes unstaged.
   helper launch and repeated flash reads. Do not broaden this exception to
   admission/security/RAM writes or to arbitrary negative responses.
 
-- M749ACT2 keeps one fixed replacement software layout for I812 and I865,
+- M749ACT3 keeps one fixed replacement software layout for I812/I832/I865,
   while selecting retained calibration by validated loader CRC: I812 4F256CD9
-  -> 08069000, I865 D7B6B894 -> 08060000. Preserve the entire 60000..7FFFF gap;
+  -> 08069000, I832 E3186D26 and I865 D7B6B894 -> 08060000. Preserve the entire
+  60000..7FFFF gap;
   leftover I812 OEM software at 60000..68FFF is outside the replacement CRCs.
-  Old M749ACT1 payloads are I865-only; calibration-only payloads remain I865-only.
-- Both supported loaders use the six programming DIDs and writable append-only
+  Old M749ACT1 payloads are I865-only; ACT2 supports I812/I865.
+  Calibration-only payloads remain I865-only.
+- All three supported loaders use the six programming DIDs and writable append-only
   journal at 0824E000 for return-token activation. Do not infer these permissions
   from application-session behavior. Preflight sends no metadata write/reset;
   the OEM loader may later return to session 01 on its own timeout.
@@ -142,5 +144,9 @@ rusEFI submodule; leave those generated changes unstaged.
 - I832GA01 combines boot CRC E3186D26 and calibration start 08060000 with
   OEM application vectors 00000000/08080001. Do not infer its calibration
   layout from the zero stack vector. Java OEM BIN restore supports this
-  profile; M749ACT1/M749ACT2 replacement payloads still omit its boot CRC
-  and must be rejected on I832 before erase.
+  profile. M749ACT3 replacement firmware supports it; M749ACT1/M749ACT2
+  still omit its boot CRC and must be rejected on I832 before erase.
+- M749ACT3 retains the 32-byte descriptor at 0805FFE0 by encoding magic plus
+  three CRC/calibration-start pairs; count 3 and activation protocol 1 are
+  implicit. Update firmware and uploader together. I832 offline native loader
+  execution passes, but physical upload and power-cycle validation are pending.

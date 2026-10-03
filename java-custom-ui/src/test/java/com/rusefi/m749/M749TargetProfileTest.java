@@ -27,13 +27,17 @@ class M749TargetProfileTest {
     }
 
     private M749Image image() throws IOException {
-        return M749Image.validate(M749ImageTest.records(M749Image.Domain.SOFTWARE, M749Image.ACTIVATION_ABI_V2),
+        return image(M749Image.ACTIVATION_ABI_V3);
+    }
+
+    private M749Image image(byte[] descriptor) throws IOException {
+        return M749Image.validate(M749ImageTest.records(M749Image.Domain.SOFTWARE, descriptor),
                 M749Image.Domain.SOFTWARE);
     }
 
-    @Test void onePayloadUploadsToBothProfilesAndPreservesAllRetainedBytes() throws Exception {
+    @Test void onePayloadUploadsToAllProfilesAndPreservesAllRetainedBytes() throws Exception {
         M749Image image = image();
-        for (M749TargetProfile profile : new M749TargetProfile[]{M749TargetProfile.I812, M749TargetProfile.I865}) {
+        for (M749TargetProfile profile : M749TargetProfile.values()) {
             M749UploaderTest.Ecu ecu = target(profile);
             byte[] before = ecu.flash.clone();
             new M749Uploader(ecu, ecu.messages::add).upload(image, false);
@@ -49,9 +53,7 @@ class M749TargetProfileTest {
         for (M749TargetProfile profile : M749TargetProfile.values()) {
             M749UploaderTest.Ecu ecu = target(profile, true);
             byte[] before = ecu.flash.clone();
-            M749Image candidate = profile == M749TargetProfile.I832 ?
-                    M749Image.oem(M749OemImageTest.backup(profile)) : image();
-            new M749Uploader(ecu, s -> { }).checkTarget(candidate);
+            new M749Uploader(ecu, s -> { }).checkTarget(image());
             assertArrayEquals(before, ecu.flash);
             assertTrue(ecu.erases.isEmpty());
             assertEquals(0, ecu.writes);
@@ -75,14 +77,15 @@ class M749TargetProfileTest {
 
     @Test void i832RejectsExistingReplacementContractsBeforeErase() throws Exception {
         M749Image[] images = {
-                image(),
+                image(M749Image.ACTIVATION_ABI_V2),
                 M749Image.validate(M749ImageTest.records(M749Image.Domain.SOFTWARE), M749Image.Domain.SOFTWARE),
                 M749Image.validate(M749ImageTest.records(M749Image.Domain.CALIBRATION), M749Image.Domain.CALIBRATION)
         };
         for (M749Image image : images) {
             M749UploaderTest.Ecu ecu = target(M749TargetProfile.I832);
             IOException error = assertThrows(IOException.class, () -> new M749Uploader(ecu, s -> {}).upload(image, false));
-            assertTrue(error.getMessage().contains("I832 supports OEM BIN restore only"));
+            assertTrue(error.getMessage().contains(image.domain == M749Image.Domain.SOFTWARE ?
+                    "I832 requires M749ACT3" : "Calibration-only uploads are I865-only"));
             assertTrue(ecu.erases.isEmpty());
             assertEquals(0, ecu.writes);
             assertEquals(0, ecu.resets);
@@ -114,10 +117,28 @@ class M749TargetProfileTest {
         }
     }
 
-    @Test void calibrationRecognizesInstalledV2OnI865() throws Exception {
-        M749UploaderTest.Ecu ecu = target(M749TargetProfile.I865);
-        System.arraycopy(M749Image.ACTIVATION_ABI_V2, 0, ecu.flash, 0x5FFE0, 32);
-        ecu.run(M749Image.Domain.CALIBRATION);
-        assertEquals(32, ecu.erases.size());
+    @Test void v2StillSupportsI812AndI865() throws Exception {
+        for (M749TargetProfile profile : new M749TargetProfile[]{M749TargetProfile.I812, M749TargetProfile.I865}) {
+            new M749Uploader(target(profile), s -> {}).upload(image(M749Image.ACTIVATION_ABI_V2), false);
+        }
+    }
+
+    @Test void corruptV3DescriptorFailsBeforeErase() throws Exception {
+        byte[] corrupt = M749Image.ACTIVATION_ABI_V3.clone();
+        corrupt[24] ^= 1; // Correct image CRC cannot authorize a different loader list.
+        M749UploaderTest.Ecu ecu = target(M749TargetProfile.I832);
+        assertThrows(IOException.class, () -> new M749Uploader(ecu, s -> {}).upload(image(corrupt), false));
+        assertTrue(ecu.erases.isEmpty());
+        assertEquals(0, ecu.writes);
+        assertEquals(0, ecu.resets);
+    }
+
+    @Test void calibrationRecognizesInstalledV2AndV3OnI865() throws Exception {
+        for (byte[] descriptor : new byte[][]{M749Image.ACTIVATION_ABI_V2, M749Image.ACTIVATION_ABI_V3}) {
+            M749UploaderTest.Ecu ecu = target(M749TargetProfile.I865);
+            System.arraycopy(descriptor, 0, ecu.flash, 0x5FFE0, descriptor.length);
+            ecu.run(M749Image.Domain.CALIBRATION);
+            assertEquals(32, ecu.erases.size());
+        }
     }
 }

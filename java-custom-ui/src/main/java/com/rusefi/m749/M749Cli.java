@@ -270,8 +270,8 @@ public final class M749Cli {
         out.accept("Reads enter OEM session 02 (can reset the ECU) and authenticate. Rejected entry stops without flash writes.");
         out.accept("Pair files checkpoint each byte; unknown indices are omitted.");
         out.accept("--immo-backup enables normal I865 CAN authorization; cycle bench power when the listener reports ready.");
-        out.accept("M749ACT2 software supports I812/I865; legacy M749ACT1 supports I865 only. Calibration payloads are I865-only.");
-        out.accept("I832GA01 supports OEM BIN restore only; existing rusEFI software/calibration payloads are rejected.");
+        out.accept("M749ACT3 software supports I812/I832/I865; M749ACT2 supports I812/I865; M749ACT1 supports I865 only.");
+        out.accept("I832 requires M749ACT3 firmware and an updated uploader. Calibration-only payloads remain I865-only.");
         out.accept("--upload erases/programs the selected domain, preserves OEM programming metadata, and activates.");
         out.accept("Default verification: per-block sum plus application-side CRCs; --verify-bytes adds slow byte comparisons.");
     }

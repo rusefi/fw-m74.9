@@ -42,8 +42,9 @@ inputs, not ready-to-flash images: CRC trailers are added to HEX/SREC by
 
 See [deployment artifacts and tools](docs/memory-layout-and-bootloader-details.md#deployment-artifacts-and-tools)
 for why a single `.bin` is unsuitable and the exact address/length of each upload
-range. The [Java PCAN uploader](docs/cli-uploader.md) implements the I865 OEM
-loader transaction and persistent activation. Live bench validation is still pending.
+range. The [Java uploader](docs/cli-uploader.md) and M749ACT3 firmware support
+the known I812/I832/I865 loaders and persistent activation. Physical I832
+installation and power-cycle validation remain outstanding.
 
 Calibration must be handled separately. Given a complete, retained or deliberately
 modified dump of `0x08060000-0x0807FFFB` (131,068 bytes, without its CRC), generate

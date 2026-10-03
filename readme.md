@@ -124,7 +124,7 @@ connectors; `auto` STmin uses the CLI's transport-specific default.
   supported OEM full-flash `.bin`. HEX/SREC software updates preserve
   calibration. OEM BIN restores replace software **and calibration**, preserving
   the connected ECU's loader, identity, pairing and storage. Only matching
-  I812/I865 profiles are supported; partial dumps are rejected. See
+  I812/I832/I865 profiles are supported; partial dumps are rejected. See
   [write details and completion checks](docs/cli-uploader.md#selected-file-writes).
 
 The buttons use the CLI transfer implementation and report progress and failures
@@ -149,6 +149,12 @@ If the ECU does not answer, check ECU power and CAN wiring, then use
 new query.
 
 ## Command-line installation and update
+
+Current M749ACT3 software supports the I812NA01, I812TA01, I832GA01 and I865LB52
+backups across three validated loader profiles. For I832, update both the
+uploader and firmware: older M749ACT1/M749ACT2 files cannot activate on its
+loader. Offline checks pass; physical I832 installation and power-cycle testing
+remain outstanding. See the [compatibility table](docs/cli-uploader.md).
 
 The same installation is available without the console UI. Linux/macOS with
 an SLCAN adapter:

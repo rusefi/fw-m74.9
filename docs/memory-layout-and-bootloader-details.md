@@ -324,18 +324,20 @@ Software checks pass; electrical and power-cycle testing is pending.
 
 ## Activation ABI
 
-The application reserves 32 bytes at 0x0805FFE0 for `M749ACT2`. Its eight
-little-endian words are 3934374D, 32544341, 00000002, 00000001, D7B6B894,
-08060000, 4F256CD9, 08069000: magic, profile count, activation protocol, then
-two (loader CRC, retained calibration start) pairs. The software CRC domain
-remains the same on both targets. These bytes remain inside that domain.
-Legacy `M749ACT1` descriptors support only I865.
+The application reserves 32 bytes at 0x0805FFE0 for `M749ACT3`. Its eight
+little-endian words are 3934374D, 33544341, D7B6B894, 08060000, 4F256CD9,
+08069000, E3186D26, 08060000: magic followed by three (loader CRC, retained
+calibration start) pairs. Version 3 implies exactly three pairs and activation
+protocol 1, removing ACT2's explicit count/protocol words to keep the same
+reservation and software ranges. These bytes remain inside the software CRC.
+Legacy `M749ACT1` supports I865; `M749ACT2` supports I812/I865. Old uploaders
+reject ACT3, and the current uploader rejects old payloads on I832.
 
 I812's original software/calibration split is 0x08069000. The replacement
 software still ends its first range at 0x08060000 and preserves the entire gap
 through 0x0807FFFF. I812 bytes 0x08060000-0x08068FFF are retained but are not
 part of either replacement software CRC or I812 calibration CRC. Boot CRC
-4F256CD9 selects calibration 0x08069000-0x0807FFFB; D7B6B894 selects
+4F256CD9 selects calibration 0x08069000-0x0807FFFB; D7B6B894 and E3186D26 select
 0x08060000-0x0807FFFB. The stored trailer remains at 0x0807FFFC. Unknown loader
 CRCs cannot activate. Calibration generation/upload described above is I865-only.
 

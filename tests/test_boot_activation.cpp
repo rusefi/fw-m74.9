@@ -122,7 +122,7 @@ int main() {
     changed = m749::checkImages(read, [] {});
     assert(changed.software != consistent.software && changed.boot == consistent.boot);
 
-    // Construct synthetic loader CRC domains for both profiles. Solve the final
+    // Construct synthetic loader CRC domains for all profiles. Solve the final
     // four input bytes as a GF(2) linear system; no original firmware is needed.
     auto setBootCrc = [&](uint32_t target) {
         const uint32_t patch = 0x0822DFF8;
@@ -150,14 +150,14 @@ int main() {
         assert(value == 0 && tailCrc(solution) == target);
         writeWord(0x0822DFFC, target);
     };
-    for (auto boot : {m749::I865BootCrc, m749::I812BootCrc}) {
+    for (auto boot : {m749::I865BootCrc, m749::I812BootCrc, m749::I832BootCrc}) {
         setBootCrc(boot);
         checked = m749::checkImages(read, [] {});
         writeWord(0x080FFFFC, checked.software);
         writeWord(0x0807FFFC, checked.calibration);
         assert(m749::checkImages(read, [] {}).valid);
         // I812 preserves 60000..68FFF without including it in custom software
-        // or the retained I812 calibration CRC. I865 includes it in calibration.
+        // or the retained I812 calibration CRC. I865/I832 include it in calibration.
         image[0x60000] ^= 1;
         assert(m749::checkImages(read, [] {}).valid == (boot == m749::I812BootCrc));
         image[0x60000] ^= 1;

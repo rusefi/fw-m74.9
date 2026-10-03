@@ -59,7 +59,9 @@ final class M749Uploader {
             phase = "activation preflight";
             if (image.domain == M749Image.Domain.CALIBRATION) {
                 boolean legacy = reader.matches(M749Image.ACTIVATION_ADDRESS + 7, 1, '1');
-                byte[] descriptor = legacy ? M749Image.ACTIVATION_ABI : M749Image.ACTIVATION_ABI_V2;
+                byte[] descriptor = legacy ? M749Image.ACTIVATION_ABI :
+                        reader.matches(M749Image.ACTIVATION_ADDRESS + 7, 1, '2') ?
+                                M749Image.ACTIVATION_ABI_V2 : M749Image.ACTIVATION_ABI_V3;
                 for (int i = 0; i < descriptor.length; i++) {
                     reader.verifyByte(M749Image.ACTIVATION_ADDRESS + i, descriptor[i] & 255);
                 }

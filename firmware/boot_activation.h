@@ -9,6 +9,7 @@ constexpr uint32_t NormalMarker = 0x43A0C212;
 constexpr uint32_t ProgrammingMarker = 0x2548A4D2;
 constexpr uint32_t I865BootCrc = 0xD7B6B894;
 constexpr uint32_t I812BootCrc = 0x4F256CD9;
+constexpr uint32_t I832BootCrc = 0xE3186D26;
 constexpr uint32_t ActivationDescriptor = 0x0805FFE0;
 constexpr size_t MarkerPageSize = 4096;
 
@@ -52,7 +53,8 @@ ImageChecks checkImages(Read read, Heartbeat heartbeat) {
     auto calibration = crcRange(read, heartbeat, calibrationStart, 0x0807FFFC - calibrationStart, 0xFFFFFFFF);
     return {software, calibration, boot,
         software == readWord(read, 0x080FFFFC) && calibration == readWord(read, 0x0807FFFC) &&
-        boot == readWord(read, 0x0822DFFC) && (boot == I865BootCrc || boot == I812BootCrc) &&
+        boot == readWord(read, 0x0822DFFC) &&
+        (boot == I865BootCrc || boot == I812BootCrc || boot == I832BootCrc) &&
         readWord(read, 0x08001000) == 0x20020000 && readWord(read, 0x08001004) == 0x08080001};
 }
 
