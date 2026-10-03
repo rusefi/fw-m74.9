@@ -16,7 +16,7 @@
 
 /*
  * M74.9 resident-loader application layout. See docs/memory-layout-and-bootloader-details.md.
- * Keep the OEM stack below ram0; leave low SRAM (including boot intent) alone.
+ * Keep the OEM stack below ram0; reserve boot intent and bootstrap RAM separately.
  */
 MEMORY
 {
