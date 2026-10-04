@@ -58,8 +58,8 @@
 #define adc_channel_e_EFI_ADC_ERROR 50
 #define adc_channel_e_EFI_ADC_NONE 0
 #define adc_channel_e_EFI_ADC_TOTAL_CHANNELS 49
-#define adc_channel_e_enum 0="NONE",13="ETB TPS position sensor 1 signal",14="ETB TPS position sensor 2 signal",2="MAF/MAP sensor signal",11="Pedal position sensor 1 signal PPS1",12="Pedal position sensor 2 signal PPS2"
-#define adc_channel_e_fullenum "NONE","INVALID","MAF/MAP sensor signal","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","Pedal position sensor 1 signal PPS1","Pedal position sensor 2 signal PPS2","ETB TPS position sensor 1 signal","ETB TPS position sensor 2 signal","INVALID"
+#define adc_channel_e_enum 0="NONE",40="ECT CLT Coolant Sensor Input",13="ETB TPS position sensor 1 signal",14="ETB TPS position sensor 2 signal",33="IAT Sensor Input",2="MAF/MAP sensor signal",11="Pedal position sensor 1 signal PPS1",12="Pedal position sensor 2 signal PPS2"
+#define adc_channel_e_fullenum "NONE","INVALID","MAF/MAP sensor signal","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","Pedal position sensor 1 signal PPS1","Pedal position sensor 2 signal PPS2","ETB TPS position sensor 1 signal","ETB TPS position sensor 2 signal","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","IAT Sensor Input","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","ECT CLT Coolant Sensor Input","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID","INVALID"
 #define ADC_CHANNEL_NONE 0
 #define afr_sensor_s_size 20
 #define air_pressure_sensor_config_s_size 12
@@ -1650,7 +1650,7 @@
 #define show_default_engine_type false
 #define show_tcu_gauges false
 #define show_vvt_output_pin true
-#define SIGNATURE_HASH 1738621947
+#define SIGNATURE_HASH 1713226306
 #define SIMULATOR_TUNE_BIN_FILE_NAME "generated/simulator_tune_image.bin"
 #define SIMULATOR_TUNE_BIN_FILE_NAME_PREFIX "generated/simulator_tune_image"
 #define SIMULATOR_TUNE_BIN_FILE_NAME_SUFFIX ".bin"
@@ -2298,7 +2298,7 @@
 #define ts_show_wbo_canbus_index true
 #define ts_show_wbo_canbus_set_index true
 #define ts_show_wbo_canbus_set_type false
-#define TS_SIGNATURE "rusEFI main.2026.10.04.re74.9.1738621947"
+#define TS_SIGNATURE "rusEFI main.2026.10.04.re74.9.1713226306"
 #define TS_SIMULATE_CAN '>'
 #define TS_SIMULATE_CAN_char >
 #define TS_TEST_COMMAND 't'
