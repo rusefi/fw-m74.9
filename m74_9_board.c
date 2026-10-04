@@ -179,6 +179,20 @@ static void stm32_gpio_init(void) {
  */
 void __early_init(void) {
 
+  /* AT32 DIVR is at +0x60, not the STM32 ACR address. The current HAL's
+     FLASH_TypeDef stops at +0x14, so access these two registers explicitly.
+     Configure /3 before clock initialization: 288 MHz HCLK gives a 96 MHz
+     flash clock, below the AT32's 100 MHz limit. Reset defaults to /4.
+     Continuous reads reduce instruction-fetch stalls in non-zero-wait flash,
+     where this board's executable code lives. Do not enable NZW boost. */
+#if STM32_HCLK > 300000000
+#error "M74.9 flash divider must keep the flash clock at or below 100 MHz"
+#endif
+  volatile uint32_t * const flashDivr = (volatile uint32_t *)(FLASH_R_BASE + 0x60U);
+  volatile uint32_t * const flashContr = (volatile uint32_t *)(FLASH_R_BASE + 0x58U);
+  *flashDivr = (*flashDivr & ~3U) | 1U;
+  *flashContr |= 1U << 31;
+
   stm32_gpio_init();
   stm32_clock_init();
 }
