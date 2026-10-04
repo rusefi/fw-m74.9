@@ -201,7 +201,7 @@ class M749UploaderTest {
         IOException failure = assertThrows(IOException.class, () -> ecu.run(M749Image.Domain.SOFTWARE));
         assertTrue(failure.getMessage().contains("Application activation status did not become ready"));
         assertTrue(failure.getMessage().contains("F1A0: UDS 22 rejected: NRC 31"));
-        assertEquals(10, ecu.messages.stream().filter(s -> s.startsWith("Application readiness ")).count());
+        assertEquals(60, ecu.messages.stream().filter(s -> s.startsWith("Application readiness ")).count());
         assertEquals(1, ecu.resets);
         assertFalse(ecu.messages.stream().anyMatch(s -> s.startsWith("Upload complete")));
     }
@@ -220,7 +220,7 @@ class M749UploaderTest {
             IOException failure = assertThrows(IOException.class, () -> ecu.run(M749Image.Domain.SOFTWARE));
             assertTrue(failure.getMessage().contains(timeout ? "ISO-TP/UDS timeout" : "F1A0 returned 4D740100"));
             assertEquals(1, ecu.resets);
-            assertEquals(10, ecu.messages.stream().filter(s -> s.startsWith("Application readiness ")).count());
+            assertEquals(60, ecu.messages.stream().filter(s -> s.startsWith("Application readiness ")).count());
         }
     }
 
@@ -288,6 +288,26 @@ class M749UploaderTest {
         }
     }
 
+    @Test void firstInstallationNeedsTwentyEightSecondsForRamBootstrap() throws Exception {
+        long[] sinceReset = {0};
+        Ecu ecu = new Ecu() {
+            public void pause(long milliseconds) { sinceReset[0] += milliseconds; }
+            public byte[] exchange(byte[] request, byte[] prefix, long timeout) throws IOException {
+                if (app && resets == 1 && Arrays.equals(request, bytes(0x22, 0xF1, 0xA0))
+                        && sinceReset[0] < 28_000) {
+                    throw new SlcanTransport.CommandRejected();
+                }
+                byte[] result = super.exchange(request, prefix, timeout);
+                if (request[0] == 0x11) { sinceReset[0] = 0; }
+                return result;
+            }
+        };
+        ecu.run(M749Image.Domain.SOFTWARE);
+        assertEquals(2, ecu.resets);
+        assertEquals(27, ecu.messages.stream().filter(s -> s.startsWith("Application readiness ")).count());
+        assertTrue(ecu.messages.stream().anyMatch(s -> s.startsWith("Upload complete")));
+    }
+
     @Test void persistentStartupBellExhaustsBoundedPollsWithoutRecoveryReset() {
         int[] polls = {0};
         Ecu ecu = new Ecu() {
@@ -300,7 +320,7 @@ class M749UploaderTest {
             }
         };
         IOException failure = assertThrows(IOException.class, () -> ecu.run(M749Image.Domain.SOFTWARE));
-        assertEquals(10, polls[0]);
+        assertEquals(60, polls[0]);
         assertEquals(1, ecu.resets);
         assertTrue(failure.getMessage().contains("SLCAN adapter rejected"));
         assertTrue(failure.getMessage().contains("No recovery reset was sent"));

@@ -14,6 +14,9 @@ import static com.rusefi.m749.M749Identification.bytes;
 
 /** Supported resident-loader programmer with application-side persistent activation. */
 final class M749Uploader {
+    // First installation validates all images before raising the OEM RAM size.
+    // On I832 this took 28 seconds before normal clocks/CAN were initialized.
+    private static final int APPLICATION_READINESS_ATTEMPTS = 60;
     interface Connection {
         byte[] exchange(byte[] request, byte[] prefix, long timeout) throws IOException, InterruptedException;
         void pause(long milliseconds) throws InterruptedException;
@@ -245,9 +248,9 @@ final class M749Uploader {
     private void awaitApplication() throws IOException, InterruptedException {
         IOException last = null;
         String observation = "no F1A0 reply";
+        out.accept("Waiting for application startup; first-install RAM checks can take about 30 seconds. Keep ECU power on.");
         connection.pause(1_000);
-        for (int attempt = 0; attempt < 10; attempt++) {
-            long retryDelay = 250;
+        for (int attempt = 0; attempt < APPLICATION_READINESS_ATTEMPTS; attempt++) {
             try {
                 int status = applicationWord(0xF1A0);
                 if (status == 0x4D740101) {
@@ -264,13 +267,12 @@ final class M749Uploader {
                 // starts. Only this read-only readiness poll may be retried.
                 last = e;
                 observation = "F1A0: " + e.getMessage() + "; waiting for application CAN startup";
-                retryDelay = 1_000;
             } catch (IOException e) {
                 // A transport/protocol failure is not evidence of a slow boot.
                 throw new IOException("Application readiness query F1A0 failed: " + e.getMessage(), e);
             }
-            out.accept("Application readiness " + (attempt + 1) + "/10: " + observation);
-            if (attempt < 9) { connection.pause(retryDelay); }
+            out.accept("Application readiness " + (attempt + 1) + "/" + APPLICATION_READINESS_ATTEMPTS + ": " + observation);
+            if (attempt + 1 < APPLICATION_READINESS_ATTEMPTS) { connection.pause(1_000); }
         }
         throw new IOException("Application activation status did not become ready; last observation: " + observation, last);
     }
