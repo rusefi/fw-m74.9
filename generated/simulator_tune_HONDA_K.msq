@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <msq xmlns="http://www.msefi.com/:msq">
     <page/>
-    <page number="0" size="16228">
+    <page number="0" size="16232">
         <constant name="accelEnrichmentMode">"MS Adder"</constant>
         <constant name="accelerometerCsPin">"NONE"</constant>
         <constant name="accelerometerCsPinMode">"default"</constant>
@@ -560,7 +560,7 @@
         <constant name="brakePedalPin">"NONE"</constant>
         <constant name="brakePedalPinMode">"PULLUP"</constant>
         <constant digits="0" name="byFirmwareVersion" units="index">0</constant>
-        <constant digits="0" name="calibrationBirthday" units="">20261003</constant>
+        <constant digits="0" name="calibrationBirthday" units="">20261004</constant>
         <constant digits="0" name="camDecoder2jzPosition" units="angle">95</constant>
         <constant digits="0" name="camDecoder2jzPrecision" units="">40</constant>
         <constant name="camInputs1">"NONE"</constant>
@@ -2691,7 +2691,7 @@
         <constant digits="1" name="knockSuppressMinTps" units="%">10.0</constant>
         <constant name="l9779_cs">"NONE"</constant>
         <constant name="l9779spiDevice">"Off"</constant>
-        <constant name="ladaCanbusProfile">"no"</constant>
+        <constant name="ladaCanbusProfile">"Disabled"</constant>
         <constant cols="1" digits="0" name="lambdaLoadBins" rows="16" units="{bitStringValue(afrLoadUnitLabels, afrLoadUnitIdx)}">
          30
          40
@@ -5239,7 +5239,7 @@
 </constant>
         <constant name="yesUnderstandLocking">"no"</constant>
     </page>
-    <versionInfo firmwareInfo="20261003" nPages="1" signature="rusEFI main.2026.10.03.re74.9.1341749637" version="5.0"/>
+    <versionInfo firmwareInfo="20261003" nPages="1" signature="rusEFI main.2026.10.04.re74.9.1738621947" version="5.0"/>
     <bibliography author="rusEFI 20261003" writeDate="date"/>
     <settings/>
     <userComments/>
