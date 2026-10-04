@@ -152,7 +152,7 @@ public final class M749Panel extends JPanel {
         credentialRow.add(browseCredential);
         credentialRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, credentialRow.getPreferredSize().height));
         // top.add(credentialRow);
-        top.add(uploadHint);
+        // top.add(uploadHint);
         flash.setName("flash");
         flash.setEnabled(false);
         top.add(flash);
