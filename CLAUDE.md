@@ -252,3 +252,11 @@ INI; a newly generated INI also has a newly generated firmware signature.
   one second apart, and instruct the operator to keep power on. The same
   image subsequently configured EOPB0, activated and passed a physical cold
   boot without reflashing; only option bytes 0x10/0x11 changed (FFFF -> 05FA).
+
+- J-Link V9.78 disconnect can disable DWT CYCCNT used by polled firmware
+  delays. SetDbgPowerDownOnClose=0 alone was insufficient: also use
+  SetSkipDebugDeInit=1 before q. Clear breakpoints and reset after halted
+  timing investigations; halts can introduce gap-in-time errors.
+- For AT32 CANv1, RF0R bit 3 is latched FULL, not overrun. FOVR is bit 4;
+  the HAL clears it in the RX ISR. To establish overflow, stop in the overrun
+  branch before that clear. The live SLCAN burst test captured RF0R=0x1B.
