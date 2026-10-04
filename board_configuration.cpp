@@ -67,7 +67,7 @@ static void setupEtb() {
 
  */
 static void m74_9_boardDefaultConfiguration() {
-	config->ladaCanbusProfile = true;
+	config->ladaCanbusProfile = LadaCanbusProfile::Largus;
 	setInjectorPins();
 	setIgnitionPins();
 

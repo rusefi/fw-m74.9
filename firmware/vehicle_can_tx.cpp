@@ -15,7 +15,7 @@ struct PeriodicFrame {
 // Periods and phases are in 5 ms worker ticks. Stagger the slow frames to
 // leave queue space for diagnostics and other enabled CAN services.
 // Unassigned fields retain fixed profile baselines; they are not live sensors.
-constexpr PeriodicFrame frames[] = {
+constexpr PeriodicFrame largusFrames[] = {
     {0x186, 7,   2,  0, {0x00, 0x00, 0x32, 0x03, 0x20, 0x00, 0x20, 0x00}},
     {0x189, 8,   2,  1, {0x32, 0x03, 0x20, 0x32, 0x00, 0xB9, 0x00, 0x00}},
     {0x18A, 6,   2,  0, {0x32, 0x00, 0x00, 0x06, 0xFE, 0x00, 0x00, 0x00}},
@@ -37,6 +37,25 @@ constexpr PeriodicFrame frames[] = {
     {0x5E2, 2, 200, 19, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
 };
 
+// Shared Niva/Granta layout. Unassigned fields use fixed compatibility values;
+// they do not describe live torque, warning lamps or other vehicle state.
+constexpr PeriodicFrame nivaGrantaFrames[] = {
+    {0x1F9, 8,  2,  0, {0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+    {0x180, 8,  2,  0, {0x00, 0x00, 0x30, 0x23, 0x86, 0x11, 0x40, 0x00}},
+    {0x160, 7,  2,  0, {0x2D, 0xA3, 0x02, 0x00, 0x00, 0xC8, 0x00, 0x00}},
+    {0x182, 8,  2,  1, {0x00, 0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00}},
+    {0x186, 7,  2,  1, {0x00, 0x00, 0x30, 0x20, 0x00, 0x00, 0x00, 0x00}},
+    {0x18A, 6,  2,  1, {0x2D, 0xA8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+    {0x189, 8,  2,  1, {0x2D, 0xA3, 0x20, 0x38, 0x60, 0xD9, 0x00, 0x00}},
+    {0x35D, 8, 20,  0, {0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00}},
+    {0x551, 8, 20,  2, {0x00, 0x00, 0x01, 0x80, 0x01, 0x00, 0x00, 0x00}},
+    {0x6E2, 6, 20,  4, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+    {0x5DA, 8, 20,  6, {0x00, 0x76, 0x00, 0x00, 0xBE, 0x00, 0x00, 0x00}},
+    {0x65C, 2, 20,  8, {0xC8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+    {0x314, 8, 20, 10, {0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
+    {0x68E, 8, 20, 12, {0x0A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xAA}},
+};
+
 float bounded(float value, float low, float high) {
     if (!std::isfinite(value)) {
         return low;
@@ -55,24 +74,47 @@ uint16_t indicatedSpeed(float speed) {
 }
 
 void M749VehicleCanTransmitter::update() {
-    if (!config->ladaCanbusProfile || !engineConfiguration->canWriteEnabled) {
+    const auto profile = config->ladaCanbusProfile;
+    if (profile != m_profile || !engineConfiguration->canWriteEnabled) {
+        m_tick = 0;
+        m_counter1F9 = m_counter35D = m_counter551 = 0;
+        m_profile = profile;
+    }
+    const PeriodicFrame* frames;
+    size_t frameCount;
+    switch (profile) {
+    case LadaCanbusProfile::Largus:
+        frames = largusFrames;
+        frameCount = efi::size(largusFrames);
+        break;
+    case LadaCanbusProfile::NivaGranta:
+        frames = nivaGrantaFrames;
+        frameCount = efi::size(nivaGrantaFrames);
+        break;
+    default:
         m_tick = 0;
         return;
     }
+    if (!engineConfiguration->canWriteEnabled) {
+        m_tick = 0;
+        return;
+    }
+    const bool largus = profile == LadaCanbusProfile::Largus;
 
     const auto rpm = bounded(Sensor::getOrZero(SensorType::Rpm), 0, 8191.875f);
     const auto clt = Sensor::get(SensorType::Clt);
     const auto iat = Sensor::get(SensorType::Iat);
     const auto state = rpm == 0 ? 0 : engine->rpmCalculator.isRunning() ? 2 : 1;
 
-    for (const auto& frame : frames) {
+    for (size_t index = 0; index < frameCount; index++) {
+        const auto& frame = frames[index];
         if (m_tick % frame.periodTicks != frame.phaseTicks) {
             continue;
         }
         // No temperature fault encoding is defined by this profile. Stop the
         // affected frame instead of transmitting a fabricated healthy reading.
-        if ((frame.id == 0x5DA && (!clt || !std::isfinite(clt.Value)))
-            || (frame.id == 0x65C && (!iat || !std::isfinite(iat.Value)))) {
+        if ((frame.id == (largus ? 0x5DA : 0x551) && (!clt || !std::isfinite(clt.Value)))
+            || (largus && frame.id == 0x65C && (!iat || !std::isfinite(iat.Value)))) {
             continue;
         }
 
@@ -81,7 +123,11 @@ void M749VehicleCanTransmitter::update() {
             msg[i] = frame.baseline[i];
         }
         switch (frame.id) {
+        case 0x180:
         case 0x186: {
+            if (frame.id == 0x186 && !largus) {
+                break;
+            }
             const uint16_t raw = rpm * 8;
             msg[0] = raw >> 8;
             msg[1] = raw;
@@ -98,12 +144,30 @@ void M749VehicleCanTransmitter::update() {
             break;
         }
         case 0x5DA:
+            if (!largus) {
+                break;
+            }
             msg[0] = bounded(clt.Value, -40, 215) + 40;
             msg[1] = bounded(engine->module<IdleController>().unmock().idleTarget, 0, 2040) / 8;
             msg[4] = bounded(engineConfiguration->rpmHardLimit, 0, 8160) / 32;
             break;
         case 0x65C:
-            msg[0] = static_cast<uint8_t>(bounded(iat.Value, -40, 87) + 40) << 1;
+            if (largus) {
+                msg[0] = static_cast<uint8_t>(bounded(iat.Value, -40, 87) + 40) << 1;
+            }
+            break;
+        case 0x1F9:
+            msg[0] = (msg[0] & 0x0F) | (m_counter1F9 << 4);
+            m_counter1F9 = (m_counter1F9 + 1) & 0x0F;
+            break;
+        case 0x35D:
+            msg[6] = (msg[6] & 0x0F) | (m_counter35D << 4);
+            m_counter35D = (m_counter35D + 1) & 0x0F;
+            break;
+        case 0x551:
+            msg[1] = bounded(clt.Value, -40, 215) + 40;
+            msg[5] = (msg[5] & 0x0F) | (m_counter551 << 4);
+            m_counter551 = (m_counter551 + 1) & 0x0F;
             break;
         default:
             break;

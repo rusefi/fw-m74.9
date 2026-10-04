@@ -24,7 +24,7 @@ protected:
 
     void SetUp() override {
         Sensor::inhibitTimeouts(false);
-        config->ladaCanbusProfile = true;
+        config->ladaCanbusProfile = LadaCanbusProfile::Largus;
         engineConfiguration->enableCanVss = false;
         engineConfiguration->vehicleSpeedSensorInputPin = Gpio::Unassigned;
     }
@@ -202,7 +202,7 @@ TEST_F(M749CanRx, PublishesThroughSensorRegistry) {
 
 TEST(M749CanRxConfiguration, ExplicitSourcesTakePrecedence) {
     EngineTestHelper eth(engine_type_e::TEST_ENGINE);
-    config->ladaCanbusProfile = true;
+    config->ladaCanbusProfile = LadaCanbusProfile::Largus;
     engineConfiguration->enableCanVss = false;
     engineConfiguration->vehicleSpeedSensorInputPin = Gpio::Unassigned;
     EXPECT_TRUE(useM749VehicleSpeed());
@@ -221,12 +221,12 @@ TEST(M749CanRxConfiguration, ExplicitSourcesTakePrecedence) {
 TEST_F(M749CanRx, ProfileDisableDropsRxAndReenableStartsFresh) {
     receive(speedFrame(5000, 0));
     expectSpeed(50);
-    config->ladaCanbusProfile = false;
+    config->ladaCanbusProfile = LadaCanbusProfile::Disabled;
     speed.reset();
     EXPECT_FALSE(useM749VehicleSpeed());
     receive(speedFrame(8000, 1));
     EXPECT_FALSE(speed.get());
-    config->ladaCanbusProfile = true;
+    config->ladaCanbusProfile = LadaCanbusProfile::Largus;
     receive(speedFrame(7000, 0));
     expectSpeed(70);
 }
@@ -239,4 +239,103 @@ TEST_F(M749CanRx, ExplicitSourceDropsVehicleRx) {
     engineConfiguration->vehicleSpeedSensorInputPin = Gpio::A0;
     receive(speedFrame(5000, 0));
     EXPECT_FALSE(speed.get());
+}
+
+namespace {
+CANRxFrame nivaSpeedFrame(uint16_t raw) {
+    CANRxFrame frame = {};
+    CAN_SID(frame) = 0x28C;
+    frame.DLC = 2;
+    frame.data8[0] = raw >> 8;
+    frame.data8[1] = raw;
+    return frame;
+}
+}
+
+TEST_F(M749CanRx, NivaGrantaSpeedFreshnessSentinelAndClamp) {
+    config->ladaCanbusProfile = LadaCanbusProfile::NivaGranta;
+    EXPECT_TRUE(useM749VehicleSpeed());
+    receive(nivaSpeedFrame(5000));
+    expectSpeed(50);
+    // Equal payloads refresh: this profile has no alive counter.
+    advanceTimeUs(90000);
+    receive(nivaSpeedFrame(5000));
+    advanceTimeUs(90000);
+    expectSpeed(50);
+    advanceTimeUs(10001);
+    EXPECT_FALSE(speed.get());
+    receive(nivaSpeedFrame(12345));
+    expectSpeed(123.45f);
+    receive(nivaSpeedFrame(65534));
+    expectSpeed(500);
+    receive(nivaSpeedFrame(65535));
+    EXPECT_FALSE(speed.get());
+    receive(nivaSpeedFrame(0));
+    expectSpeed(0);
+}
+
+TEST_F(M749CanRx, NivaGrantaFiltersAndSourcePrecedence) {
+    config->ladaCanbusProfile = LadaCanbusProfile::NivaGranta;
+    for (unsigned length = 0; length <= 15; length++) {
+        if (length == 2) {
+            continue;
+        }
+        auto frame = nivaSpeedFrame(5000);
+        frame.DLC = length;
+        receive(frame);
+        EXPECT_FALSE(speed.get()) << "DLC " << length;
+    }
+    receive(speedFrame(5000, 0));
+    receive(nivaSpeedFrame(5000), 1);
+    auto frame = nivaSpeedFrame(5000);
+    frame.SID++;
+    receive(frame);
+    frame = nivaSpeedFrame(5000);
+    frame.IDE = CAN_IDE_EXT;
+    frame.EID = 0x28C;
+    receive(frame);
+    frame = nivaSpeedFrame(5000);
+    frame.RTR = CAN_RTR_REMOTE;
+    receive(frame);
+    EXPECT_FALSE(speed.get());
+    engineConfiguration->enableCanVss = true;
+    EXPECT_FALSE(useM749VehicleSpeed());
+    receive(nivaSpeedFrame(5000));
+    EXPECT_FALSE(speed.get());
+    engineConfiguration->enableCanVss = false;
+    engineConfiguration->vehicleSpeedSensorInputPin = Gpio::A0;
+    EXPECT_FALSE(useM749VehicleSpeed());
+    receive(nivaSpeedFrame(5000));
+    EXPECT_FALSE(speed.get());
+}
+
+TEST_F(M749CanRx, ProfileSwitchResetsStateAndRejectsOtherProfile) {
+    receive(speedFrame(5000, 0));
+    expectSpeed(50);
+    // Configuration apply calls reset via the board stop hook.
+    speed.reset();
+    config->ladaCanbusProfile = LadaCanbusProfile::NivaGranta;
+    receive(speedFrame(8000, 1));
+    EXPECT_FALSE(speed.get());
+    receive(nivaSpeedFrame(7000));
+    expectSpeed(70);
+    speed.reset();
+    config->ladaCanbusProfile = LadaCanbusProfile::Largus;
+    receive(nivaSpeedFrame(8000));
+    EXPECT_FALSE(speed.get());
+    receive(speedFrame(6000, 0));
+    expectSpeed(60);
+}
+
+TEST_F(M749CanRx, InvalidProfilesNeverEnableEitherReceiver) {
+    for (unsigned raw = 0; raw <= 255; raw++) {
+        if (raw == 1 || raw == 2) {
+            continue;
+        }
+        config->ladaCanbusProfile = static_cast<LadaCanbusProfile>(raw);
+        EXPECT_FALSE(useM749VehicleSpeed()) << raw;
+        receive(speedFrame(5000, 0));
+        receive(nivaSpeedFrame(5000));
+        EXPECT_FALSE(speed.get()) << raw;
+    }
 }

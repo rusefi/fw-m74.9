@@ -28,5 +28,9 @@ public:
     void update();
 private:
     uint16_t m_tick = 0;
+    LadaCanbusProfile m_profile = LadaCanbusProfile::Disabled;
+    uint8_t m_counter1F9 = 0;
+    uint8_t m_counter35D = 0;
+    uint8_t m_counter551 = 0;
 };
 void updateM749VehicleCan(CanCycle cycle);

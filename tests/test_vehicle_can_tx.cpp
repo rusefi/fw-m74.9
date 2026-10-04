@@ -13,7 +13,7 @@ protected:
     M749VehicleCanTransmitter transmitter;
 
     void SetUp() override {
-        config->ladaCanbusProfile = true;
+        config->ladaCanbusProfile = LadaCanbusProfile::Largus;
         engineConfiguration->canWriteEnabled = true;
         engineConfiguration->cranking.rpm = 400;
         engineConfiguration->rpmHardLimit = 5920;
@@ -183,14 +183,137 @@ TEST_F(M749CanTx, InvalidSensorsAndNonFiniteValues) {
 }
 
 TEST_F(M749CanTx, ProfileAndGlobalTransmitGates) {
-    config->ladaCanbusProfile = false;
+    config->ladaCanbusProfile = LadaCanbusProfile::Disabled;
     EXPECT_TRUE(onePeriod().empty());
-    config->ladaCanbusProfile = true;
+    config->ladaCanbusProfile = LadaCanbusProfile::Largus;
     EXPECT_EQ(onePeriod().size(), 19U);
     engineConfiguration->canWriteEnabled = false;
     EXPECT_TRUE(onePeriod().empty());
     engineConfiguration->canWriteEnabled = true;
     EXPECT_EQ(onePeriod().size(), 19U);
-    config->ladaCanbusProfile = false;
+    config->ladaCanbusProfile = LadaCanbusProfile::Disabled;
     EXPECT_TRUE(onePeriod().empty());
+}
+
+TEST_F(M749CanTx, NivaGrantaIdsLengthsPeriodsCountersAndBurst) {
+    config->ladaCanbusProfile = LadaCanbusProfile::NivaGranta;
+    const std::map<uint32_t, std::pair<unsigned, unsigned>> expected = {
+        {0x1F9, {8, 2}}, {0x180, {8, 2}}, {0x160, {7, 2}}, {0x182, {8, 2}},
+        {0x186, {7, 2}}, {0x18A, {6, 2}}, {0x189, {8, 2}},
+        {0x35D, {8, 20}}, {0x551, {8, 20}}, {0x6E2, {6, 20}},
+        {0x5DA, {8, 20}}, {0x65C, {2, 20}}, {0x314, {8, 20}}, {0x68E, {8, 20}},
+    };
+    std::map<uint32_t, unsigned> counts, lastTick;
+    for (unsigned tick = 0; tick < 440; tick++) {
+        transmitter.update();
+        EXPECT_LE(txCanBuffer.getCount(), 4U);
+        while (txCanBuffer.getCount()) {
+            const auto frame = txCanBuffer.get();
+            const auto id = CAN_ID(frame);
+            ASSERT_TRUE(expected.count(id)) << id;
+            EXPECT_FALSE(CAN_ISX(frame));
+            EXPECT_FALSE(CAN_ISRTR(frame));
+            EXPECT_EQ(frame.DLC, expected.at(id).first);
+            if (counts[id]) {
+                EXPECT_EQ(tick - lastTick[id], expected.at(id).second) << id;
+            }
+            if (id == 0x1F9 || id == 0x35D || id == 0x551) {
+                const unsigned byte = id == 0x1F9 ? 0 : id == 0x35D ? 6 : 5;
+                EXPECT_EQ(frame.data8[byte] >> 4, counts[id] % 16) << id;
+                EXPECT_EQ(frame.data8[byte] & 0x0F, 0) << id;
+            }
+            lastTick[id] = tick;
+            counts[id]++;
+        }
+    }
+    ASSERT_EQ(counts.size(), 14U);
+    for (const auto& item : expected) {
+        EXPECT_EQ(counts[item.first], 440 / item.second.second) << item.first;
+    }
+}
+
+TEST_F(M749CanTx, NivaGrantaLiveFieldsAndDistinctSharedIds) {
+    config->ladaCanbusProfile = LadaCanbusProfile::NivaGranta;
+    Sensor::setMockValue(SensorType::Rpm, 1256);
+    Sensor::setMockValue(SensorType::Clt, 90);
+    Sensor::setMockValue(SensorType::VehicleSpeed, 50);
+    auto frames = onePeriod();
+    EXPECT_EQ(frames.at(0x180).data8[0], 0x27);
+    EXPECT_EQ(frames.at(0x180).data8[1], 0x40);
+    EXPECT_EQ(frames.at(0x180).data8[2], 0x30);
+    EXPECT_EQ(frames.at(0x551).data8[1], 130);
+    EXPECT_EQ(frames.at(0x551).data8[3], 0x80);
+    EXPECT_EQ(frames.at(0x186).data8[0], 0);
+    EXPECT_EQ(frames.at(0x186).data8[1], 0);
+    EXPECT_EQ(frames.at(0x5DA).data8[0], 0);
+    EXPECT_EQ(frames.at(0x65C).DLC, 2);
+    EXPECT_EQ(frames.at(0x65C).data8[1], 0);
+    EXPECT_FALSE(frames.count(0x217));
+    EXPECT_FALSE(frames.count(0x1F6));
+    EXPECT_FALSE(frames.count(0x70F));
+    EXPECT_FALSE(frames.count(0x711));
+    EXPECT_FALSE(frames.count(0x6D7));
+    Sensor::setMockValue(SensorType::Rpm, 10000);
+    Sensor::setMockValue(SensorType::Clt, 250);
+    frames = onePeriod();
+    EXPECT_EQ(frames.at(0x180).data8[0], 255);
+    EXPECT_EQ(frames.at(0x180).data8[1], 255);
+    EXPECT_EQ(frames.at(0x551).data8[1], 255);
+    Sensor::setMockValue(SensorType::Rpm, -1);
+    Sensor::setMockValue(SensorType::Clt, -100);
+    frames = onePeriod();
+    EXPECT_EQ(frames.at(0x180).data8[0], 0);
+    EXPECT_EQ(frames.at(0x180).data8[1], 0);
+    EXPECT_EQ(frames.at(0x551).data8[1], 0);
+}
+
+TEST_F(M749CanTx, NivaGrantaInvalidSensorsAndCounterRecovery) {
+    config->ladaCanbusProfile = LadaCanbusProfile::NivaGranta;
+    Sensor::setInvalidMockValue(SensorType::Rpm);
+    Sensor::setInvalidMockValue(SensorType::Clt);
+    Sensor::setInvalidMockValue(SensorType::Iat);
+    auto frames = onePeriod();
+    EXPECT_EQ(frames.size(), 13U);
+    EXPECT_FALSE(frames.count(0x551));
+    EXPECT_TRUE(frames.count(0x5DA));
+    EXPECT_TRUE(frames.count(0x65C));
+    EXPECT_EQ(frames.at(0x180).data8[0], 0);
+    EXPECT_EQ(frames.at(0x180).data8[1], 0);
+    Sensor::setMockValue(SensorType::Rpm, std::numeric_limits<float>::infinity());
+    Sensor::setMockValue(SensorType::Clt, std::numeric_limits<float>::quiet_NaN());
+    frames = onePeriod();
+    EXPECT_FALSE(frames.count(0x551));
+    EXPECT_EQ(frames.at(0x180).data8[1], 0);
+    Sensor::setMockValue(SensorType::Clt, 90);
+    frames = onePeriod();
+    EXPECT_EQ(frames.at(0x551).data8[1], 130);
+    // Only actual transmissions advance this counter: ten messages, 0..9.
+    EXPECT_EQ(frames.at(0x551).data8[5], 0x90);
+}
+
+TEST_F(M749CanTx, LiveProfileChangesAndInvalidSelections) {
+    EXPECT_EQ(onePeriod().size(), 19U);
+    config->ladaCanbusProfile = LadaCanbusProfile::NivaGranta;
+    auto frames = onePeriod();
+    EXPECT_EQ(frames.size(), 14U);
+    EXPECT_FALSE(frames.count(0x217));
+    EXPECT_EQ(frames.at(0x1F9).data8[0], 0x30); // 100 frames, last counter 3.
+    engineConfiguration->canWriteEnabled = false;
+    EXPECT_TRUE(onePeriod().empty());
+    engineConfiguration->canWriteEnabled = true;
+    frames = onePeriod();
+    EXPECT_EQ(frames.size(), 14U);
+    EXPECT_EQ(frames.at(0x1F9).data8[0], 0x30);
+    config->ladaCanbusProfile = LadaCanbusProfile::Largus;
+    frames = onePeriod();
+    EXPECT_EQ(frames.size(), 19U);
+    EXPECT_FALSE(frames.count(0x180));
+    EXPECT_EQ(frames.at(0x65C).DLC, 3);
+    for (unsigned raw = 0; raw <= 255; raw++) {
+        if (raw == 1 || raw == 2) {
+            continue;
+        }
+        config->ladaCanbusProfile = static_cast<LadaCanbusProfile>(raw);
+        EXPECT_TRUE(onePeriod().empty()) << raw;
+    }
 }

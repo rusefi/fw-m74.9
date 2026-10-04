@@ -30,7 +30,7 @@ DDEFS += -DSTM32_GPT_TIM6_IRQ_PRIORITY=EFI_IRQ_ADC_PRIORITY
 # Use a distinct filename so simulator VPATH cannot select the hardware board.c.
 BOARD_C = $(BOARD_DIR)/m74_9_board.c
 # board.h from this directory
-BOARDINC = $(BOARD_DIR)
+BOARDINC = $(BOARD_DIR) $(BOARD_DIR)/firmware
 
 #This board has no USB wired out
 DDEFS += -DSTM32_USB_USE_OTG1=FALSE
