@@ -89,8 +89,8 @@ static void m74_9_boardDefaultConfiguration() {
   engineConfiguration->triggerInputPins[0] = Gpio::F8;
   engineConfiguration->camInputs[0] = Gpio::B9;
 
-	// Leave CLT/PF5 (EFI_ADC_39) and IAT/PF6 (EFI_ADC_32) unassigned until
-	// ADC3 acquisition is coordinated with knock and provides sample freshness.
+	// ADC3 acquisition supports CLT/PF5 (EFI_ADC_39) and IAT/PF6 (EFI_ADC_32).
+	// Leave defaults unassigned until the sensor curves have been qualified.
 	setM749ThermistorDefaults();
 // todo	engineConfiguration->map.sensor.hwChannel = EFI_ADC_;
 

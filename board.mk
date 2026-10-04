@@ -22,6 +22,9 @@ DDEFS += -DLED_CRITICAL_ERROR_BRAIN_PIN=Gpio::Unassigned
 
 IS_AT32F435 = yes
 
+# Acquire the two ADC3-only temperature inputs between knock windows.
+DDEFS += -DEFI_ADC3_SLOW=TRUE
+
 # TIM5 drives the microsecond scheduler through the PWM HAL. Its default IRQ
 # priority is 7, but the scheduling contract requires priority 3 on this port.
 DDEFS += -DSTM32_PWM_TIM5_IRQ_PRIORITY=EFI_IRQ_SCHEDULING_TIMER_PRIORITY

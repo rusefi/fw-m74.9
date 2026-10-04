@@ -260,3 +260,18 @@ INI; a newly generated INI also has a newly generated firmware signature.
 - For AT32 CANv1, RF0R bit 3 is latched FULL, not overrun. FOVR is bit 4;
   the HAL clears it in the RX ISR. To establish overflow, stop in the overrun
   branch before that clear. The live SLCAN burst test captured RF0R=0x1B.
+
+
+- ADCv2 shares its error IRQ across all three converters. An ADC3 temperature
+  abort at a knock deadline must not preempt a HAL completion/error transition.
+  Matching only ADC3's DMA priority is insufficient; ADC1/2 DMA must also match
+  the shared error IRQ. Validate spark/knock/watchdog timing after priority
+  changes. Raw trigger EXTI is separate from the priority-4 handoff that can
+  invoke scheduled work.
+- Board host tests need the board's generated header include path and metadata.
+  From ext/rusefi/unit_tests, source
+  `../firmware/config/boards/common_script_read_meta_env.inc ../../../meta-info.env`,
+  then use `make -j12 META_OUTPUT_ROOT_FOLDER=../../../generated/` and run
+  `build/rusefi_test` from that directory. BOARD_DIR alone selects the default
+  f407-discovery metadata. The ADC3 production-port fixture is separate:
+  `python3 tests/test_adc3_port.py` from the board root.
