@@ -8,6 +8,7 @@
 #include "firmware/bootloader_handoff.h"
 #include "firmware/boot_activation.h"
 #include "firmware/vehicle_can.h"
+#include "firmware/board_analog.h"
 
 // PB14 is error LED, configured in board.mk
 Gpio getCommsLedPin() {
@@ -88,8 +89,9 @@ static void m74_9_boardDefaultConfiguration() {
   engineConfiguration->triggerInputPins[0] = Gpio::F8;
   engineConfiguration->camInputs[0] = Gpio::B9;
 
-// todo	engineConfiguration->clt.adcChannel = EFI_ADC_; // ADC3 PF5
-// todo	engineConfiguration->iat.adcChannel = EFI_ADC_; // ADC3 PF6
+	// Leave CLT/PF5 (EFI_ADC_39) and IAT/PF6 (EFI_ADC_32) unassigned until
+	// ADC3 acquisition is coordinated with knock and provides sample freshness.
+	setM749ThermistorDefaults();
 // todo	engineConfiguration->map.sensor.hwChannel = EFI_ADC_;
 
 	// ?k high side/?k low side = ? ratio divider todo is the value below right?
@@ -230,6 +232,7 @@ static int boardGetMetaDcOutputsCount() {
     return 1;
 }
 void setup_custom_board_overrides() {
+	setupM749AnalogInputs();
 	custom_board_getMetaOutputsCount = boardGetMetaOutputsCount;
 	custom_board_getMetaDcOutputsCount = boardGetMetaDcOutputsCount;
 #if EFI_CONFIGURATION_STORAGE

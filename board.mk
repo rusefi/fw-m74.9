@@ -1,5 +1,6 @@
 # List of all the board related files.
 BOARDCPPSRC = $(BOARD_DIR)/board_configuration.cpp \
+  $(BOARD_DIR)/firmware/board_analog.cpp \
   $(BOARD_DIR)/firmware/bootloader_handoff.cpp \
   $(BOARD_DIR)/firmware/boot_activation.cpp \
   $(BOARD_DIR)/firmware/boot_ram.cpp \
