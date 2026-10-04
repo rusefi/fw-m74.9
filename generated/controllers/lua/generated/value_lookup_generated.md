@@ -2215,6 +2215,3 @@ Signed idle position offset when Lua reports Park or Neutral via setParkNeutral(
 ### wizardVeTable
 
 
-### ladaCanbusProfile
-Enable the Lada vehicle CAN receive and dashboard transmit profile on CAN1. Diagnostics remain available when disabled.
-
