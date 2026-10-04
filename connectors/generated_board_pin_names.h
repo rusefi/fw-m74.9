@@ -4,12 +4,14 @@
 #pragma once
 
 #define PIN_AA1 F8
-#define PIN_AC2 F6
+#define PIN_AC2_switch_inputs F6
+#define PIN_AC2_analog_inputs EFI_ADC_32
 #define PIN_AC3_switch_inputs A1
 #define PIN_AC3_analog_inputs EFI_ADC_1
 #define PIN_AC4 L9779_OUT_6
 #define PIN_AD2 E1
-#define PIN_AD3 F5
+#define PIN_AD3_switch_inputs F5
+#define PIN_AD3_analog_inputs EFI_ADC_39
 #define PIN_AE4 L9779_OUT_5
 #define PIN_AF2 B12
 #define PIN_AF4 L9779_OUT_4
