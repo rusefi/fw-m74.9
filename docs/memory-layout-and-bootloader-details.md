@@ -41,6 +41,13 @@ See the [CAN installation flow](cli-uploader.md) and
 
 ### Flash
 
+AT32F435 distinguishes fast, zero-wait-state (ZW) flash access from slower,
+non-zero-wait-state (NZW) access. Both regions can execute code, but NZW
+instruction fetches can make the CPU wait. EOPB0 trades SRAM capacity against
+the ZW region: the OEM setting provides 128 KiB SRAM and 512 KiB ZW flash;
+our 384 KiB SRAM setting leaves 256 KiB ZW flash. See Artery's
+[performance note, section 2](https://www.arterytek.com/file/download/1302).
+
 | Address range | Size | Contents | Update rule |
 | --- | --- | --- | --- |
 | `0x08000000-0x08000FFF` | 4 KiB | Bootloader vector page | Never erase or write during a main-firmware update. |
