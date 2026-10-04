@@ -116,9 +116,13 @@ history, not evidence that rusEFI started. A SLCAN BELL/rejected-transmission
 error is an adapter transport failure, not an ECU activation status.
 
 The uploader logs each failed F1A0 readiness poll, including negative-response
-codes, timeouts or unexpected status values. During these ten bounded read-only
-polls, a SLCAN BELL rejection waits one second before trying readiness again:
-first boot can configure RAM and reset again before application CAN starts.
+codes, timeouts or unexpected status values. It makes up to 60 read-only polls,
+with one second between unsuccessful attempts (response timeouts add to this
+wait). Keep ECU power on throughout activation. On an OEM-option I832, software
+C3A32B44 took 27.7 seconds to validate its images before programming the RAM
+option, resetting and starting application CAN. The earlier ten-poll limit
+could report failure while this valid first boot was still in progress.
+A SLCAN BELL rejection is retried within this startup window.
 Other transport/protocol errors stop immediately. BELL during programming,
 metadata writes, CRC/marker checks or reset also stops immediately; these
 requests are never automatically retried. Failures retain their cause and do

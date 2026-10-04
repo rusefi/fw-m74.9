@@ -246,3 +246,9 @@ INI; a newly generated INI also has a newly generated firmware signature.
 - A newer bundle INI does not replace the older firmware signature's cached
   INI. When diagnosing a repeated metadata error, check the exact INI path
   selected after the live signature, not only the bundle file.
+- First-boot CRC checks run before normal clock setup. On the OEM-option I832,
+  C3A32B44 needed 27.7 seconds to reach the RAM-option write. Ten one-second
+  SLCAN readiness polls expire too early. Allow 60 bounded read-only polls,
+  one second apart, and instruct the operator to keep power on. The same
+  image subsequently configured EOPB0, activated and passed a physical cold
+  boot without reflashing; only option bytes 0x10/0x11 changed (FFFF -> 05FA).
