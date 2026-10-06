@@ -1,12 +1,10 @@
+[📦Download the latest bundle📦](https://rusefi.com/build_server/rusefi_bundle_re74.9.zip)
+
 # rusEFI for M74.9 ECUs
 
 Custom rusEFI firmware for the Lada M74.9 engine control unit. This guide covers
 installing and updating the firmware. Build instructions, memory layout and
 tooling internals are in [readme-technical-details.md](readme-technical-details.md).
-
-Download the latest bundle:
-
-https://rusefi.com/build_server/rusefi_bundle_re74.9.zip
 
 Hardware notes and wiring: https://github.com/rusefi/m74.9
 
