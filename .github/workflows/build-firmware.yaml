@@ -6,10 +6,18 @@ on:
   push:
   #  pull_request:
   workflow_dispatch:
+    inputs:
+      release:
+        description: 'Publish the bundle as a GitHub release dated today'
+        type: boolean
+        default: false
 
 jobs:
   build-firmware:
     runs-on: ubuntu-latest
+    permissions:
+      # auto-generated config push and the daily release
+      contents: write
     env:
       RUSEFI_CUSTOM_JAVA_UI_DIR: ${{ github.workspace }}/java-custom-ui
     steps:
@@ -52,3 +60,20 @@ jobs:
 
       - name: Verify M74.9 bundle memory contract
         run: python3 tests/check_bundles.py
+
+      # Runs after the bundle check, so only a verified bundle is released.
+      # github.token is deliberate: a tag it creates does not start another push build.
+      - name: Publish daily bundle release
+        if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || inputs.release) }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tag="$(date -u +'%Y-%m-%d')"
+          bundle=ext/rusefi/artifacts/rusefi_bundle_re74.9.zip
+          if gh release view "$tag" > /dev/null 2>&1; then
+            # same-day rerun: refresh the existing release
+            gh release upload "$tag" "$bundle" --clobber
+          else
+            gh release create "$tag" "$bundle" --target "$GITHUB_SHA" --title "$tag" --generate-notes
+          fi
