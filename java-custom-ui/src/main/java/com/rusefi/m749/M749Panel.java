@@ -1,5 +1,6 @@
 package com.rusefi.m749;
 
+import com.devexperts.logging.Logging;
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.text.BadLocationException;
@@ -15,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 
 // see M749PanelSandbox
 public final class M749Panel extends JPanel {
+    private static final Logging logger = Logging.getLogging(M749Panel.class);
     static final Color DETECTED_COLOR = new Color(0, 140, 45);
     static final Color MISSING_COLOR = new Color(190, 35, 35);
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm:ss");
@@ -291,6 +293,7 @@ public final class M749Panel extends JPanel {
     private void refreshFirmware(int current) {
         try {
             Path path = firmwareLocator.locate();
+            logger.info("Firmware image: " + path);
             onEdt(current, () -> {
                 imagePath = path;
                 imageLabel.setText("SREC: " + path.getFileName());
@@ -299,6 +302,7 @@ public final class M749Panel extends JPanel {
                 updateControls();
             });
         } catch (Exception e) {
+            logger.warn("SREC unavailable: " + e.getMessage());
             onEdt(current, () -> {
                 imagePath = null;
                 imageLabel.setText("SREC unavailable: " + e.getMessage());
@@ -436,21 +440,25 @@ public final class M749Panel extends JPanel {
         status.setText("");
         int current = generation;
         long start = System.nanoTime();
-        Consumer<String> log = message -> onEdt(current, () -> appendMessage(String.format(java.util.Locale.ROOT,
-                "[%4d] %s", (System.nanoTime() - start) / 1_000_000_000L, message)));
+        Consumer<String> log = operationLog(current, start);
         worker.execute(() -> {
             synchronized (backend) {
                 try {
                     if (generation != current || Thread.currentThread().isInterrupted()) return;
+                    log.accept(M749BuildInfo.describe());
+                    log.accept("Connection: " + options.connector() + " " + options.endpoint()
+                            + " " + options.arguments());
                     log.accept(operation + ": " + selection.path);
                     int result = backend.transfer(args.toArray(new String[0]), log);
                     if (result != 0) throw new java.io.IOException("Command returned " + result + "; see Messages");
+                    log.accept(operation + " complete - see preceding verification details.");
                     onEdt(current, () -> activity.setText(operation + " complete - see Messages for verification details."));
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     log.accept(operation + " interrupted; check ECU state before retrying.");
                     onEdt(current, () -> activity.setText(operation + " interrupted"));
                 } catch (Exception | LinkageError e) {
+                    logger.error(operation + " exception", e);
                     log.accept(operation + " failed: " + e.getMessage());
                     onEdt(current, () -> activity.setText(operation + " failed: " + e.getMessage()));
                 } finally {
@@ -475,15 +483,14 @@ public final class M749Panel extends JPanel {
         int current = generation;
         M749Monitor activeMonitor = monitor;
         long start = System.nanoTime();
-        Consumer<String> log = message -> {
-            String line = String.format(java.util.Locale.ROOT, "[%4d] %s",
-                    (System.nanoTime() - start) / 1_000_000_000L, message);
-            onEdt(current, () -> appendMessage(line));
-        };
+        Consumer<String> log = operationLog(current, start);
         worker.execute(() -> {
             synchronized (backend) {
                 try {
                     if (generation != current || Thread.currentThread().isInterrupted()) return;
+                    log.accept(M749BuildInfo.describe());
+                    log.accept("Connection: " + options.connector() + " " + options.endpoint()
+                            + " " + options.arguments());
                     log.accept("Flashing " + image + " on " + options.connector() + " " + options.endpoint());
                     activeMonitor.flash(options, image, credentialText.isEmpty() ? null : Path.of(credentialText), log);
                     onEdt(current, () -> {
@@ -496,6 +503,7 @@ public final class M749Panel extends JPanel {
                     log.accept("Upload interrupted; check ECU state before retrying.");
                     onEdt(current, () -> uploadFailed("Upload interrupted"));
                 } catch (Exception | LinkageError e) {
+                    logger.error("Upload exception", e);
                     log.accept("Upload failed: " + e.getMessage());
                     onEdt(current, () -> uploadFailed("Upload failed: " + e.getMessage()));
                 } finally {
@@ -517,6 +525,7 @@ public final class M749Panel extends JPanel {
         panelShowing = isShowing();
         if (worker != null) return;
         int current = ++generation;
+        logger.info(M749BuildInfo.describe());
         querying = false;
         uploading = false;
         setFirmware(M749FirmwareDetection.Result.UNKNOWN);
@@ -562,6 +571,7 @@ public final class M749Panel extends JPanel {
             }
 
             public void message(String message) {
+                logger.info(message);
                 onConnectionEdt(current, () -> appendMessage(message));
             }
 
@@ -621,6 +631,16 @@ public final class M749Panel extends JPanel {
         SwingUtilities.invokeLater(() -> {
             if (generation == current) action.run();
         });
+    }
+
+    private Consumer<String> operationLog(int current, long start) {
+        return message -> {
+            String line = String.format(java.util.Locale.ROOT, "[%4d] %s",
+                    (System.nanoTime() - start) / 1_000_000_000L, message);
+            // Persist on the producer thread: removal may discard the queued UI update.
+            logger.info(line);
+            onEdt(current, () -> appendMessage(line));
+        };
     }
 
     private void appendMessage(String message) {

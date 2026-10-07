@@ -17,6 +17,7 @@ import java.util.function.Consumer;
 import static org.junit.jupiter.api.Assertions.*;
 
 class M749PanelTest {
+    @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory;
     @Test
     void providerIsDiscoverableWithoutNativeLibraries() throws Exception {
         ConsoleTabProvider provider = ServiceLoader.load(ConsoleTabProvider.class).iterator().next();
@@ -60,28 +61,33 @@ class M749PanelTest {
                 try {
                     new CountDownLatch(1).await();
                 } finally {
+                    messages.accept("Identification worker released after removal");
                     released.countDown();
                 }
                 return Collections.emptyList();
             }
         };
-        SwingUtilities.invokeAndWait(() -> {
-            panel.set(new M749Panel(backend, () -> { throw new java.io.IOException("No test firmware"); }));
-            find(panel.get(), JComboBox.class, "transferTransport").setSelectedIndex(0);
-            panel.get().addNotify();
-        });
-        try {
-            assertTrue(started.await(5, TimeUnit.SECONDS));
+        try (M749LogCapture saved = new M749LogCapture(directory.resolve("identification.log"))) {
             SwingUtilities.invokeAndWait(() -> {
-                JLabel label = find(panel.get(), JLabel.class, "PCAN detected");
-                assertEquals(M749Panel.DETECTED_COLOR, label.getForeground());
-                assertTrue(find(panel.get(), JTextArea.class, "messages").getText().contains("TESTVIN1234567890"));
-                assertFalse(find(panel.get(), JButton.class, "Scan / query again").isEnabled());
+                panel.set(new M749Panel(backend, () -> { throw new java.io.IOException("No test firmware"); }));
+                find(panel.get(), JComboBox.class, "transferTransport").setSelectedIndex(0);
+                panel.get().addNotify();
             });
-        } finally {
-            SwingUtilities.invokeAndWait(() -> panel.get().removeNotify());
+            try {
+                assertTrue(started.await(5, TimeUnit.SECONDS));
+                SwingUtilities.invokeAndWait(() -> {
+                    JLabel label = find(panel.get(), JLabel.class, "PCAN detected");
+                    assertEquals(M749Panel.DETECTED_COLOR, label.getForeground());
+                    assertTrue(find(panel.get(), JTextArea.class, "messages").getText().contains("TESTVIN1234567890"));
+                    assertFalse(find(panel.get(), JButton.class, "Scan / query again").isEnabled());
+                });
+            } finally {
+                SwingUtilities.invokeAndWait(() -> panel.get().removeNotify());
+            }
+            assertTrue(released.await(5, TimeUnit.SECONDS));
+            saved.await("Identification worker released after removal");
+            assertTrue(saved.text().contains("VIN (DID F190): TESTVIN1234567890"));
         }
-        assertTrue(released.await(5, TimeUnit.SECONDS));
     }
 
     @Test

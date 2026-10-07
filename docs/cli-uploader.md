@@ -155,6 +155,15 @@ image. Existing M749ACT1 images work with this CLI through F1A0.
 Every CLI output line starts with elapsed whole seconds since CLI startup,
 for example `[  12] Transfer ...`. This also applies to errors and library logs.
 
+The M74.9 console tab also saves its operation messages in the normal
+`console/logs/efi_log_*.log*` files. These include build identifiers, connection
+settings, firmware details, ECU identification, transfer/verification progress,
+metadata and reset acknowledgements, readiness replies and activation CRC/marker
+values. Upload and file-transfer exceptions include their stack traces. Messages
+are saved before queued UI updates, so removing the tab does not discard a final
+failure or interruption. Keep the complete log from the failed attempt when
+reporting a problem; older consoles may show M74.9 details only in Messages.
+
 Build with Java 11 and the checked-in Gradle wrapper:
 
 ```sh

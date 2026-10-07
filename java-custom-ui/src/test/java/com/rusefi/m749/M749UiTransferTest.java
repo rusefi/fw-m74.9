@@ -15,6 +15,7 @@ import java.util.function.Consumer;
 import static org.junit.jupiter.api.Assertions.*;
 
 class M749UiTransferTest {
+    @org.junit.jupiter.api.io.TempDir Path directory;
     private static class Backend implements M749Monitor.Backend {
         final CountDownLatch entered = new CountDownLatch(1), release = new CountDownLatch(1), exited = new CountDownLatch(1);
         volatile List<String> args;
@@ -44,7 +45,7 @@ class M749UiTransferTest {
             assertTrue(read);
             return new M749Panel.Selection(Path.of("backup with spaces.bin"), true, true);
         });
-        try {
+        try (M749LogCapture saved = new M749LogCapture(directory.resolve("transfer.log"))) {
             await(() -> button(panel, "readFlash").isEnabled());
             SwingUtilities.invokeAndWait(() -> button(panel, "readFlash").doClick());
             assertTrue(backend.entered.await(5, TimeUnit.SECONDS));
@@ -58,6 +59,10 @@ class M749UiTransferTest {
             });
             backend.release.countDown();
             await(() -> label(panel).startsWith("Read complete") && button(panel, "readFlash").isEnabled());
+            saved.await("Read complete");
+            assertTrue(saved.text().contains("Verified 16384/4128768 bytes (0.4%)"));
+            assertTrue(saved.text().contains("backup with spaces.bin"));
+            assertTrue(saved.text().contains("PCAN_USBBUS2"));
         } finally { close(panel, backend); }
     }
 

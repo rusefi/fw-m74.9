@@ -64,7 +64,7 @@ class M749UiFlashTest {
             entered.countDown();
             try {
                 assertTrue(proceed.await(10, TimeUnit.SECONDS));
-                if (fail) throw new IOException("Activation status did not become ready");
+                if (fail) throw new IOException("Activation status did not become ready", new IOException("fixture F1A0 NRC 31"));
                 messages.accept("Upload complete: verified after reset");
             } finally {
                 inUpload = false;
@@ -105,13 +105,17 @@ class M749UiFlashTest {
         Backend backend = new Backend(M749FirmwareDetection.Result.M749_READY);
         backend.fail = true;
         M749Panel panel = open(backend, writeSoftware());
-        try {
+        try (M749LogCapture saved = new M749LogCapture(directory.resolve("failure.log"))) {
             awaitEdt(() -> button(panel).isEnabled() && button(panel).getText().equals("Update rusEFI"));
             SwingUtilities.invokeAndWait(() -> button(panel).doClick());
             assertTrue(backend.entered.await(5, TimeUnit.SECONDS));
             assertNull(backend.credential);
             backend.proceed.countDown();
             awaitEdt(() -> text(panel, "activity").startsWith("Upload failed") && button(panel).isEnabled());
+            saved.await("Upload failed: Activation status did not become ready");
+            assertTrue(saved.text().contains("M749 build:"));
+            assertTrue(saved.text().contains("PCAN_USBBUS2"));
+            assertTrue(saved.text().contains("Caused by: java.io.IOException: fixture F1A0 NRC 31"));
             SwingUtilities.invokeAndWait(() -> {
                 assertEquals("Installed firmware: unknown", text(panel, "firmwareStatus"));
                 assertFalse(find(panel, JTextArea.class, "messages").getText().contains("Upload complete"));
@@ -165,9 +169,12 @@ class M749UiFlashTest {
         awaitEdt(() -> button(panel).isEnabled());
         SwingUtilities.invokeAndWait(() -> button(panel).doClick());
         assertTrue(backend.entered.await(5, TimeUnit.SECONDS));
-        SwingUtilities.invokeAndWait(panel::removeNotify);
-        assertTrue(backend.released.await(5, TimeUnit.SECONDS));
-        assertEquals(1, backend.uploads);
+        try (M749LogCapture saved = new M749LogCapture(directory.resolve("removed.log"))) {
+            SwingUtilities.invokeAndWait(panel::removeNotify);
+            assertTrue(backend.released.await(5, TimeUnit.SECONDS));
+            saved.await("Upload interrupted; check ECU state before retrying.");
+            assertEquals(1, backend.uploads);
+        }
     }
 
     @Test void updaterDiscoverySelectsThisBoardsNamedSrec() throws Exception {

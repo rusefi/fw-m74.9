@@ -143,6 +143,7 @@ final class M749Uploader {
                         verifyBytes ? "individual-byte comparisons" : "16-bit additive block checksums"));
             }
             phase = "appending programming metadata";
+            out.accept("Appending programming metadata");
             // The OEM record transaction arms the loader's return-token reset.
             // Preserve opaque bytes; do not invent tester identity or overwrite ECU identity DIDs.
             for (Map.Entry<Integer, byte[]> entry : metadata.entrySet()) {
@@ -151,6 +152,7 @@ final class M749Uploader {
                 byte[] write = Arrays.copyOf(bytes(0x2E, did >>> 8, did), value.length + 3);
                 System.arraycopy(value, 0, write, 3, value.length);
                 exact(request(write, bytes(0x6E, did >>> 8, did)), 3);
+                out.accept(String.format("Programming DID %04X acknowledged (%d bytes)", did, value.length));
             }
             Map<Integer, byte[]> restored = readMetadata();
             for (int did : metadata.keySet()) {
@@ -159,7 +161,9 @@ final class M749Uploader {
                 }
             }
             phase = "activating and checking the application";
+            out.accept("Programming metadata readback matches; requesting application reset 11 01");
             exact(request(bytes(0x11, 1), bytes(0x51, 1)), 2);
+            out.accept("Application reset acknowledged: 51 01");
             if (image.domain == M749Image.Domain.OEM) {
                 awaitOemApplication();
                 out.accept("Upload complete: OEM software/calibration transferred and verified; application session 01 confirmed after reset.");
@@ -169,7 +173,9 @@ final class M749Uploader {
             awaitApplication();
             verifyApplication(softwareCrc, calibrationCrc);
             phase = "confirming boot without the SRAM return token";
+            out.accept("Requesting second reset 11 01 to confirm persistent boot");
             exact(request(bytes(0x11, 1), bytes(0x51, 1)), 2);
+            out.accept("Second reset acknowledged: 51 01");
             awaitApplication();
             verifyApplication(softwareCrc, calibrationCrc);
             out.accept("Upload complete: application reports valid software/calibration/loader CRCs and normal boot marker after reset.");
@@ -294,7 +300,9 @@ final class M749Uploader {
     private int applicationWord(int did) throws IOException, InterruptedException {
         byte[] response = connection.exchange(bytes(0x22, did >>> 8, did), bytes(0x62, did >>> 8, did), 3_000);
         exact(response, 7);
-        return (response[3] & 255) << 24 | (response[4] & 255) << 16 | (response[5] & 255) << 8 | response[6] & 255;
+        int value = (response[3] & 255) << 24 | (response[4] & 255) << 16 | (response[5] & 255) << 8 | response[6] & 255;
+        out.accept(String.format("Application DID %04X = %08X", did, value));
+        return value;
     }
 
     private void verifyApplication(int software, int calibration) throws IOException, InterruptedException {
