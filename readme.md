@@ -165,6 +165,9 @@ To prepare the development ECU for another first-install test, follow
 [restore dev unit to OEM](docs/restore-dev-unit-to-oem.md), including the saved
 [OEM option bytes](docs/oem-fuses.bin).
 
+For the OEM 707 reference BIN and scripts to build a full rusEFI image based on
+it, see [707 image generation](docs/oem/README.md).
+
 The same installation is available without the console UI. Linux/macOS with
 an SLCAN adapter:
 

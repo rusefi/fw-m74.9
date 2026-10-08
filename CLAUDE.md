@@ -275,3 +275,10 @@ INI; a newly generated INI also has a newly generated firmware signature.
   `build/rusefi_test` from that directory. BOARD_DIR alone selects the default
   f407-discovery metadata. The ADC3 production-port fixture is separate:
   `python3 tests/test_adc3_port.py` from the board root.
+
+- A 707-based full rusEFI BIN retains the OEM reference's identity, pairing,
+  marker and storage; it is not an OEM software restore. The CAN CLI selects
+  its OEM restore workflow by the .bin extension, with different vector and
+  completion checks. Use the built HEX/SREC for CAN installation and keep full
+  BIN generation separate from that workflow. MCU options are outside the
+  full main-flash BIN.
