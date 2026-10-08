@@ -150,7 +150,11 @@ rusEFI submodule; leave those generated changes unstaged.
 - Full OEM I812TA01 backups have application vector words 00000000/08080001
   at 08001000, while I865LB52 uses 20020000/08080001. A universal nonzero-SP
   check rejects a valid I812 backup even when all three CRCs pass. Keep OEM
-  vector checks profile-specific; replacement firmware still uses 20020000.
+  vector checks separate from loader selection: valid OEM application stack
+  words are 0 or 20020000, with reset 08080001. I815NB02 combines nonzero SP
+  with the I832 loader; I862BA02 combines zero SP with the I865 loader.
+  Replacement firmware still requires 20020000. A loader match does not select
+  CAN behavior, establish application admission or qualify paired credentials.
 - OEM application return can be checked with F186=01 after the loader metadata
   transaction/reset. OEM does not implement replacement activation DIDs F1A0..3;
   session return is not evidence of those CRC/marker reports or of cold boot.

@@ -312,7 +312,9 @@ bash bin/write-flash.sh "OEM full backup.bin" --channel PCAN_USBBUS1
 HEX/SREC software updates use the existing activation contract and preserve
 calibration. OEM BIN input must contain exactly 0x3F0000 bytes mapped from
 0x08000000 and have a supported I812/I832/I865 loader CRC, valid boot/software/
-calibration CRCs and the corresponding application vectors. I812 calibration
+calibration CRCs and valid OEM application vectors: initial stack word
+`00000000` or `20020000`, with reset vector `08080001`. The stack word is an
+application property and does not select the loader profile. I812 calibration
 starts at 0x08069000; I832 and I865 start at 0x08060000. Partial 2 MiB dumps, unsupported
 profiles, rusEFI BIN backups and corrupt images are rejected before adapter
 access. Use addressed HEX/SREC for rusEFI updates. `--calibration` is incompatible
@@ -323,6 +325,14 @@ I832GA01 is identified by loader CRC E3186D26 and compatibility bytes at
 00000000/08080001. Support covers OEM BIN application/calibration restores and
 M749ACT3 rusEFI software installation. M749ACT1/M749ACT2 software and
 calibration-only payloads remain rejected on I832 before erase.
+
+I815NB02 uses the I832 loader contract (E3186D26) with application vectors
+20020000/08080001. I862BA02 uses the I865 loader contract (D7B6B894) with
+00000000/08080001. Both full BINs pass file validation under their existing
+loader profiles. No separate I815/I862 loader profile is required. This does
+not establish programming-session admission, paired-credential support or
+vehicle CAN compatibility. `--immo-backup` remains restricted to its supported
+paired I865 backup. Replacement HEX/SREC files still require stack 20020000.
 
 OEM restore writes only 0x08001000..0x080FFFFF, including calibration. The rest of
 the source file is not copied to the ECU: the boot page, resident loader, identity,
@@ -340,8 +350,8 @@ programming records, requests reset and requires F186=01, confirming return to
 the application. OEM applications do not expose rusEFI's activation CRC/marker
 DIDs, so this path does not claim those checks or a cold power-cycle test.
 OEM BIN restore has automated protocol coverage and offline validation against
-I812NA01, I812TA01, I832GA01 and I865LB52 full backups; live CAN restoration
-and cold boot remain untested.
+I812NA01, I812TA01, I832GA01, I865LB52, I815NB02 and I862BA02 full backups;
+live CAN restoration and cold boot remain untested.
 
 For the paired I865 bench that rejects programming entry with NRC 22, add the
 original full backup as the credential source:

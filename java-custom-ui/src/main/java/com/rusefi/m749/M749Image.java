@@ -144,8 +144,10 @@ final class M749Image {
         if (software != littleEndian(data, 0xFFFFC) || calibration != littleEndian(data, 0x7FFFC)) {
             throw new IOException("OEM BIN software/calibration CRC mismatch");
         }
-        // OEM I812 and I832 store zero in the initial stack vector.
-        if (littleEndian(data, 0x1000) != profile.oemInitialStack || littleEndian(data, 0x1004) != SECOND + 1) {
+        // OEM applications sharing a loader can use either stack word. Loader
+        // profiles select CRC layout; application vectors have their own contract.
+        int initialStack = littleEndian(data, 0x1000);
+        if ((initialStack != 0 && initialStack != 0x20020000) || littleEndian(data, 0x1004) != SECOND + 1) {
             throw new IOException("Invalid OEM application vectors");
         }
         if (descriptorMatches(data, ACTIVATION_ADDRESS - M749RamHelper.BASE, ACTIVATION_ABI) ||

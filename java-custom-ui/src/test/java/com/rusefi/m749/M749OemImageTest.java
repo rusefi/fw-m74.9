@@ -62,6 +62,25 @@ class M749OemImageTest {
         return M749Image.crc32(Arrays.copyOfRange(data, start, end), end - start, initial);
     }
 
+    private static void updateSoftwareCrc(byte[] data, M749TargetProfile profile) {
+        word(data, 0xFFFFC, crc(data, 0x80000, 0xFFFFC,
+                crc(data, 0x1000, profile.calibrationStart - 0x08000000, -1)));
+    }
+
+    @Test void acceptsBothApplicationStackVariantsIndependentlyOfLoaderProfile() throws Exception {
+        for (M749TargetProfile profile : M749TargetProfile.values()) {
+            for (int stack : new int[]{0, 0x20020000}) {
+                byte[] data = backup(profile);
+                // I815NB02 uses I832 with nonzero SP; I862BA02 uses I865 with zero.
+                word(data, 0x1000, stack);
+                updateSoftwareCrc(data, profile);
+                M749Image image = M749Image.oem(data);
+                assertEquals(profile, image.oemProfile);
+                assertArrayEquals(Arrays.copyOfRange(data, 0x1000, 0x100000), image.ranges.get(0).bytes());
+            }
+        }
+    }
+
     @Test void validatesAllProfilesAndSelectsOnlyApplicationAndCalibration() throws Exception {
         for (M749TargetProfile profile : M749TargetProfile.values()) {
             byte[] data = backup(profile);
@@ -79,7 +98,7 @@ class M749OemImageTest {
         }
     }
 
-    @Test void i832RequiresItsOwnCrcLayoutAndZeroStackVector() throws Exception {
+    @Test void i832RequiresItsOwnCrcLayoutRegardlessOfStackVector() throws Exception {
         byte[] data = backup(M749TargetProfile.I832);
         // I832GA01 combines the 0x60000 calibration split with a zero stack vector.
         word(data, 0x1000, 0);
@@ -88,7 +107,7 @@ class M749OemImageTest {
         assertEquals(M749TargetProfile.I832, M749Image.oem(data).oemProfile);
         word(data, 0x1000, 0x20020000);
         word(data, 0xFFFFC, crc(data, 0x80000, 0xFFFFC, crc(data, 0x1000, 0x60000, -1)));
-        assertTrue(assertThrows(IOException.class, () -> M749Image.oem(data)).getMessage().contains("vectors"));
+        assertEquals(M749TargetProfile.I832, M749Image.oem(data).oemProfile);
         word(data, 0x1000, 0);
         word(data, 0xFFFFC, crc(data, 0x80000, 0xFFFFC, crc(data, 0x1000, 0x69000, -1)));
         word(data, 0x7FFFC, crc(data, 0x69000, 0x7FFFC, -1));
@@ -106,6 +125,40 @@ class M749OemImageTest {
         word(badVectors, 0x1004, 0x08081001);
         word(badVectors, 0xFFFFC, crc(badVectors, 0x80000, 0xFFFFC, crc(badVectors, 0x1000, 0x69000, -1)));
         assertTrue(assertThrows(IOException.class, () -> M749Image.oem(badVectors)).getMessage().contains("vectors"));
+    }
+
+    @Test void rejectsInvalidVectorsEvenWithValidCrcsForEveryLoader() {
+        for (M749TargetProfile profile : M749TargetProfile.values()) {
+            for (int stack : new int[]{-1, 0x20000000, 0x20020004, 0x08080001}) {
+                byte[] data = backup(profile);
+                word(data, 0x1000, stack);
+                updateSoftwareCrc(data, profile);
+                assertEquals("Invalid OEM application vectors",
+                        assertThrows(IOException.class, () -> M749Image.oem(data)).getMessage());
+            }
+            for (int stack : new int[]{0, 0x20020000}) {
+                for (int reset : new int[]{0, -1, 0x08080000, 0x08081001}) {
+                    byte[] data = backup(profile);
+                    word(data, 0x1000, stack);
+                    word(data, 0x1004, reset);
+                    updateSoftwareCrc(data, profile);
+                    assertEquals("Invalid OEM application vectors",
+                            assertThrows(IOException.class, () -> M749Image.oem(data)).getMessage());
+                }
+            }
+        }
+    }
+
+    @Test void alternateOemStackDoesNotAdmitReplacementBins() {
+        for (int stack : new int[]{0, 0x20020000}) {
+            for (byte[] abi : new byte[][]{M749Image.ACTIVATION_ABI, M749Image.ACTIVATION_ABI_V2, M749Image.ACTIVATION_ABI_V3}) {
+                byte[] data = backup(M749TargetProfile.I832);
+                word(data, 0x1000, stack);
+                System.arraycopy(abi, 0, data, M749Image.ACTIVATION_ADDRESS - M749RamHelper.BASE, abi.length);
+                updateSoftwareCrc(data, M749TargetProfile.I832);
+                assertTrue(assertThrows(IOException.class, () -> M749Image.oem(data)).getMessage().contains("BIN contains rusEFI"));
+            }
+        }
     }
 
     @Test void cliDryRunAndDefaultTransportValidateBeforeHardware() throws Exception {
@@ -143,15 +196,19 @@ class M749OemImageTest {
 
     @Test void restoresAllProfilesPreservesProtectedFlashAndChecksOemReturn() throws Exception {
         for (M749TargetProfile profile : M749TargetProfile.values()) {
-            OemEcu ecu = new OemEcu(profile);
-            byte[] original = ecu.flash.clone(), data = backup(profile);
-            new M749Uploader(ecu, ecu.messages::add).upload(M749Image.oem(data), false);
-            assertEquals(255, ecu.erases.size());
-            assertEquals(1, ecu.resets);
-            assertArrayEquals(Arrays.copyOfRange(data, 0x1000, 0x100000), Arrays.copyOfRange(ecu.flash, 0x1000, 0x100000));
-            assertArrayEquals(Arrays.copyOf(original, 0x1000), Arrays.copyOf(ecu.flash, 0x1000));
-            assertArrayEquals(Arrays.copyOfRange(original, 0x100000, original.length), Arrays.copyOfRange(ecu.flash, 0x100000, ecu.flash.length));
-            assertTrue(ecu.messages.stream().anyMatch(s -> s.startsWith("Upload complete: OEM")));
+            for (int stack : new int[]{0, 0x20020000}) {
+                OemEcu ecu = new OemEcu(profile);
+                byte[] original = ecu.flash.clone(), data = backup(profile);
+                word(data, 0x1000, stack);
+                updateSoftwareCrc(data, profile);
+                new M749Uploader(ecu, ecu.messages::add).upload(M749Image.oem(data), false);
+                assertEquals(255, ecu.erases.size());
+                assertEquals(1, ecu.resets);
+                assertArrayEquals(Arrays.copyOfRange(data, 0x1000, 0x100000), Arrays.copyOfRange(ecu.flash, 0x1000, 0x100000));
+                assertArrayEquals(Arrays.copyOf(original, 0x1000), Arrays.copyOf(ecu.flash, 0x1000));
+                assertArrayEquals(Arrays.copyOfRange(original, 0x100000, original.length), Arrays.copyOfRange(ecu.flash, 0x100000, ecu.flash.length));
+                assertTrue(ecu.messages.stream().anyMatch(s -> s.startsWith("Upload complete: OEM")));
+            }
         }
     }
 

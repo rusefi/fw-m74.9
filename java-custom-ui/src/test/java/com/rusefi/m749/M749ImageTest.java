@@ -89,6 +89,16 @@ class M749ImageTest {
         assertThrows(IOException.class, image::requireActivationSupport);
     }
 
+    @Test void replacementSoftwareStillRequiresNonzeroStackWithValidCrc() {
+        List<SRecord> input = records(M749Image.Domain.SOFTWARE);
+        word(input.get(0).data, 0, 0);
+        byte[] tail = input.get(1).data;
+        word(tail, tail.length - 4, M749Image.crc32(tail, tail.length - 4,
+                M749Image.crc32(input.get(0).data, input.get(0).data.length, -1)));
+        assertEquals("Invalid M74.9 initial stack/reset vectors",
+                assertThrows(IOException.class, () -> M749Image.validate(input, M749Image.Domain.SOFTWARE)).getMessage());
+    }
+
     @Test void intelHexChecksMetadataChecksumAndEof() throws Exception {
         Path file = directory.resolve("image with spaces.hex");
         String valid = ":020000040806EC\n:0400000001020304F2\n:00000001FF\n";

@@ -4,27 +4,26 @@ import java.io.IOException;
 
 /** Known resident-loader contracts. A software name alone is not compatibility. */
 enum M749TargetProfile {
-    I865(0xD7B6B894, 0x08060000, 0x20020000,
+    I865(0xD7B6B894, 0x08060000,
             new int[]{0x08201E2C, 0x08201D84, 0x08204B7C},
             new String[]{"2de9f04184b004460d4617461e4601f0", "70b506460d46144601f024fd012801d0",
                     "08b50a4b1b68fff7e7ff012807d0fff7"}),
-    I812(0x4F256CD9, 0x08069000, 0,
+    I812(0x4F256CD9, 0x08069000,
             new int[]{0x08201DE8, 0x08201D40, 0x08204CC4},
             new String[]{"2de9f04184b004460d4617461e46", "70b506460d46144601f0eafd0128",
                     "08b50a4b1b68fff7e7ff012807d0"}),
-    I832(0xE3186D26, 0x08060000, 0,
+    I832(0xE3186D26, 0x08060000,
             new int[]{0x08201E2C, 0x08201D84, 0x08204B7C},
             new String[]{"2de9f04184b004460d4617461e46", "70b506460d46144601f024fd0128",
                     "08b50a4b1b68fff7e7ff012807d0"});
 
-    final int bootCrc, calibrationStart, oemInitialStack;
+    final int bootCrc, calibrationStart;
     final int[] addresses;
     final String[] sentinels;
 
-    M749TargetProfile(int bootCrc, int calibrationStart, int oemInitialStack, int[] addresses, String[] sentinels) {
+    M749TargetProfile(int bootCrc, int calibrationStart, int[] addresses, String[] sentinels) {
         this.bootCrc = bootCrc;
         this.calibrationStart = calibrationStart;
-        this.oemInitialStack = oemInitialStack;
         this.addresses = addresses;
         this.sentinels = sentinels;
     }
