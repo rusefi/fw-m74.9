@@ -360,6 +360,28 @@ original full backup as the credential source:
 bin\m749-cli.bat --upload rusefi.hex --channel PCAN_USBBUS1 --immo-backup "bin\Read_FULLFLASH_I865LB52_w2404b1____(240626_103727).bin"
 ```
 
+The console tab keeps its original controls and uses the local cache at
+`~/.rusefi/m749/I865LB52_w2404b1_8450094615.pair` for the exact I865
+software/part identity. It logs the absolute path, known-byte count and
+whether it reused the 24/24 file or populated missing bytes. A missing or
+sparse cache invokes the existing `--read-pair` path over the selected CAN
+adapter before upload. That path verifies saved indices and reads missing
+bytes from the live ECU using single-byte FF01 checksums; no backup bytes are
+copied into the cache. Each verified index is saved immediately. In resident
+loader session 02, F189 may be unavailable, so the tab can select this path
+using F186=02 and F192=8450094615; the reader then checks the I865 loader
+profile. Messages and `console/logs/efi_log_*.log*` record all cache decisions
+and errors without printing pairing bytes.
+
+A paired I865 in application session 01 may reject 10 02 before FF01 is
+available. An incomplete cache cannot authenticate its own startup exchange;
+the tab reports the entry failure and does not upload. On the live bench,
+J-Link wrote only the programming token to SRAM and reset into loader session
+02. The existing `--read-pair` CLI then read all 24 bytes from live OEM flash
+over CAN in 19 seconds, without a credential, erase or download request. The
+ECU subsequently returned to OEM application session 01. Keep the cache
+outside the public bundle and repository.
+
 `--immo-backup` is optional and currently accepts only the validated backup
 with SHA-256 `ac052cd5cacf0385b4c2de794f6b1ad476e3f9f1badab5b8c54619854e428b39`.
 It reads the paired key locally; it does not program the backup, change pairing

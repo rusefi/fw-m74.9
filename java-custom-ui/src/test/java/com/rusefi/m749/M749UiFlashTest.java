@@ -29,11 +29,15 @@ class M749UiFlashTest {
         final CountDownLatch proceed = new CountDownLatch(1);
         final CountDownLatch released = new CountDownLatch(1);
         volatile M749FirmwareDetection.Result firmware;
+        volatile String software;
+        volatile String part;
         volatile boolean fail;
         volatile boolean connected = true;
         volatile boolean inUpload;
         volatile M749Immo credential;
         volatile int uploads;
+        volatile boolean readPair;
+        volatile String[] transferArgs;
 
         Backend(M749FirmwareDetection.Result firmware) { this.firmware = firmware; }
 
@@ -49,7 +53,7 @@ class M749UiFlashTest {
 
         public M749Monitor.Identification inspect(PcanDevice.Channel channel, Consumer<String> messages) {
             assertFalse(SwingUtilities.isEventDispatchThread());
-            return new M749Monitor.Identification(firmware, identify(channel, messages));
+            return new M749Monitor.Identification(firmware, identify(channel, messages), software, part);
         }
 
         public void flash(PcanDevice.Channel selected, M749Image image, M749Immo credential, Consumer<String> messages)
@@ -70,6 +74,18 @@ class M749UiFlashTest {
                 inUpload = false;
                 released.countDown();
             }
+        }
+
+        public int transfer(String[] args, Consumer<String> messages) throws IOException {
+            assertFalse(SwingUtilities.isEventDispatchThread());
+            assertTrue(readPair, "Unexpected file transfer");
+            transferArgs = args.clone();
+            assertEquals("--read-pair", args[0]);
+            M749PairFile saved = M749PairFile.load(Path.of(args[1]));
+            for (int i = 0; i < M749PairFile.SIZE; i++) saved.put(i, i);
+            saved.save(Path.of(args[1]));
+            messages.accept("Pair file complete; no erase/download requests sent");
+            return 0;
         }
     }
 
@@ -99,6 +115,68 @@ class M749UiFlashTest {
             });
             assertEquals(1, backend.uploads);
         } finally { close(panel, backend); }
+    }
+
+    @Test void pairedI865AutomaticallyUsesLocalPairFile() throws Exception {
+        String oldHome = System.getProperty("user.home");
+        try {
+            System.setProperty("user.home", directory.toString());
+            M749PairFile pair = new M749PairFile();
+            for (int i = 0; i < M749PairFile.SIZE; i++) pair.put(i, i);
+            Path pairPath = M749AutoCredential.path();
+            Files.createDirectories(pairPath.getParent());
+            pair.save(pairPath);
+            Backend backend = new Backend(M749FirmwareDetection.Result.OEM);
+            backend.software = "I865LB52_w2404b1";
+            backend.part = "8450094615";
+            M749Panel panel = open(backend, writeSoftware());
+            try {
+                awaitEdt(() -> text(panel, "firmwareStatus").equals("OEM firmware installed") && button(panel).isEnabled());
+                SwingUtilities.invokeAndWait(() -> button(panel).doClick());
+                assertTrue(backend.entered.await(5, TimeUnit.SECONDS));
+                assertNotNull(backend.credential);
+                assertEquals(0, backend.credential.pairFile().get(0));
+                assertEquals(23, backend.credential.pairFile().get(23));
+                backend.proceed.countDown();
+                awaitEdt(() -> text(panel, "activity").equals("Upload complete"));
+            } finally { close(panel, backend); }
+        } finally {
+            System.setProperty("user.home", oldHome);
+        }
+    }
+
+    @Test void pairedI865PopulatesSparseCacheFromLiveReadBeforeUpload() throws Exception {
+        String oldHome = System.getProperty("user.home");
+        try {
+            System.setProperty("user.home", directory.toString());
+            Path pairPath = M749AutoCredential.path();
+            Files.createDirectories(pairPath.getParent());
+            M749PairFile partial = new M749PairFile();
+            partial.put(0, 0);
+            partial.save(pairPath);
+            Backend backend = new Backend(M749FirmwareDetection.Result.OEM);
+            backend.software = "I865LB52_w2404b1";
+            backend.part = "8450094615";
+            backend.readPair = true;
+            M749Panel panel = open(backend, writeSoftware());
+            try (M749LogCapture saved = new M749LogCapture(directory.resolve("live-pair.log"))) {
+                awaitEdt(() -> text(panel, "firmwareStatus").equals("OEM firmware installed") && button(panel).isEnabled());
+                SwingUtilities.invokeAndWait(() -> button(panel).doClick());
+                assertTrue(backend.entered.await(5, TimeUnit.SECONDS));
+                assertNotNull(backend.credential);
+                assertEquals(pairPath.toString(), backend.transferArgs[1]);
+                assertEquals("--channel", backend.transferArgs[2]);
+                assertEquals(24, M749PairFile.load(pairPath).knownCount());
+                saved.await("populated local file " + pairPath);
+                assertTrue(saved.text().contains("incomplete at " + pairPath));
+                SwingUtilities.invokeAndWait(() -> assertTrue(find(panel, JTextArea.class, "messages")
+                        .getText().contains("populated local file " + pairPath)));
+                backend.proceed.countDown();
+                awaitEdt(() -> text(panel, "activity").equals("Upload complete"));
+            } finally { close(panel, backend); }
+        } finally {
+            System.setProperty("user.home", oldHome);
+        }
     }
 
     @Test void rusEfiUpdateNeedsNoCredentialAndFailureDoesNotClaimInstallation() throws Exception {

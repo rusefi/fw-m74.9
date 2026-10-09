@@ -37,10 +37,14 @@ final class M749FirmwareDetection {
 
     static Result classifyOem(byte[] software) {
         if (software == null) return Result.OEM_UNKNOWN;
-        int length = software.length;
-        while (length > 0 && (software[length - 1] == 0 || software[length - 1] == ' ')) length--;
-        String build = new String(software, 0, length, StandardCharsets.US_ASCII);
-        return KNOWN_OEM_BUILDS.contains(build) ? Result.OEM : Result.OEM_UNKNOWN;
+        return KNOWN_OEM_BUILDS.contains(oemText(software)) ? Result.OEM : Result.OEM_UNKNOWN;
+    }
+
+    static String oemText(byte[] value) {
+        if (value == null) return null;
+        int length = value.length;
+        while (length > 0 && (value[length - 1] == 0 || value[length - 1] == ' ')) length--;
+        return new String(value, 0, length, StandardCharsets.US_ASCII);
     }
 
     static Result classify(byte[] identity, byte[] activation) {

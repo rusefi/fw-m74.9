@@ -24,6 +24,9 @@ class M749EcuProbeTest {
                     System.arraycopy(value, 0, response, 3, value.length);
                     return response;
                 }
+                if (did == 0xF192 && build != null && build.startsWith("I865LB52_w2404b1")) {
+                    return bytes(0x62, 0xF1, 0x92, '8', '4', '5', '0', '0', '9', '4', '6', '1', '5');
+                }
                 if (did == 0xF1A4 && rusefi) return bytes(0x62, 0xF1, 0xA4, 'r', 'E', 'F', 'I');
                 throw new UdsClient.NegativeResponse(0x22, 0x31);
             }
@@ -38,6 +41,29 @@ class M749EcuProbeTest {
                 assertEquals(M749FirmwareDetection.Result.OEM, inspectOem(build + padding, false).firmware);
             }
         }
+    }
+
+    @Test void exposesExactI865IdentityForLocalPairSelection() throws Exception {
+        M749Monitor.Identification result = inspectOem("I865LB52_w2404b1\0 ", false);
+        assertEquals("I865LB52_w2404b1", result.software);
+        assertEquals("8450094615", result.part);
+        assertEquals(1, result.session);
+    }
+
+    @Test void loaderIdentityRetainsSessionAndPartWhenSoftwareDidIsUnavailable() throws Exception {
+        M749Monitor.Identification result = M749EcuProbe.inspect(new M749Uploader.Connection() {
+            public void pause(long ms) { fail("Read-only probe must not change sessions"); }
+            public byte[] exchange(byte[] request, byte[] prefix, long timeout) throws IOException {
+                int did = (request[1] & 255) << 8 | request[2] & 255;
+                if (did == 0xF186) return bytes(0x62, 0xF1, 0x86, 2);
+                if (did == 0xF192) return bytes(0x62, 0xF1, 0x92, '8', '4', '5', '0', '0', '9', '4', '6', '1', '5');
+                throw new UdsClient.NegativeResponse(0x22, 0x31);
+            }
+        }, s -> {});
+        assertEquals(M749FirmwareDetection.Result.OEM_UNKNOWN, result.firmware);
+        assertNull(result.software);
+        assertEquals("8450094615", result.part);
+        assertEquals(2, result.session);
     }
 
     @Test void unfamiliarOrUnavailableOemBuildIsExplicitlyUnknown() throws Exception {

@@ -66,10 +66,25 @@ final class M749Monitor {
     static final class Identification {
         final M749FirmwareDetection.Result firmware;
         final List<String> summary;
+        final String software;
+        final String part;
+        final Integer session;
 
         Identification(M749FirmwareDetection.Result firmware, List<String> summary) {
+            this(firmware, summary, null, null);
+        }
+
+        Identification(M749FirmwareDetection.Result firmware, List<String> summary, String software, String part) {
+            this(firmware, summary, software, part, null);
+        }
+
+        Identification(M749FirmwareDetection.Result firmware, List<String> summary,
+                       String software, String part, Integer session) {
             this.firmware = firmware;
             this.summary = summary;
+            this.software = software;
+            this.part = part;
+            this.session = session;
         }
     }
 

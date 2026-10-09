@@ -9,6 +9,12 @@ backup. The command uses it for authorization, then reads the 24 output bytes
 from the ECU over CAN. It does not copy them from the credential into the output.
 A locked ECU needs a valid existing credential before it permits these reads;
 an empty output file cannot supply its own missing authorization key.
+If the ECU is already in resident-loader session 02, the reader can obtain
+the bytes without startup pairing. On the bench, J-Link wrote only the
+programming token to SRAM and reset the I865 ECU into session 02; the existing
+`--read-pair` command then saved all 24 bytes from live FF01 checksum reads.
+Confirm F186=02 and run the read promptly because the loader may return to
+the application. This does not make a locked application accept 10 02.
 
 ## Start the 60-second listener and read
 

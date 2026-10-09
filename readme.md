@@ -92,9 +92,15 @@ the loader compatibility checks before programming.
    operations to that adapter. Press Enter after editing the endpoint/settings,
    or use **Scan / query again** to retry. Identification failures are retried
    at ten-second intervals until an ECU responds.
-3. If OEM authorization is required, choose the ECU's `.pair` file or original
-   paired `.bin` backup under **OEM credentials**. An already installed M74.9
-   rusEFI application updates without a credential.
+3. For the validated I865LB52_w2404b1 / 8450094615 bench profile, the tab
+   automatically uses the local pairing cache at
+   `~/.rusefi/m749/I865LB52_w2404b1_8450094615.pair` after identifying the
+   OEM software and part. Messages and the saved console log say whether it
+   reused a complete cache or read missing bytes from the live ECU with FF01.
+   A paired I865 application can reject loader entry before a sparse cache can
+   be filled; in that state the operation stops without flashing. The cache
+   is not in the firmware bundle. An installed M74.9 rusEFI application updates
+   without an OEM credential.
 4. Press **Flash rusEFI**. The button reads **Update rusEFI** when a rusEFI
    M74.9 application is already installed. The bundled firmware file name is
    shown next to the button; **Scan / query again** re-reads it.

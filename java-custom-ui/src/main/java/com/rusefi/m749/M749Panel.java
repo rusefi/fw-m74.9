@@ -27,10 +27,7 @@ public final class M749Panel extends JPanel {
     private final JLabel firmwareStatus = new JLabel("Installed firmware: unknown");
     private final JLabel oemBackupHint = new JLabel("please backup OEM and share it with the rusEFI team");
     private final JLabel imageLabel = new JLabel("SREC: searching...");
-    private final JLabel uploadHint = new JLabel();
     private final JComboBox<PcanDevice.Channel> channels = new JComboBox<>();
-    private final JTextField credential = new JTextField(28);
-    private final JButton browseCredential = new JButton("Choose pair file / backup...");
     private final JButton flash = new JButton("Flash rusEFI");
     private final JButton readFlash = new JButton("Read flash...");
     private final JButton writeFlash = new JButton("Write firmware...");
@@ -51,6 +48,7 @@ public final class M749Panel extends JPanel {
     private final M749FirmwareFile.Locator firmwareLocator;
     private Path imagePath;
     private M749FirmwareDetection.Result installed = M749FirmwareDetection.Result.UNKNOWN;
+    private M749Monitor.Identification identified;
     private boolean changingChannels;
     private boolean querying;
     private volatile boolean uploading;
@@ -145,16 +143,6 @@ public final class M749Panel extends JPanel {
         top.add(oemBackupHint);
         imageLabel.setName("firmwareImage");
         top.add(imageLabel);
-        JPanel credentialRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 4));
-        credentialRow.add(new JLabel("OEM credentials (optional): "));
-        credential.setName("credential");
-        credential.setToolTipText("Pair file or original paired backup for OEM installation. Not needed for a rusEFI update.");
-        credentialRow.add(credential);
-        credentialRow.add(Box.createHorizontalStrut(8));
-        credentialRow.add(browseCredential);
-        credentialRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, credentialRow.getPreferredSize().height));
-        // top.add(credentialRow);
-        // top.add(uploadHint);
         flash.setName("flash");
         flash.setEnabled(false);
         top.add(flash);
@@ -200,13 +188,6 @@ public final class M749Panel extends JPanel {
             autoSelect = false;
             selectionChanged();
             queryAgain();
-        });
-        browseCredential.addActionListener(event -> {
-            JFileChooser chooser = new JFileChooser();
-            chooser.setFileFilter(new FileNameExtensionFilter("ECU pair file or original backup", "pair", "bin"));
-            if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-                credential.setText(chooser.getSelectedFile().getAbsolutePath());
-            }
         });
         flash.addActionListener(event -> flashFirmware());
         readFlash.addActionListener(event -> transferFile(true));
@@ -349,9 +330,7 @@ public final class M749Panel extends JPanel {
 
     private void setFirmware(M749FirmwareDetection.Result result) {
         installed = result;
-        uploadHint.setText(result.m749 ? "rusEFI updates use the resident loader; no pair file or startup power cycle is needed."
-                : result == M749FirmwareDetection.Result.OEM_UNKNOWN ? "Use Read flash... to save a full OEM backup."
-                : "For OEM authorization, choose your pair file and cycle ECU power when Messages asks.");
+        if (result == M749FirmwareDetection.Result.UNKNOWN) identified = null;
         String label = result == M749FirmwareDetection.Result.UNKNOWN ? "Installed firmware: unknown"
                 : result == M749FirmwareDetection.Result.OEM ? "OEM firmware installed"
                 : result == M749FirmwareDetection.Result.OEM_UNKNOWN ? "OEM firmware installed - unknown build"
@@ -377,9 +356,6 @@ public final class M749Panel extends JPanel {
         slcanBus.setEnabled(idle && slcan);
         blockSize.setEnabled(idle);
         stmin.setEnabled(idle);
-        boolean needsCredential = !installed.m749;
-        credential.setEnabled(idle && needsCredential);
-        browseCredential.setEnabled(idle && needsCredential);
         PcanDevice.Channel channel = (PcanDevice.Channel) channels.getSelectedItem();
         flash.setEnabled(idle && selectedConnection != null && imagePath != null && (!pcan || channel != null && channel.available)
                 && installed != M749FirmwareDetection.Result.RUSEFI);
@@ -428,11 +404,7 @@ public final class M749Panel extends JPanel {
             if (selection.resume) args.add("--resume");
             if (selection.helperRunning) args.add("--helper-running");
         }
-        String credentialText = credential.isEnabled() ? credential.getText().trim() : "";
-        if (!credentialText.isEmpty() && !(read && selection.helperRunning)) {
-            args.add(credentialText.toLowerCase(java.util.Locale.ROOT).endsWith(".pair") ? "--pair-file" : "--immo-backup");
-            args.add(credentialText);
-        }
+        M749Monitor.Identification target = identified;
         uploading = true;
         updateControls();
         String operation = read ? "Read" : "Write";
@@ -449,6 +421,11 @@ public final class M749Panel extends JPanel {
                     log.accept("Connection: " + options.connector() + " " + options.endpoint()
                             + " " + options.arguments());
                     log.accept(operation + ": " + selection.path);
+                    Path credential = read && selection.helperRunning ? null : resolveCredential(target, options, log);
+                    if (credential != null) {
+                        args.add("--pair-file");
+                        args.add(credential.toString());
+                    }
                     int result = backend.transfer(args.toArray(new String[0]), log);
                     if (result != 0) throw new java.io.IOException("Command returned " + result + "; see Messages");
                     log.accept(operation + " complete - see preceding verification details.");
@@ -476,7 +453,7 @@ public final class M749Panel extends JPanel {
         if (!flash.isEnabled()) return;
         M749ConnectionOptions options = selectedConnection.copy();
         Path image = imagePath;
-        String credentialText = installed.m749 ? "" : credential.getText().trim();
+        M749Monitor.Identification target = identified;
         uploading = true;
         updateControls();
         activity.setText("Flashing firmware - keep ECU power and CAN connected.");
@@ -492,7 +469,10 @@ public final class M749Panel extends JPanel {
                     log.accept("Connection: " + options.connector() + " " + options.endpoint()
                             + " " + options.arguments());
                     log.accept("Flashing " + image + " on " + options.connector() + " " + options.endpoint());
-                    activeMonitor.flash(options, image, credentialText.isEmpty() ? null : Path.of(credentialText), log);
+                    if (target == null) {
+                        throw new java.io.IOException("ECU identity unavailable; use Scan / query again before flashing");
+                    }
+                    activeMonitor.flash(options, image, resolveCredential(target, options, log), log);
                     onEdt(current, () -> {
                         setFirmware(M749FirmwareDetection.Result.M749_READY);
                         status.setText("Upload complete: CRCs and boot marker verified after reset.");
@@ -517,6 +497,18 @@ public final class M749Panel extends JPanel {
         setFirmware(M749FirmwareDetection.Result.UNKNOWN);
         status.setText("");
         activity.setText(message);
+    }
+
+    private Path resolveCredential(M749Monitor.Identification target, M749ConnectionOptions options,
+                                   Consumer<String> log) throws java.io.IOException, InterruptedException {
+        return M749AutoCredential.select(target, (pairFile, messages) -> {
+            java.util.ArrayList<String> args = new java.util.ArrayList<>();
+            args.add("--read-pair");
+            args.add(pairFile.toString());
+            args.addAll(options.arguments());
+            int result = backend.transfer(args.toArray(new String[0]), messages);
+            if (result != 0) throw new java.io.IOException("Live pair read returned " + result);
+        }, log);
     }
 
     @Override
@@ -566,6 +558,7 @@ public final class M749Panel extends JPanel {
                         selectedConnection = options.copy();
                     } finally { changingOptions = false; changingChannels = false; }
                     status.setText(String.join("\n", result.summary));
+                    identified = result;
                     setFirmware(result.firmware);
                 });
             }

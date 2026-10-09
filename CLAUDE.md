@@ -286,3 +286,22 @@ INI; a newly generated INI also has a newly generated firmware signature.
   completion checks. Use the built HEX/SREC for CAN installation and keep full
   BIN generation separate from that workflow. MCU options are outside the
   full main-flash BIN.
+
+- Keep OEM seed/key separate from I865 startup pairing. On the paired bench,
+  application session-03 seed/key succeeded while 10 02 still returned NRC 22.
+  The console's original UI selects the local I865 cache by F189/F192 identity
+  or, in loader session 02 where F189 is unavailable, F186=02/F192=8450094615.
+  A complete cache is reused; a missing/sparse cache invokes the existing
+  live `--read-pair` FF01 one-byte checksum reader before upload. Log the absolute
+  cache path, known count, reuse/population status and failures to both Messages
+  and console logs, without printing pairing bytes. Never fill missing entries from
+  a backup or package the cache in the bundle. A paired I865 in application
+  session 01 cannot bootstrap an incomplete cache by this CAN route when it
+  rejects 10 02; no erase or upload follows.
+- Live I865 cache bootstrap was validated by writing 4DF9123B only to SRAM
+  20000000 with J-Link, resetting and running the ECU, then immediately using
+  native Windows SLCAN `--read-pair` without credentials. F186=02 confirmed
+  loader entry; 24/24 bytes were saved in 19 seconds through FF01, with no
+  erase/download. The live values matched all previously saved indices; line
+  endings alone differed. The cache now contains the live-read file, and OEM
+  F186=01 / F189=I865LB52_w2404b1 / F192=8450094615 returned afterward.
