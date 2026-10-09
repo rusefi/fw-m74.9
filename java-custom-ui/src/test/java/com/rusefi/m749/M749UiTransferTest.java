@@ -46,8 +46,7 @@ class M749UiTransferTest {
             return new M749Panel.Selection(Path.of("backup with spaces.bin"), true, true);
         });
         try (M749LogCapture saved = new M749LogCapture(directory.resolve("transfer.log"))) {
-            await(() -> button(panel, "readFlash").isEnabled());
-            SwingUtilities.invokeAndWait(() -> button(panel, "readFlash").doClick());
+            clickWhenEnabled(panel, "readFlash");
             assertTrue(backend.entered.await(5, TimeUnit.SECONDS));
             assertEquals(List.of("--read-flash", "backup with spaces.bin", "--channel", "PCAN_USBBUS2",
                     "--block-size", "16", "--stmin", "1", "--reset-after", "--resume", "--helper-running"), backend.args);
@@ -77,8 +76,7 @@ class M749UiTransferTest {
                 await(() -> button(panel, "writeFlash").isEnabled());
                 int selected = transport;
                 SwingUtilities.invokeAndWait(() -> find(panel, JComboBox.class, "transferTransport").setSelectedIndex(selected));
-                await(() -> button(panel, "writeFlash").isEnabled());
-                SwingUtilities.invokeAndWait(() -> button(panel, "writeFlash").doClick());
+                clickWhenEnabled(panel, "writeFlash");
                 assertTrue(backend.entered.await(5, TimeUnit.SECONDS));
                 String option = transport == 0 ? "--channel" : transport == 1 ? "--slcan" : "--socketcan";
                 String value = transport == 0 ? "PCAN_USBBUS2" : transport == 1 ? "auto" : "can0";
@@ -98,16 +96,14 @@ class M749UiTransferTest {
         Backend cancelled = new Backend();
         M749Panel panel = open(cancelled, (parent, read) -> null);
         try {
-            await(() -> button(panel, "readFlash").isEnabled());
-            SwingUtilities.invokeAndWait(() -> button(panel, "readFlash").doClick());
+            clickWhenEnabled(panel, "readFlash");
             assertNull(cancelled.args);
         } finally { close(panel, cancelled); }
         Backend failed = new Backend();
         failed.fail = true;
         M749Panel failurePanel = open(failed, (parent, read) -> new M749Panel.Selection(Path.of("out.bin"), false, false));
         try {
-            await(() -> button(failurePanel, "readFlash").isEnabled());
-            SwingUtilities.invokeAndWait(() -> button(failurePanel, "readFlash").doClick());
+            clickWhenEnabled(failurePanel, "readFlash");
             assertTrue(failed.entered.await(5, TimeUnit.SECONDS));
             failed.release.countDown();
             await(() -> label(failurePanel).startsWith("Read failed") && button(failurePanel, "writeFlash").isEnabled());
@@ -118,8 +114,7 @@ class M749UiTransferTest {
         Backend backend = new Backend();
         M749Panel panel = open(backend, (parent, read) -> new M749Panel.Selection(Path.of("out.bin"), false, false));
         try {
-            await(() -> button(panel, "readFlash").isEnabled());
-            SwingUtilities.invokeAndWait(() -> button(panel, "readFlash").doClick());
+            clickWhenEnabled(panel, "readFlash");
             assertTrue(backend.entered.await(5, TimeUnit.SECONDS));
         } finally { SwingUtilities.invokeAndWait(panel::removeNotify); }
         assertTrue(backend.exited.await(5, TimeUnit.SECONDS));
@@ -140,6 +135,16 @@ class M749UiTransferTest {
     }
     private static JButton button(M749Panel panel, String name) { return find(panel, JButton.class, name); }
     private static String label(M749Panel panel) { return find(panel, JLabel.class, "activity").getText(); }
+    private static void clickWhenEnabled(M749Panel panel, String name) throws Exception {
+        // Discovery can disable controls between separate EDT events. Check and
+        // click in the same event so a disabled button cannot silently drop it.
+        await(() -> {
+            JButton target = button(panel, name);
+            if (!target.isEnabled()) return false;
+            target.doClick();
+            return true;
+        });
+    }
     private static void await(BooleanSupplier condition) throws Exception {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         AtomicReference<Boolean> done = new AtomicReference<>(false);
