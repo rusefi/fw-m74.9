@@ -7,9 +7,17 @@ import java.io.IOException;
  * builds can share one loader profile. A current M749ACT3 software HEX/SREC is
  * common to these profiles; the uploader preserves 0x08060000..0x0807FFFF,
  * while the application uses the matched loader CRC to choose the retained
- * calibration CRC start. Unknown loader contracts must fail before erase.
+ * calibration CRC start. For another OEM 707 ECU, use that same software SREC
+ * only after its live I832 loader passes detection. The 707-based full BIN
+ * contains reference-ECU data and is not the CAN software update payload.
+ * Unknown loader contracts must fail before erase.
  */
 enum M749TargetProfile {
+    // OEM software labels grouped by their resident-loader contract. Application
+    // CAN behavior, session admission and credentials require separate checks.
+    // I812: I812NA01, I812TA01
+    // I832: I815NB02, I832GA01, I872GA02
+    // I865: I862BA02, I865LB52
     I865(0xD7B6B894, 0x08060000,
             new int[]{0x08201E2C, 0x08201D84, 0x08204B7C},
             new String[]{"2de9f04184b004460d4617461e4601f0", "70b506460d46144601f024fd012801d0",
@@ -18,6 +26,7 @@ enum M749TargetProfile {
             new int[]{0x08201DE8, 0x08201D40, 0x08204CC4},
             new String[]{"2de9f04184b004460d4617461e46", "70b506460d46144601f0eafd0128",
                     "08b50a4b1b68fff7e7ff012807d0"}),
+    // The OEM I832GA01 / 8450110707 reference has this loader contract.
     I832(0xE3186D26, 0x08060000,
             new int[]{0x08201E2C, 0x08201D84, 0x08204B7C},
             new String[]{"2de9f04184b004460d4617461e46", "70b506460d46144601f024fd0128",
