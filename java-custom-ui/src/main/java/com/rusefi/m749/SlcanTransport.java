@@ -1,6 +1,10 @@
 package com.rusefi.m749;
 
 import com.fazecast.jSerialComm.SerialPort;
+import com.rusefi.io.can.CanAddress;
+import com.rusefi.io.can.ClassicCanFrame;
+import com.rusefi.io.can.slcan.SlcanCodec;
+import com.rusefi.io.can.slcan.SlcanSetup;
 import com.rusefi.io.can.slcan.SlcanVersion;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -31,6 +35,7 @@ final class SlcanTransport implements RawCanTransport {
     private long receivedBytes;
     private boolean canable;
     private boolean versionReceived;
+    private String adapterVersion;
 
     private static final class AckTimeout extends IOException {
         AckTimeout(String message) { super(message); }
@@ -100,19 +105,33 @@ final class SlcanTransport implements RawCanTransport {
     }
 
     void initialize() throws IOException {
+        boolean closeAcknowledged = true;
         try { command("C"); }
         catch (AckTimeout e) {
+            closeAcknowledged = false;
             log.accept("No close acknowledgement; checking for CANable firmware with V");
             command("V");
-            if (!canable) { throw e; }
+            if (!SlcanVersion.isCanableFamily(adapterVersion)) { throw e; }
+            canable = true;
             if (bus != 1) { throw new IOException("CANable supports only SLCAN bus 1"); }
             log.accept("CANable firmware detected: commands have no acknowledgements; checking version replies during setup");
         }
-        command("S6");
-        command("O");
+        if (closeAcknowledged) {
+            // An acknowledged WeAct still needs A1. Probe V before opening CAN so
+            // the vendor-specific command is never sent to an unknown adapter.
+            try { command("V", 700); }
+            catch (AckTimeout | CommandRejected e) {
+                log.accept("SLCAN version unavailable; skipping adapter-specific setup: " + e.getMessage());
+            }
+        }
+        SlcanSetup.openClosedChannel(adapterVersion, 6, this::command, log);
     }
 
     private void command(String value) throws IOException {
+        command(value, 2_000);
+    }
+
+    private void command(String value, int timeoutMs) throws IOException {
         acknowledgements = 0;
         versionReceived = false;
         recoveringClose = value.equals("C");
@@ -120,12 +139,12 @@ final class SlcanTransport implements RawCanTransport {
         long start = System.nanoTime();
         long before = receivedBytes;
         boolean requireVersion = canable || value.equals("V");
-        log.accept("SLCAN TX " + value + "<CR>; waiting up to 2000 ms for " +
+        log.accept("SLCAN TX " + value + "<CR>; waiting up to " + timeoutMs + " ms for " +
                 (requireVersion ? "version reply" : "acknowledgement"));
         try {
             write(value);
             if (canable && !value.equals("V")) { write("V"); }
-            long deadline = System.nanoTime() + 2_000_000_000L;
+            long deadline = System.nanoTime() + timeoutMs * 1_000_000L;
             while (requireVersion ? !versionReceived : acknowledgements == 0) {
                 pump();
                 if (System.nanoTime() >= deadline) { throw new AckTimeout("SLCAN " + value + " reply timeout after " +
@@ -150,10 +169,7 @@ final class SlcanTransport implements RawCanTransport {
 
     public void sendCan(int id, byte[] data) throws IOException {
         if (id < 0 || id > 0x7FF || data.length > 8) { throw new IOException("Invalid classic CAN frame"); }
-        StringBuilder command = new StringBuilder(bus == 1 ? "" : bus == 2 ? "&" : "$");
-        command.append(String.format("t%03X%X", id, data.length));
-        for (byte value : data) { command.append(String.format("%02X", value & 255)); }
-        write(command.toString());
+        write(SlcanCodec.encode(new ClassicCanFrame(new CanAddress(id, false), data), bus - 1));
     }
 
     public Frame receiveCan() throws IOException {
@@ -219,11 +235,12 @@ final class SlcanTransport implements RawCanTransport {
     }
 
     private void accept(String value) throws IOException {
-        if (initializingCommand != null && SlcanVersion.isCanableFamily(value)) {
-            // CANable 2 or WeAct USB2CANFDV1: no acknowledgements, the V reply is the barrier.
-            canable = true;
+        if (initializingCommand != null && SlcanVersion.isVersionReply(value)) {
+            // V identifies acknowledged WeAct adapters for A1 and is also the
+            // setup barrier when a CANable-family adapter omits acknowledgements.
+            adapterVersion = value;
             versionReceived = true;
-            log.accept("CANable family version: " + value);
+            log.accept("SLCAN version: " + value);
             return;
         }
         if (value.isEmpty() || value.equals("z") || value.equals("Z")) { acknowledgements++; return; }
@@ -232,35 +249,23 @@ final class SlcanTransport implements RawCanTransport {
             if (!value.equalsIgnoreCase("F00")) { throw new IOException("SLCAN error status: " + value); }
             return;
         }
-        int sourceBus = 1;
+        String frameLine = value;
         if (value.charAt(0) == '&' || value.charAt(0) == '$') {
-            sourceBus = value.charAt(0) == '&' ? 2 : 3;
             value = value.substring(1);
         }
         if (value.isEmpty()) { throw new IOException("Malformed SLCAN frame"); }
         char type = value.charAt(0);
-        boolean extended = type == 'T' || type == 'R', remote = type == 'r' || type == 'R';
         if (type != 't' && type != 'T' && type != 'r' && type != 'R') { throw new IOException("Unexpected SLCAN line: " + value); }
-        int digits = extended ? 8 : 3;
-        try {
-            if (!value.substring(1).matches("[0-9a-fA-F]+")) { throw new IllegalArgumentException(); }
-            int id = Integer.parseInt(value.substring(1, digits + 1), 16);
-            int dlc = Integer.parseInt(value.substring(digits + 1, digits + 2), 16);
-            if (dlc > 8 || id > (extended ? 0x1FFFFFFF : 0x7FF)) { throw new IllegalArgumentException(); }
-            int end = digits + 2 + (remote ? 0 : 2 * dlc);
-            if (value.length() != end && value.length() != end + 4) { throw new IllegalArgumentException(); }
-            if (sourceBus != bus || extended || remote) { return; }
-            // Only diagnostic and paired-authorization traffic is consumed here.
-            if (id != 0x7E8 && id != 0x713 && id != 0x714) { return; }
-            byte[] data = new byte[dlc];
-            for (int i = 0; i < dlc; i++) {
-                data[i] = (byte) Integer.parseInt(value.substring(digits + 2 + i * 2, digits + 4 + i * 2), 16);
-            }
-            if (frames.size() >= 4096) { throw new IOException("SLCAN receive queue overflow; reduce read speed"); }
-            frames.add(new Frame(id, data));
-        } catch (IllegalArgumentException | IndexOutOfBoundsException e) {
-            throw new IOException("Malformed SLCAN frame: " + value, e);
+        SlcanCodec.Frame frame = SlcanCodec.decode(frameLine);
+        if (frame == null) {
+            throw new IOException("Malformed SLCAN frame: " + value);
         }
+        if (frame.busIndex != bus - 1 || frame.address.isExtended() || frame.rtr) { return; }
+        int id = frame.address.getId();
+        // Only diagnostic and paired-authorization traffic is consumed here.
+        if (id != 0x7E8 && id != 0x713 && id != 0x714) { return; }
+        if (frames.size() >= 4096) { throw new IOException("SLCAN receive queue overflow; reduce read speed"); }
+        frames.add(new Frame(id, frame.data));
     }
 
     public void close() throws IOException {
