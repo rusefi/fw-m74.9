@@ -2,7 +2,13 @@ package com.rusefi.m749;
 
 import java.io.IOException;
 
-/** Known resident-loader contracts. A software name alone is not compatibility. */
+/**
+ * Validated resident-loader contracts, not OEM application names. Multiple OEM
+ * builds can share one loader profile. A current M749ACT3 software HEX/SREC is
+ * common to these profiles; the uploader preserves 0x08060000..0x0807FFFF,
+ * while the application uses the matched loader CRC to choose the retained
+ * calibration CRC start. Unknown loader contracts must fail before erase.
+ */
 enum M749TargetProfile {
     I865(0xD7B6B894, 0x08060000,
             new int[]{0x08201E2C, 0x08201D84, 0x08204B7C},
@@ -17,7 +23,10 @@ enum M749TargetProfile {
             new String[]{"2de9f04184b004460d4617461e46", "70b506460d46144601f024fd0128",
                     "08b50a4b1b68fff7e7ff012807d0"});
 
+    // Stored loader CRC at 0x0822DFFC and start of its OEM calibration CRC domain.
     final int bootCrc, calibrationStart;
+    // Short loader-code signatures supplement the CRC word; neither checks the
+    // MCU option bytes or proves that the entire resident loader is intact.
     final int[] addresses;
     final String[] sentinels;
 
@@ -29,6 +38,7 @@ enum M749TargetProfile {
     }
 
     static M749TargetProfile detect(M749ChecksumReader reader) throws IOException, InterruptedException {
+        // FF01 is only an additive checksum, so compare one byte at a time.
         for (M749TargetProfile profile : values()) {
             boolean matches = true;
             for (int i = 0; i < 4; i++) {
