@@ -623,3 +623,45 @@ and [AT32F435/437 reference manual](https://www.arterychip.com/download/RM/RM_AT
 
 Bench follow-up: full-transfer PCAN flow control and flash timing, physical cold
 boot, interrupted-power recovery, and preservation of protected ECU data. Offline tests cannot establish those hardware properties.
+
+### Startup and adapter failure diagnostics
+
+After a failed upload, the console disables Flash until **Scan / query again**
+obtains a fresh identity. Clicking Flash cannot repeat an operation using the
+identity from before a failed transfer.
+
+The uploader keeps the full 60-attempt F1A0 startup wait. If it expires, one
+bounded F186 read distinguishes programming session 02, another session,
+a rejected query, malformed replies, transport failure and no response.
+F186=02 confirms the diagnostic session; it does not identify why startup failed.
+No recovery reset or programming replay is sent.
+
+New firmware publishes a 64-byte boot diagnostic record before normal runtime
+initialization. On session-02 failure, the uploader authenticates, rechecks the
+same loader profile and reads only this fixed record, with a 15-second budget.
+This diagnostic uses byte comparisons with wrong-candidate controls. Its
+version, checksum, software CRC and boot sequence protect against malformed,
+torn, wrong-image and unchanged pre-reset records. If no sequence baseline is
+available, the output explicitly says that freshness is unverified. Older
+firmware may have no record. The record is volatile; capture the log before
+removing ECU power. Failure to read it does not replace the original readiness
+error and does not authorize erasing or changing options.
+
+The diagnostic distinguishes MCU mismatch, insufficient/non-erased RAM options,
+access protection, SLIB restrictions, image checks, marker/token admission,
+option-controller failures and later activation failure. Stage-only records
+report the last completed stage, not a guessed fault. Existing protection,
+image checks and option-write restrictions remain in force.
+
+`--block-size` and `--stmin` describe host **receive** flow control. Outgoing
+firmware data follows the ECU's flow control. Optional `--tx-gap 0..127` adds a
+minimum outgoing consecutive-frame delay in milliseconds; the Java CLI and UI
+default to 1 ms. Use `--tx-gap 0` to explicitly disable the host minimum. The effective delay is the larger of this setting and the
+ECU-requested STmin. Overall deadlines still apply; pacing never enables a
+request replay. Use this as a diagnostic setting, not proof that pacing fixes
+an adapter fault.
+
+UDS errors include the current SID/phase, latest ECU flow control and up to 16
+recent frame metadata entries. Adapter BELL also logs bounded recent metadata.
+Firmware contents, security keys and pairing payloads are omitted. The pending
+UDS block address does not identify the exact CAN frame rejected by an adapter.

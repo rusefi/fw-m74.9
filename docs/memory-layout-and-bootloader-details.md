@@ -391,3 +391,38 @@ The validity-page operation is confined to 0x08200000-0x08200FFF and publishes
 0x43A0C212 only after CRC checks and restoration/verification of the page body.
 Generic AT32 MFS remains disabled. Loader-managed metadata writes are described
 in the [CLI guide](cli-uploader.md); they are never arbitrary payload ranges.
+
+### Volatile boot diagnostic record
+
+Firmware reserves `0x20000040..0x2000007F` as a 64-byte NOLOAD record, separate
+from the boot token at `0x20000000`, option code at `0x20001000` and both stacks.
+The I812/I832/I865 loader startup clears RAM starting at `0x20000100`; the record
+must remain below that boundary. Only these supported loader profiles are
+eligible for automatic diagnostic retrieval. Main flash and option write
+whitelists are unchanged. Physical reset-retention qualification remains open.
+
+The record is 16 little-endian words:
+
+| Word | Meaning |
+| --- | --- |
+| 0 | Magic 3144424D (MBD1), published last |
+| 1 | Version/size 00010040 |
+| 2 | BootReason from firmware/boot_diagnostic.h |
+| 3 | Expected software CRC |
+| 4 | Boot sequence, incremented from a valid previous record |
+| 5 | MCU DEBUG_ID |
+| 6 | EOPB0 low halfword; access option high halfword |
+| 7 | SLIB register snapshot |
+| 8 | Flash status, refreshed when a reason is recorded |
+| 9 | Marker on entry |
+| 10 | SRAM token on entry |
+| 11-13 | Computed software, calibration and loader CRCs |
+| 14 | Bit 0: CRC checks computed; bit 1: checks valid |
+| 15 | Integrity checksum |
+
+Checksum starts with the magic; for words 1 through 14, rotate the accumulator
+left by five bits then XOR the word. Updates first invalidate magic and publish
+it only after the checksum and a memory barrier. This is corruption detection,
+not authentication. Power loss can discard the record. Each application entry
+starts a fresh sequence and snapshot; successful stages also update the reason.
+All helpers used while flash is busy are inlined into the copied low-SRAM code.

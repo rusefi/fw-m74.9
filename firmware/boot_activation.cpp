@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "boot_activation.h"
+#include "boot_diagnostic.h"
 
 static_assert(STM32_PWM_TIM5_IRQ_PRIORITY == EFI_IRQ_SCHEDULING_TIMER_PRIORITY,
     "M74.9 TIM5 interrupt priority must match the scheduler contract");
@@ -107,14 +108,17 @@ void initM749BootActivation() {
     // Called after HAL/RT init, before board actuator initialization.
     MarkerFlash flash;
     checks = m749::checkImages([&](uint32_t address) { return flash.read(address); }, feedWatchdog);
+    m749::noteBootChecks(checks);
     ready = m749::activate(flash, checks, m749BootIntent, savedMarkerPage);
     if (!ready) {
         // An incomplete/corrupt image never starts engine control or publishes validity.
         __disable_irq();
+        m749::noteBootReason(checks.valid ? m749::BootReason::Activation : m749::BootReason::ImageChecks);
         m749BootIntent = 0x4DF9123B;
         __DSB();
         NVIC_SystemReset();
     }
+    m749::noteBootReason(m749::BootReason::ApplicationReady);
     m749BootIntent = 0;
 }
 

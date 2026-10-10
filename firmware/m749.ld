@@ -21,6 +21,7 @@
 MEMORY
 {
     boot_intent (rw) : org = 0x20000000, len = 4
+    boot_diagnostic (rw) : org = 0x20000040, len = 64
     option_ram (rwx) : org = 0x20001000, len = 4k
     mstack (rw) : org = 0x20020000 - __main_stack_size__, len = __main_stack_size__
     vectors (rx) : org = 0x08001000, len = 0x1000
@@ -91,6 +92,7 @@ REGION_ALIAS("HEAP_RAM", ram0);
    (programming 0x4DF9123B, alternate/return 0xF9C74A52) survive startup. */
 SECTIONS {
     .boot_intent (NOLOAD) : { KEEP(*(.boot_intent)) } > boot_intent
+    .boot_diagnostic (NOLOAD) : { KEEP(*(.boot_diagnostic)) } > boot_diagnostic
     .m749_startup : { KEEP(*(.m749_startup)) } > flash1
     .m749_option_ram : ALIGN(4) {
         __m749_option_start__ = .;
@@ -149,6 +151,8 @@ INCLUDE rules.ld
 ASSERT(ADDR(.vectors) == 0x08001000, "M74.9 vectors moved")
 ASSERT(__main_stack_end__ == 0x20020000, "M74.9 initial SP moved")
 ASSERT((Reset_Handler & ~1) == 0x08080000, "M74.9 reset entry moved")
+ASSERT(ADDR(.boot_diagnostic) == 0x20000040 && SIZEOF(.boot_diagnostic) == 64,
+       "M74.9 boot diagnostic reservation moved")
 ASSERT(SIZEOF(.boot_intent) == 4, "M74.9 boot intent must be reserved")
 ASSERT(SIZEOF(.m749_activation) == 32, "M74.9 activation descriptor missing")
 ASSERT(SIZEOF(.m749_option_ram) > 0 && SIZEOF(.m749_option_ram) <= 4096,
