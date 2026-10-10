@@ -17,6 +17,23 @@ class M749ConnectionOptionsTest {
     };
     private static final class Captured extends IOException { }
 
+    @Test void transmitGapDefaultsToOneAndPreservesExplicitZeroAcrossCopiesAndArguments() {
+        M749ConnectionOptions defaults = new M749ConnectionOptions();
+        defaults.validate();
+        assertEquals(1, defaults.txGap);
+        for (int gap : new int[]{0, 1, 7}) {
+            M749ConnectionOptions options = new M749ConnectionOptions();
+            options.accept("--tx-gap", Integer.toString(gap));
+            options.validate();
+            assertEquals(gap, options.copy().txGap);
+            M749ConnectionOptions restored = new M749ConnectionOptions();
+            List<String> args = options.arguments();
+            for (int i = 0; i < args.size(); i += 2) restored.accept(args.get(i), args.get(i + 1));
+            restored.validate();
+            assertEquals(gap, restored.txGap);
+        }
+    }
+
     @Test void helpWorksWithoutAnActionOperandOnEveryCommand() throws Exception {
         for (String action : List.of("--identify", "--read-flash", "--check-target", "--upload", "--write-flash", "--read-byte", "--read-pair")) {
             List<String> out = new ArrayList<>();

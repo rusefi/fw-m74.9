@@ -8,7 +8,7 @@ import java.util.function.Consumer;
 /** Shared transport selection, validation and receive flow control for every command. */
 class M749ConnectionOptions {
     String slcan, socketcan, channel;
-    int baud = 115200, bus = 1, block = 16, stmin = -1, txGap = 0;
+    int baud = 115200, bus = 1, block = 16, stmin = -1, txGap = UdsClient.DEFAULT_TRANSMIT_GAP_MS;
     private final Set<String> supplied = new HashSet<>();
     static final Set<String> FLAGS = Set.of("--slcan", "--socketcan", "--channel", "--serial-baud",
             "--slcan-bus", "--block-size", "--stmin", "--tx-gap");
@@ -66,7 +66,7 @@ class M749ConnectionOptions {
         else if (channel != null) result.addAll(List.of("--channel", channel));
         result.addAll(List.of("--block-size", Integer.toString(block)));
         if (stmin >= 0) result.addAll(List.of("--stmin", Integer.toString(stmin)));
-        if (txGap != 0) result.addAll(List.of("--tx-gap", Integer.toString(txGap)));
+        if (txGap != UdsClient.DEFAULT_TRANSMIT_GAP_MS) result.addAll(List.of("--tx-gap", Integer.toString(txGap)));
         return result;
     }
 
@@ -86,7 +86,7 @@ class M749ConnectionOptions {
         out.accept("Transport (all hardware commands): --slcan PORT|auto | --socketcan IFACE | --channel CHANNEL|auto");
         out.accept("Default: SLCAN auto. Auto requires exactly one available adapter; SocketCAN requires an explicit interface.");
         out.accept("Options: --serial-baud 115200 --slcan-bus 1 (SLCAN only); --block-size 16 --stmin 0..127 (all transports).");
-        out.accept("--block-size/--stmin control receive flow control. --tx-gap 0..127 adds a minimum outgoing CF gap in ms (default 0); a longer ECU STmin wins.");
+        out.accept("--block-size/--stmin control receive flow control. --tx-gap 0..127 adds a minimum outgoing CF gap in ms (default 1); a longer ECU STmin wins.");
         out.accept("Default STmin: 1 ms for PCAN/SocketCAN; at least 3 ms for SLCAN, adjusted for serial baud. CAN: 500 kbit/s.");
     }
 

@@ -305,3 +305,22 @@ INI; a newly generated INI also has a newly generated firmware signature.
   erase/download. The live values matched all previously saved indices; line
   endings alone differed. The cache now contains the live-read file, and OEM
   F186=01 / F189=I865LB52_w2404b1 / F192=8450094615 returned afterward.
+
+- Boot diagnostics reserve 20000040..2000007F below the supported loaders' RAM
+  initialization boundary 20000100. Keep this NOLOAD record separate from the
+  boot token, copied option code and stacks; never move it into general BSS.
+  Its magic/checksum/image CRC do not alone prove freshness: compare the boot
+  sequence with the pre-reset baseline, or explicitly report freshness unknown.
+  Software reset retention has offline coverage; physical retention and power
+  loss still need qualification. Helpers called from option code must inline.
+- --block-size/--stmin control host receive flow control. Outgoing consecutive
+  frames use ECU FC and --tx-gap (Java default 1 ms), with the larger delay
+  prevailing. Preserve explicit zero when copying/serializing connection options.
+  Neither transmit pacing nor a BELL justifies automatic programming replay.
+
+- On the Oct-10 I832 bench, WeAct V1.0.0.6 acknowledged A1 but rejected a
+  zero-gap TransferData while ECU FC was block=0/STmin=00. A separate full
+  upload with --tx-gap 1 completed and passed both activation resets. This
+  supports an explicit pacing experiment, not a universal default change or
+  proof of adapter queue overflow. Query state before a new upload; never
+  replay the ambiguous programming request automatically.

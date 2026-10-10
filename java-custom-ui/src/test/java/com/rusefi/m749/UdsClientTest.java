@@ -49,6 +49,14 @@ class UdsClientTest {
         assertTrue(frames[0] > 16);
     }
 
+    @Test void defaultTransmitGapPacesConsecutiveFramesWhenEcuRequestsZero() throws Exception {
+        Bus bus = new Bus();
+        bus.rx.add(bytes(0x30, 0, 0));
+        bus.rx.add(bytes(2, 0x76, 0));
+        bus.client().exchange(new byte[20], bytes(0x76, 0), 100);
+        assertEquals(List.of(1L, 1L), bus.pauses);
+    }
+
     @Test void transmitGapHonorsLongerEcuStminAndOverallDeadline() throws Exception {
         for (int ecuGap : new int[]{0, 7}) {
             Bus bus = new Bus();

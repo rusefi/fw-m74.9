@@ -7,6 +7,7 @@ import java.util.function.Consumer;
 
 /** One outstanding physical request; classic CAN ISO-TP, no automatic retries. */
 final class UdsClient implements M749Uploader.Connection {
+    static final int DEFAULT_TRANSMIT_GAP_MS = 1;
     private static final long FRAME_TIMEOUT = 2_000;
     private final DiagnosticTransport transport;
     private final M749Identification.Timing clock;
@@ -45,7 +46,7 @@ final class UdsClient implements M749Uploader.Connection {
     }
 
     UdsClient(DiagnosticTransport transport, int receiveBlockSize, int receiveStmin) {
-        this(transport, receiveBlockSize, receiveStmin, 0, message -> { });
+        this(transport, receiveBlockSize, receiveStmin, DEFAULT_TRANSMIT_GAP_MS, message -> { });
     }
 
     UdsClient(DiagnosticTransport transport, int receiveBlockSize, int receiveStmin,
@@ -61,7 +62,7 @@ final class UdsClient implements M749Uploader.Connection {
     }
 
     UdsClient(DiagnosticTransport transport, M749Identification.Timing clock, int receiveBlockSize, int receiveStmin) {
-        this(transport, clock, receiveBlockSize, receiveStmin, 0, message -> { });
+        this(transport, clock, receiveBlockSize, receiveStmin, DEFAULT_TRANSMIT_GAP_MS, message -> { });
     }
 
     UdsClient(DiagnosticTransport transport, M749Identification.Timing clock, int receiveBlockSize,
