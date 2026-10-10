@@ -1,5 +1,6 @@
 package com.rusefi.m749;
 
+import com.devexperts.logging.Logging;
 import java.io.IOException;
 
 /**
@@ -31,6 +32,8 @@ enum M749TargetProfile {
             new int[]{0x08201E2C, 0x08201D84, 0x08204B7C},
             new String[]{"2de9f04184b004460d4617461e46", "70b506460d46144601f024fd0128",
                     "08b50a4b1b68fff7e7ff012807d0"});
+
+    private static final Logging logger = Logging.getLogging(M749TargetProfile.class);
 
     // Stored loader CRC at 0x0822DFFC and start of its OEM calibration CRC domain.
     final int bootCrc, calibrationStart;
@@ -67,6 +70,10 @@ enum M749TargetProfile {
                     reader.verifyByte(profile.addresses[n] + i / 2, Integer.parseInt(value.substring(i, i + 2), 16));
                 }
             }
+            logger.info(String.format(
+                    "Matched resident-loader profile %s: boot CRC 0x%08X, calibration start 0x%08X; " +
+                            "CRC bytes and %d loader-code signatures verified",
+                    profile, profile.bootCrc, profile.calibrationStart, profile.addresses.length));
             return profile;
         }
         throw new IOException("Unsupported resident loader: I812/I832/I865 compatibility check failed");
