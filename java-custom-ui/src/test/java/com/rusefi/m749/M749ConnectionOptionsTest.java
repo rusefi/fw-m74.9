@@ -34,7 +34,7 @@ class M749ConnectionOptionsTest {
                 {}, {"--channel", "auto"}, {"--channel", "PCAN_USBBUS2"}, {"--socketcan", "can7"},
                 {"--slcan", "COM with spaces", "--serial-baud", "57600", "--slcan-bus", "3"},
                 {"--slcan", "auto", "--block-size", "8", "--stmin", "7"},
-                {"--socketcan", "can0", "--block-size", "0", "--stmin", "0"}}) {
+                {"--socketcan", "can0", "--block-size", "0", "--stmin", "0", "--tx-gap", "7"}}) {
             M749ConnectionOptions expected = new M749ConnectionOptions();
             for (int i = 0; i < selection.length; i += 2) expected.accept(selection[i], selection[i + 1]);
             expected.validate();
@@ -66,7 +66,7 @@ class M749ConnectionOptionsTest {
                 {"--channel", "auto", "--slcan", "auto"}, {"--channel", "auto", "--serial-baud", "115200"},
                 {"--socketcan", "auto"}, {"--channel", "invalid"}, {"--slcan", ""},
                 {"--slcan", "auto", "--serial-baud", "9600"}, {"--slcan-bus", "4"},
-                {"--block-size", "256"}, {"--stmin", "-1"}, {"--stmin", "128"},
+                {"--tx-gap", "128"}, {"--tx-gap", "-1"}, {"--block-size", "256"}, {"--stmin", "-1"}, {"--stmin", "128"},
                 {"--stmin", "1", "--stmin", "2"}, {"--serial-baud"}, {"--channel", "--dry-run"}}) {
             for (String action : List.of("--upload", "--write-flash", "--read-byte", "--read-pair", "--read-flash", "--check-target", "--identify")) {
                 List<String> args = new ArrayList<>(List.of(action));

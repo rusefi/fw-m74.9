@@ -182,7 +182,7 @@ public final class M749Cli {
             throws IOException, InterruptedException {
         try (RawCanTransport transport = M749ConnectionOptions.open(connection, out)) {
             if (immo != null) { immo.authorize(transport, out); }
-            new M749Uploader(connection.client(transport), out).upload(image, verifyBytes);
+            new M749Uploader(connection.client(transport, out), out).upload(image, verifyBytes);
         }
     }
 
@@ -190,7 +190,7 @@ public final class M749Cli {
             throws IOException, InterruptedException {
         try (RawCanTransport transport = M749ConnectionOptions.open(connection, out)) {
             if (immo != null) { immo.authorize(transport, out); }
-            M749ChecksumReader reader = new M749ChecksumReader(connection.client(transport));
+            M749ChecksumReader reader = new M749ChecksumReader(connection.client(transport, out));
             M749TargetProfile profile = reader.prepareRead();
             if (address != null) {
                 out.accept(String.format("0x%08X = %02X", address, reader.readByte(address)));

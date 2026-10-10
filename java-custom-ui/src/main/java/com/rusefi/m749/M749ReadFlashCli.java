@@ -100,7 +100,7 @@ public final class M749ReadFlashCli {
         try { o = parse(transportArgs.toArray(new String[0])); }
         catch (IllegalArgumentException e) { out.accept(e.getMessage()); out.accept(usage); return 2; }
         try (RawCanTransport transport = factory.open(o)) {
-            M749EcuProbe.identify(o.client(transport), out);
+            M749EcuProbe.identify(o.client(transport, out), out);
         }
         return 0;
     }
@@ -123,7 +123,7 @@ public final class M749ReadFlashCli {
             boolean published = false;
             try (RawCanTransport transport = factory.open(o)) {
                 if (authorization != null) { authorization.authorize(transport, out); }
-                M749RamHelper reader = new M749RamHelper(o.client(transport), o.stmin);
+                M749RamHelper reader = new M749RamHelper(o.client(transport, out), o.stmin);
                 file.identify(reader.start(helper, o.running, out));
                 String hash = M749FlashReader.read(reader, file, o.chunk, out);
                 published = true;

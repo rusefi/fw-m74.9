@@ -22,6 +22,7 @@ final class SlcanTransport implements RawCanTransport {
 
     private final Port port;
     private final int bus;
+    private final ArrayDeque<String> recent = new ArrayDeque<>();
     private final Queue<Frame> frames = new ArrayDeque<>();
     private final StringBuilder line = new StringBuilder();
     private final byte[] input = new byte[4096];
@@ -169,6 +170,8 @@ final class SlcanTransport implements RawCanTransport {
 
     public void sendCan(int id, byte[] data) throws IOException {
         if (id < 0 || id > 0x7FF || data.length > 8) { throw new IOException("Invalid classic CAN frame"); }
+        remember(id == 0x7E0 || id == 0x7E8 ?
+                String.format("CAN %03X ", id) + UdsClient.frameSummary("TX", data) : "TX non-diagnostic CAN (payload omitted)");
         write(SlcanCodec.encode(new ClassicCanFrame(new CanAddress(id, false), data), bus - 1));
     }
 
@@ -196,6 +199,7 @@ final class SlcanTransport implements RawCanTransport {
                 if (line.length() != 0) {
                     throw new IOException("SLCAN rejection interrupted a partial line");
                 }
+                log.accept("SLCAN BELL; recent events: " + String.join(" | ", recent));
                 throw new CommandRejected();
             }
             if (value == '\r') {
@@ -221,6 +225,11 @@ final class SlcanTransport implements RawCanTransport {
                 line.append((char) value);
             }
         }
+    }
+
+    private void remember(String event) {
+        if (recent.size() == 16) { recent.removeFirst(); }
+        recent.addLast(System.nanoTime() / 1_000_000 + "ms " + event);
     }
 
     private static String hex(byte[] bytes, int count) {
@@ -265,6 +274,8 @@ final class SlcanTransport implements RawCanTransport {
         // Only diagnostic and paired-authorization traffic is consumed here.
         if (id != 0x7E8 && id != 0x713 && id != 0x714) { return; }
         if (frames.size() >= 4096) { throw new IOException("SLCAN receive queue overflow; reduce read speed"); }
+        remember(id == 0x7E8 ? "CAN 7E8 " + UdsClient.frameSummary("RX", frame.data)
+                : "RX non-diagnostic CAN (payload omitted)");
         frames.add(new Frame(id, frame.data));
     }
 

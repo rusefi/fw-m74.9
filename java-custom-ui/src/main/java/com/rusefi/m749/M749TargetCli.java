@@ -45,7 +45,7 @@ final class M749TargetCli {
         out.accept("Preflight enters programming session 02 and leaves the loader active; flash is not changed.");
         try (RawCanTransport can = factory.open(options)) {
             if (credential != null) { credential.authorize(can, out); }
-            new M749Uploader(options.client(can), out).checkTarget(image);
+            new M749Uploader(options.client(can, out), out).checkTarget(image);
         }
         return 0;
     }

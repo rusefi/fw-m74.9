@@ -2,6 +2,8 @@ package com.rusefi.m749;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.ArrayDeque;
+import java.util.function.Consumer;
 
 /** One outstanding physical request; classic CAN ISO-TP, no automatic retries. */
 final class UdsClient implements M749Uploader.Connection {
@@ -10,6 +12,10 @@ final class UdsClient implements M749Uploader.Connection {
     private final M749Identification.Timing clock;
     private final int receiveBlockSize;
     private final int receiveStmin;
+    private final int transmitGap;
+    private final Consumer<String> log;
+    private final ArrayDeque<String> recent = new ArrayDeque<>();
+    private String lastFlowControl = "no ECU flow control received";
     private int sid;
     private String phase = "before any request";
 
@@ -39,10 +45,15 @@ final class UdsClient implements M749Uploader.Connection {
     }
 
     UdsClient(DiagnosticTransport transport, int receiveBlockSize, int receiveStmin) {
+        this(transport, receiveBlockSize, receiveStmin, 0, message -> { });
+    }
+
+    UdsClient(DiagnosticTransport transport, int receiveBlockSize, int receiveStmin,
+              int transmitGap, Consumer<String> log) {
         this(transport, new M749Identification.Timing() {
             public long now() { return System.nanoTime() / 1_000_000; }
             public void pause(long milliseconds) throws InterruptedException { Thread.sleep(milliseconds); }
-        }, receiveBlockSize, receiveStmin);
+        }, receiveBlockSize, receiveStmin, transmitGap, log);
     }
 
     UdsClient(DiagnosticTransport transport, M749Identification.Timing clock) {
@@ -50,6 +61,14 @@ final class UdsClient implements M749Uploader.Connection {
     }
 
     UdsClient(DiagnosticTransport transport, M749Identification.Timing clock, int receiveBlockSize, int receiveStmin) {
+        this(transport, clock, receiveBlockSize, receiveStmin, 0, message -> { });
+    }
+
+    UdsClient(DiagnosticTransport transport, M749Identification.Timing clock, int receiveBlockSize,
+              int receiveStmin, int transmitGap, Consumer<String> log) {
+        if (transmitGap < 0 || transmitGap > 127) { throw new IllegalArgumentException("Invalid TX gap"); }
+        this.transmitGap = transmitGap;
+        this.log = log;
         if (receiveBlockSize < 0 || receiveBlockSize > 255 || receiveStmin < 0 || receiveStmin > 127) {
             throw new IllegalArgumentException("Invalid receive flow control");
         }
@@ -67,6 +86,18 @@ final class UdsClient implements M749Uploader.Connection {
         if (request.length == 0 || request.length > 4095 || prefix.length == 0 || timeout <= 0) {
             throw new IllegalArgumentException("Invalid UDS request/prefix/timeout");
         }
+        recent.clear();
+        lastFlowControl = "no ECU flow control received";
+        try {
+            return exchangeOnce(request, prefix, timeout);
+        } catch (IOException e) {
+            log.accept(String.format("UDS failure: SID %02X, %s; no request replay. Recent transport events: %s",
+                    sid, phase, lastFlowControl + " | " + String.join(" | ", recent)));
+            throw e; // Keep typed timeout, negative-response and adapter errors.
+        }
+    }
+
+    private byte[] exchangeOnce(byte[] request, byte[] prefix, long timeout) throws IOException, InterruptedException {
         long deadline = clock.now() + timeout;
         sid = request[0] & 255;
         transmit(request, deadline);
@@ -99,13 +130,13 @@ final class UdsClient implements M749Uploader.Connection {
         if (payload.length <= 7) {
             frame[0] = (byte) payload.length;
             System.arraycopy(payload, 0, frame, 1, payload.length);
-            transport.send(frame);
+            send(frame);
             return;
         }
         frame[0] = (byte) (0x10 | payload.length >>> 8);
         frame[1] = (byte) payload.length;
         System.arraycopy(payload, 0, frame, 2, 6);
-        transport.send(frame);
+        send(frame);
         int position = 6;
         int sequence = 1;
         while (position < payload.length) {
@@ -119,6 +150,10 @@ final class UdsClient implements M749Uploader.Connection {
             if (delay < 0) {
                 throw new IOException("Reserved ISO-TP STmin");
             }
+            lastFlowControl = String.format("ECU FC block=%d STmin=%02X; effective TX gap=%d ms",
+                    blockSize, stMin, Math.max(delay, transmitGap));
+            remember(lastFlowControl);
+            delay = Math.max(delay, transmitGap);
             int sent = 0;
             while (position < payload.length && (blockSize == 0 || sent < blockSize)) {
                 check(deadline);
@@ -131,11 +166,31 @@ final class UdsClient implements M749Uploader.Connection {
                 sequence = (sequence + 1) & 15;
                 int length = Math.min(7, payload.length - position);
                 System.arraycopy(payload, position, frame, 1, length);
-                transport.send(frame);
+                send(frame);
                 position += length;
                 sent++;
             }
         }
+    }
+
+    private void remember(String event) {
+        if (recent.size() == 16) { recent.removeFirst(); }
+        recent.addLast(clock.now() + "ms " + event);
+    }
+
+    private void send(byte[] frame) throws IOException {
+        remember(frameSummary("TX", frame));
+        transport.send(frame);
+    }
+
+    // Keep PCI/length/flow control only; never expose firmware, keys or pairing data.
+    static String frameSummary(String direction, byte[] frame) {
+        if (frame.length == 0) { return direction + " empty frame"; }
+        String value = String.format("%s DLC=%d PCI=%02X", direction, frame.length, frame[0] & 255);
+        if ((frame[0] & 0xF0) == 0x30 && frame.length >= 3) {
+            value += String.format(" FC block=%d STmin=%02X", frame[1] & 255, frame[2] & 255);
+        }
+        return value;
     }
 
     private byte[] flowControl(long deadline) throws IOException, InterruptedException {
@@ -216,6 +271,7 @@ final class UdsClient implements M749Uploader.Connection {
         while (true) {
             check(deadline);
             byte[] frame = transport.receive();
+            if (frame != null) { remember(frameSummary("RX", frame)); }
             if (frame != null) {
                 if (frame.length == 0 || frame.length > 8) {
                     throw new IOException("Invalid CAN frame length");

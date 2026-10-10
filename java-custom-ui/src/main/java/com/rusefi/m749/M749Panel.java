@@ -120,6 +120,7 @@ public final class M749Panel extends JPanel {
         channels.setName("channels");
         adapterRow.add(channels);
         adapterRow.add(Box.createHorizontalStrut(8));
+        retry.setName("retry");
         adapterRow.add(retry);
         adapterRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, adapterRow.getPreferredSize().height));
         top.add(adapterRow);
@@ -357,7 +358,7 @@ public final class M749Panel extends JPanel {
         blockSize.setEnabled(idle);
         stmin.setEnabled(idle);
         PcanDevice.Channel channel = (PcanDevice.Channel) channels.getSelectedItem();
-        flash.setEnabled(idle && selectedConnection != null && imagePath != null && (!pcan || channel != null && channel.available)
+        flash.setEnabled(idle && identified != null && selectedConnection != null && imagePath != null && (!pcan || channel != null && channel.available)
                 && installed != M749FirmwareDetection.Result.RUSEFI);
         transferTransport.setEnabled(idle);
         transferEndpoint.setEnabled(idle && transferTransport.getSelectedIndex() != 0);
@@ -496,7 +497,7 @@ public final class M749Panel extends JPanel {
     private void uploadFailed(String message) {
         setFirmware(M749FirmwareDetection.Result.UNKNOWN);
         status.setText("");
-        activity.setText(message);
+        activity.setText(message + "\nUse Scan / query again before retrying.");
     }
 
     private Path resolveCredential(M749Monitor.Identification target, M749ConnectionOptions options,

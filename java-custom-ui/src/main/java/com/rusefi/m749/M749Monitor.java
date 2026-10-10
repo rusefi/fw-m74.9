@@ -163,7 +163,7 @@ final class M749Monitor {
                 access.run(() -> {
                     try (RawCanTransport transport = factory.open(options, messages)) {
                         adapterOpened.run();
-                        result[0] = M749EcuProbe.inspect(options.client(transport), messages);
+                        result[0] = M749EcuProbe.inspect(options.client(transport, messages), messages);
                     }
                     return 0;
                 });
@@ -183,7 +183,7 @@ final class M749Monitor {
                 access.run(() -> {
                     try (RawCanTransport transport = factory.open(options, messages)) {
                         if (credential != null) credential.authorize(transport, messages);
-                        new M749Uploader(options.client(transport), messages).upload(image, false);
+                        new M749Uploader(options.client(transport, messages), messages).upload(image, false);
                     }
                     return 0;
                 });

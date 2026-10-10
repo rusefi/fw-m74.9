@@ -8,10 +8,10 @@ import java.util.function.Consumer;
 /** Shared transport selection, validation and receive flow control for every command. */
 class M749ConnectionOptions {
     String slcan, socketcan, channel;
-    int baud = 115200, bus = 1, block = 16, stmin = -1;
+    int baud = 115200, bus = 1, block = 16, stmin = -1, txGap = 0;
     private final Set<String> supplied = new HashSet<>();
     static final Set<String> FLAGS = Set.of("--slcan", "--socketcan", "--channel", "--serial-baud",
-            "--slcan-bus", "--block-size", "--stmin");
+            "--slcan-bus", "--block-size", "--stmin", "--tx-gap");
 
     void accept(String option, String value) {
         if (!FLAGS.contains(option)) throw new IllegalArgumentException("Unknown transport option " + option);
@@ -25,6 +25,7 @@ class M749ConnectionOptions {
             case "--slcan-bus": bus = Integer.decode(value); break;
             case "--block-size": block = Integer.decode(value); break;
             case "--stmin": stmin = Integer.decode(value); break;
+            case "--tx-gap": txGap = Integer.decode(value); break;
         }
     }
 
@@ -40,7 +41,7 @@ class M749ConnectionOptions {
             try { peak.can.basic.TPCANHandle.valueOf(channel.toUpperCase(Locale.ROOT)); }
             catch (IllegalArgumentException e) { throw new IllegalArgumentException("Invalid PCAN channel: " + channel); }
         }
-        if (block < 0 || block > 255 || baud < 9600 || baud > 4_000_000 || bus < 1 || bus > 3 ||
+        if (txGap < 0 || txGap > 127 || block < 0 || block > 255 || baud < 9600 || baud > 4_000_000 || bus < 1 || bus > 3 ||
                 stmin < -1 || stmin > 127 || supplied.contains("--stmin") && stmin < 0) {
             throw new IllegalArgumentException("Invalid flow control, serial baud or bus");
         }
@@ -53,7 +54,10 @@ class M749ConnectionOptions {
         if (stmin < 0) stmin = slcan == null ? 1 : Math.max(3, (270000 + baud - 1) / baud);
     }
 
-    UdsClient client(DiagnosticTransport transport) { return new UdsClient(transport, block, stmin); }
+    UdsClient client(DiagnosticTransport transport) { return client(transport, message -> { }); }
+    UdsClient client(DiagnosticTransport transport, Consumer<String> out) {
+        return new UdsClient(transport, block, stmin, txGap, out);
+    }
 
     List<String> arguments() {
         List<String> result = new ArrayList<>();
@@ -62,13 +66,14 @@ class M749ConnectionOptions {
         else if (channel != null) result.addAll(List.of("--channel", channel));
         result.addAll(List.of("--block-size", Integer.toString(block)));
         if (stmin >= 0) result.addAll(List.of("--stmin", Integer.toString(stmin)));
+        if (txGap != 0) result.addAll(List.of("--tx-gap", Integer.toString(txGap)));
         return result;
     }
 
     M749ConnectionOptions copy() {
         M749ConnectionOptions copy = new M749ConnectionOptions();
         copy.slcan = slcan; copy.socketcan = socketcan; copy.channel = channel;
-        copy.baud = baud; copy.bus = bus; copy.block = block; copy.stmin = stmin;
+        copy.baud = baud; copy.bus = bus; copy.block = block; copy.stmin = stmin; copy.txGap = txGap;
         copy.supplied.addAll(supplied);
         return copy;
     }
@@ -81,6 +86,7 @@ class M749ConnectionOptions {
         out.accept("Transport (all hardware commands): --slcan PORT|auto | --socketcan IFACE | --channel CHANNEL|auto");
         out.accept("Default: SLCAN auto. Auto requires exactly one available adapter; SocketCAN requires an explicit interface.");
         out.accept("Options: --serial-baud 115200 --slcan-bus 1 (SLCAN only); --block-size 16 --stmin 0..127 (all transports).");
+        out.accept("--block-size/--stmin control receive flow control. --tx-gap 0..127 adds a minimum outgoing CF gap in ms (default 0); a longer ECU STmin wins.");
         out.accept("Default STmin: 1 ms for PCAN/SocketCAN; at least 3 ms for SLCAN, adjusted for serial baud. CAN: 500 kbit/s.");
     }
 

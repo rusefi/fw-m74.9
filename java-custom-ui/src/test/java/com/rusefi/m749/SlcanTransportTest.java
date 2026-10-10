@@ -8,6 +8,20 @@ import static org.junit.jupiter.api.Assertions.*;
 import static com.rusefi.m749.M749Identification.bytes;
 
 class SlcanTransportTest {
+    @Test void bellIncludesBoundedMetadataAndNeverFirmwareOrPairingPayloads() throws Exception {
+        Port port = new Port(); List<String> log = new ArrayList<>();
+        SlcanTransport transport = new SlcanTransport(port, 1, log::add);
+        for (int i = 0; i < 40; i++) transport.sendCan(0x7E0, bytes(0x21, 0xDE, 0xAD, 0xBE, 0xEF));
+        transport.sendCan(0x714, bytes(0xDE, 0xAD, 0xBE, 0xEF));
+        port.offer("\u0007");
+        assertThrows(SlcanTransport.CommandRejected.class, transport::receiveCan);
+        assertEquals(1, log.size());
+        assertTrue(log.get(0).contains("SLCAN BELL"));
+        assertEquals(15, log.get(0).split("PCI=21", -1).length - 1);
+        assertTrue(log.get(0).contains("payload omitted"));
+        assertFalse(log.get(0).contains("DE AD"));
+    }
+
     @Test void closeSynchronizesPastStaleFragmentsButActiveParsingStaysStrict() throws Exception {
         Port port = new Port(); port.acknowledge = true;
         port.offer("1000000\rt".repeat(70) + "\r");

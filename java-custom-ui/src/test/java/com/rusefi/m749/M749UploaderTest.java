@@ -67,6 +67,10 @@ class M749UploaderTest {
                         Arrays.fill(flash, address - 0x08000000, address - 0x08000000 + length, (byte) 0xFF);
                         result = bytes(0x71, 1, 0xFF, 0, 0);
                     } else {
+                        if (address >= M749BootDiagnostic.ADDRESS && address < M749BootDiagnostic.ADDRESS + 64) {
+                            assertEquals(1, length);
+                            return bytes(0x71, 1, 0xFF, 1, q[14] == 0 ? 0 : 1);
+                        }
                         int sum = 0;
                         for (int i = 0; i < length; i++) { sum = (sum + (flash[address - 0x08000000 + i] & 255)) & 65535; }
                         int want = (q[13] & 255) << 8 | q[14] & 255;
@@ -204,6 +208,34 @@ class M749UploaderTest {
         assertEquals(60, ecu.messages.stream().filter(s -> s.startsWith("Application readiness ")).count());
         assertEquals(1, ecu.resets);
         assertFalse(ecu.messages.stream().anyMatch(s -> s.startsWith("Upload complete")));
+    }
+
+    @Test void finalSessionClassifiesLoaderSilenceMalformedAndApplicationWithoutExtraReset() {
+        for (int kind = 0; kind < 5; kind++) {
+            final int mode = kind;
+            int[] sessionQueries = {0};
+            Ecu ecu = new Ecu() {
+                public byte[] exchange(byte[] q, byte[] prefix, long timeout) throws IOException {
+                    if (app && Arrays.equals(q, bytes(0x22, 0xF1, 0xA0))) {
+                        throw new UdsClient.NegativeResponse(0x22, 0x31);
+                    }
+                    if (app && Arrays.equals(q, bytes(0x22, 0xF1, 0x86))) {
+                        sessionQueries[0]++; assertEquals(3000, timeout);
+                        if (mode == 0) return bytes(0x62, 0xF1, 0x86, 2);
+                        if (mode == 1) throw new UdsClient.Timeout(0x22, "awaiting response");
+                        if (mode == 2) return bytes(0x62, 0xF1, 0x86);
+                        if (mode == 3) return bytes(0x62, 0xF1, 0x86, 1);
+                        throw new UdsClient.NegativeResponse(0x22, 0x31);
+                    }
+                    return super.exchange(q, prefix, timeout);
+                }
+            };
+            IOException error = assertThrows(IOException.class, () -> ecu.run(M749Image.Domain.SOFTWARE));
+            assertTrue(error.getMessage().contains(new String[]{"programming session 02", "F186 no response",
+                    "F186 malformed", "F186 reports session 01", "F186 rejected"}[mode]));
+            assertEquals(1, sessionQueries[0]); assertEquals(1, ecu.resets);
+            assertEquals(60, ecu.messages.stream().filter(m -> m.startsWith("Application readiness ")).count());
+        }
     }
 
     @Test void activationReportsTimeoutAndUnexpectedStatus() {

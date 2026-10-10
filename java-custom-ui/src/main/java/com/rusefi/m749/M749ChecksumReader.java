@@ -23,6 +23,18 @@ final class M749ChecksumReader {
         if (length <= 0 || (long) address + length > 0x083F0000L || sum < 0 || sum > 65535) {
             throw new IllegalArgumentException("Invalid checksum range or sum");
         }
+        return compare(address, length, sum);
+    }
+
+    // Deliberately separate from the public flash-only reader. No arbitrary RAM
+    // or MMIO range can enter this diagnostic-only path.
+    boolean diagnosticByteMatches(int address, int candidate) throws IOException, InterruptedException {
+        if (address < M749BootDiagnostic.ADDRESS || address >= M749BootDiagnostic.ADDRESS + 64 ||
+                candidate < 0 || candidate > 255) { throw new IllegalArgumentException("Invalid boot diagnostic byte"); }
+        return compare(address, 1, candidate);
+    }
+
+    private boolean compare(int address, int length, int sum) throws IOException, InterruptedException {
         if (Thread.currentThread().isInterrupted()) { throw new InterruptedException(); }
         byte[] q = bytes(0x31, 1, 0xFF, 1, 0x44, address >>> 24, address >>> 16,
                 address >>> 8, address, length >>> 24, length >>> 16, length >>> 8,

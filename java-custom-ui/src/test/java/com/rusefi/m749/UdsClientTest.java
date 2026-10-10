@@ -49,6 +49,33 @@ class UdsClientTest {
         assertTrue(frames[0] > 16);
     }
 
+    @Test void transmitGapHonorsLongerEcuStminAndOverallDeadline() throws Exception {
+        for (int ecuGap : new int[]{0, 7}) {
+            Bus bus = new Bus();
+            bus.rx.add(bytes(0x30, 0, ecuGap));
+            bus.rx.add(bytes(2, 0x76, 0));
+            new UdsClient(bus, bus, 16, 3, 5, s -> {}).exchange(new byte[20], bytes(0x76, 0), 100);
+            assertEquals(List.of((long)Math.max(5, ecuGap), (long)Math.max(5, ecuGap)), bus.pauses);
+        }
+        Bus bus = new Bus(); bus.rx.add(bytes(0x30, 0, 0));
+        assertThrows(UdsClient.Timeout.class, () -> new UdsClient(bus, bus, 16, 3, 5, s -> {})
+                .exchange(new byte[20], bytes(0x76, 0), 5));
+        assertEquals(1, bus.tx.size(), "Do not send a CF after the deadline or replay the FF");
+    }
+
+    @Test void rejectionLogsBoundedContextAndRetainsFlowControlWithoutPayload() {
+        Bus bus = new Bus(); bus.rx.add(bytes(0x30, 0, 0));
+        byte[] request = new byte[500]; Arrays.fill(request, (byte)0xAB); request[0] = 0x36;
+        List<String> log = new ArrayList<>();
+        assertThrows(UdsClient.Timeout.class, () -> new UdsClient(bus, bus, 16, 3, 0, log::add)
+                .exchange(request, bytes(0x76, 0), 100));
+        assertEquals(1, log.size());
+        assertTrue(log.get(0).contains("SID 36, awaiting the response"));
+        assertTrue(log.get(0).contains("ECU FC block=0 STmin=00"));
+        assertFalse(log.get(0).contains("AB AB"));
+        assertEquals(16, log.get(0).split("DLC=", -1).length - 1);
+    }
+
     @Test void assemblesMultiframeResponseAndSendsFlowControl() throws Exception {
         Bus bus = new Bus();
         bus.rx.add(bytes(0x10, 10, 0x62, 0xF1, 0x98, 1, 2, 3));

@@ -160,6 +160,11 @@ final class M749Uploader {
                     throw new IOException(String.format("Programming metadata %04X changed", did));
                 }
             }
+            Integer bootSequence = null;
+            if (image.domain != M749Image.Domain.OEM) {
+                phase = "reading boot diagnostic baseline before reset";
+                bootSequence = new M749BootDiagnostic(connection).sequence();
+            }
             phase = "activating and checking the application";
             out.accept("Programming metadata readback matches; requesting application reset 11 01");
             exact(request(bytes(0x11, 1), bytes(0x51, 1)), 2);
@@ -170,13 +175,16 @@ final class M749Uploader {
                 out.accept("OEM activation CRC/marker DIDs are unavailable. Cold power-cycle validation remains a separate check.");
                 return;
             }
-            awaitApplication();
+            awaitApplication(profile, softwareCrc, bootSequence);
             verifyApplication(softwareCrc, calibrationCrc);
             phase = "confirming boot without the SRAM return token";
             out.accept("Requesting second reset 11 01 to confirm persistent boot");
+            // The previous application succeeded; any retained failure record is
+            // historical until a later boot publishes a new sequence.
+            bootSequence = null;
             exact(request(bytes(0x11, 1), bytes(0x51, 1)), 2);
             out.accept("Second reset acknowledged: 51 01");
-            awaitApplication();
+            awaitApplication(profile, softwareCrc, bootSequence);
             verifyApplication(softwareCrc, calibrationCrc);
             out.accept("Upload complete: application reports valid software/calibration/loader CRCs and normal boot marker after reset.");
         } catch (IOException e) {
@@ -251,7 +259,7 @@ final class M749Uploader {
         return records;
     }
 
-    private void awaitApplication() throws IOException, InterruptedException {
+    private void awaitApplication(M749TargetProfile profile, int softwareCrc, Integer bootSequence) throws IOException, InterruptedException {
         IOException last = null;
         String observation = "no F1A0 reply";
         out.accept("Waiting for application startup; first-install RAM checks can take about 30 seconds. Keep ECU power on.");
@@ -280,7 +288,39 @@ final class M749Uploader {
             out.accept("Application readiness " + (attempt + 1) + "/" + APPLICATION_READINESS_ATTEMPTS + ": " + observation);
             if (attempt + 1 < APPLICATION_READINESS_ATTEMPTS) { connection.pause(1_000); }
         }
-        throw new IOException("Application activation status did not become ready; last observation: " + observation, last);
+        String session = finalSession(profile, softwareCrc, bootSequence);
+        throw new IOException("Application activation status did not become ready; last observation: " + observation
+                + "; " + session, last);
+    }
+
+    private String finalSession(M749TargetProfile profile, int softwareCrc, Integer bootSequence)
+            throws InterruptedException {
+        String result;
+        try {
+            byte[] r = connection.exchange(bytes(0x22, 0xF1, 0x86), bytes(0x62, 0xF1, 0x86), 3_000);
+            if (r.length != 4 || !UdsClient.startsWith(r, bytes(0x62, 0xF1, 0x86))) {
+                result = "F186 malformed response; active session unknown";
+            } else if (r[3] == 2) {
+                result = "ECU remains in programming session 02; application startup not confirmed";
+                out.accept(result);
+                try {
+                    out.accept(new M749BootDiagnostic(connection).describe(profile, softwareCrc, bootSequence));
+                } catch (IOException e) {
+                    out.accept("Boot diagnostic unavailable: " + e.getMessage());
+                }
+                return result;
+            } else {
+                result = String.format("F186 reports session %02X; application readiness still not confirmed", r[3] & 255);
+            }
+        } catch (UdsClient.Timeout e) {
+            result = "F186 no response; active session unknown";
+        } catch (UdsClient.NegativeResponse e) {
+            result = "F186 rejected: " + e.getMessage() + "; active session unknown";
+        } catch (IOException e) {
+            result = "F186 transport/protocol failure: " + e.getMessage() + "; active session unknown";
+        }
+        out.accept(result);
+        return result;
     }
 
     private void awaitOemApplication() throws IOException, InterruptedException {

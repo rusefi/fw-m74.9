@@ -189,7 +189,7 @@ class M749UiFlashTest {
             assertTrue(backend.entered.await(5, TimeUnit.SECONDS));
             assertNull(backend.credential);
             backend.proceed.countDown();
-            awaitEdt(() -> text(panel, "activity").startsWith("Upload failed") && button(panel).isEnabled());
+            awaitEdt(() -> text(panel, "activity").startsWith("Upload failed") && !button(panel).isEnabled());
             saved.await("Upload failed: Activation status did not become ready");
             assertTrue(saved.text().contains("M749 build:"));
             assertTrue(saved.text().contains("PCAN_USBBUS2"));
@@ -198,6 +198,12 @@ class M749UiFlashTest {
                 assertEquals("Installed firmware: unknown", text(panel, "firmwareStatus"));
                 assertFalse(find(panel, JTextArea.class, "messages").getText().contains("Upload complete"));
             });
+            SwingUtilities.invokeAndWait(() -> {
+                assertTrue(text(panel, "activity").contains("Scan / query again"));
+                button(panel).doClick(); // A disabled retry must not enqueue another upload.
+                find(panel, JButton.class, "retry").doClick();
+            });
+            awaitEdt(() -> button(panel).isEnabled());
             assertEquals(1, backend.uploads);
         } finally { close(panel, backend); }
     }
