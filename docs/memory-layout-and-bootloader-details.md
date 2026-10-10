@@ -48,6 +48,14 @@ the ZW region: the OEM setting provides 128 KiB SRAM and 512 KiB ZW flash;
 our 384 KiB SRAM setting leaves 256 KiB ZW flash. See Artery's
 [performance note, section 2](https://www.arterytek.com/file/download/1302).
 
+The linker places interrupt, scheduler, trigger and frequently used engine code
+in `.m749_fast_text`, starting at `0x08002000`. A link-time assertion keeps its
+end below `0x08020000`, so it stays in ZW even with the supported 512 KiB SRAM
+option (128 KiB ZW). Vectors and constructors occupy the application page at
+`0x08001000`; read-only data follows the hot code, and remaining code stays in
+the second software segment. The OEM reset entry remains `0x08080000`.
+
+
 | Address range | Size | Contents | Update rule |
 | --- | --- | --- | --- |
 | `0x08000000-0x08000FFF` | 4 KiB | Bootloader vector page | Never erase or write during a main-firmware update. |

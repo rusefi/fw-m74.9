@@ -23,7 +23,8 @@ MEMORY
     boot_intent (rw) : org = 0x20000000, len = 4
     option_ram (rwx) : org = 0x20001000, len = 4k
     mstack (rw) : org = 0x20020000 - __main_stack_size__, len = __main_stack_size__
-    flash0 (rx) : org = 0x08001000, len = 0x5EFE0
+    vectors (rx) : org = 0x08001000, len = 0x1000
+    flash0 (rx) : org = 0x08002000, len = 0x5DFE0
     activation (rx) : org = 0x0805FFE0, len = 32
     flash1 (rx) : org = 0x08080000, len = 0x7FFFC
     flash2 (rx) : org = 0x00000000, len = 0
@@ -46,12 +47,12 @@ MEMORY
    and a load region (_LMA suffix).*/
 
 /* Flash region to be used for exception vectors.*/
-REGION_ALIAS("VECTORS_FLASH", flash0);
-REGION_ALIAS("VECTORS_FLASH_LMA", flash0);
+REGION_ALIAS("VECTORS_FLASH", vectors);
+REGION_ALIAS("VECTORS_FLASH_LMA", vectors);
 
 /* Flash region to be used for constructors and destructors.*/
-REGION_ALIAS("XTORS_FLASH", flash0);
-REGION_ALIAS("XTORS_FLASH_LMA", flash0);
+REGION_ALIAS("XTORS_FLASH", vectors);
+REGION_ALIAS("XTORS_FLASH_LMA", vectors);
 
 /* Flash region to be used for code text.*/
 REGION_ALIAS("TEXT_FLASH", flash1);
@@ -98,6 +99,47 @@ SECTIONS {
         __m749_option_end__ = .;
     } > option_ram AT > flash1
     __m749_option_load__ = LOADADDR(.m749_option_ram);
+    /* Frequently executed control and interrupt code belongs in the AT32
+       zero-wait window. Bound it to 128 KiB so all supported SRAM
+       options (384/448/512 KiB) retain zero-wait instruction fetches.
+       Match function sections so this also works with LTO partitions. */
+    .m749_fast_text : ALIGN(4) {
+        __m749_fast_text_start__ = .;
+        *(.text.*Trigger*)
+        *(.text.*trigger*)
+        *(.text.*Shaft*)
+        *(.text.*shaft*)
+        *(.text.*EventQueue*)
+        *(.text.*SingleTimer*)
+        *(.text.*Pwm*)
+        *(.text.*pwm*)
+        *(.text.*Engine*)
+        *(.text.*engine*)
+        *(.text.*Injection*)
+        *(.text.*injection*)
+        *(.text.*Fuel*)
+        *(.text.*fuel*)
+        *(.text.*Ignition*)
+        *(.text.*ignition*)
+        *(.text.*Spark*)
+        *(.text.*spark*)
+        *(.text.*Map*)
+        *(.text.*Sensor*)
+        *(.text.*sensor*)
+        *(.text.*Adc*)
+        *(.text.*adc*)
+        *(.text.ch*)
+        *(.text._port*)
+        *(.text.Vector*)
+        *(.text.*perfEvent*)
+        *(.text.*interpol*)
+        *(.text.*getTime*)
+        *(.text.*Rpm*)
+        *(.text.*rpm*)
+        *(.text.*Angle*)
+        *(.text.*angle*)
+        __m749_fast_text_end__ = .;
+    } > flash0
     .m749_activation : { KEEP(*(.m749_activation)) } > activation
 }
 
@@ -111,3 +153,5 @@ ASSERT(SIZEOF(.boot_intent) == 4, "M74.9 boot intent must be reserved")
 ASSERT(SIZEOF(.m749_activation) == 32, "M74.9 activation descriptor missing")
 ASSERT(SIZEOF(.m749_option_ram) > 0 && SIZEOF(.m749_option_ram) <= 4096,
        "M74.9 option routine must fit low SRAM")
+
+ASSERT(__m749_fast_text_end__ <= 0x08020000, "M74.9 hot code exceeds zero-wait flash")
