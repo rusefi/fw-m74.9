@@ -253,3 +253,9 @@ Windows DLL search of `PATH`.
 ## Hardware
 
 We have some notes at https://github.com/rusefi/m74.9
+
+## LIN
+
+The [LIN protocol core](docs/lin-bus.md) implements framing, the master schedule,
+echo/response checks and freshness. It has no active UART or GPIO binding; live
+support requires verified board routing, a transport and device signal mappings.

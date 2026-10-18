@@ -1,5 +1,12 @@
 # Local development knowledge
 
+- LIN uses variant-dependent UART routing: USART1 TX PA9 / RX PA10 or USART3
+  TX PD8 / RX PD9, AF7. A shared frame schedule does not establish the pin
+  mapping. The schematic's K_RX/K_TX labels have a direction discrepancy;
+  verify actual continuity and transceiver/pull-up behavior before adding a
+  live transport. The protocol core in firmware/vehicle_lin.* has no runtime
+  UART/GPIO binding or sensor assignments. See docs/lin-bus.md.
+
 - This is a public repository. Use repository-relative paths or portable
   placeholders in documentation, reports, comments and examples; do not include
   machine-specific absolute paths. Do not name, link to or expose private
