@@ -4,6 +4,7 @@
 #pragma once
 
 #define PIN_AA1 F8
+#define PIN_AA2 E6
 #define PIN_AC2_switch_inputs F6
 #define PIN_AC2_analog_inputs EFI_ADC_32
 #define PIN_AC3_switch_inputs A1

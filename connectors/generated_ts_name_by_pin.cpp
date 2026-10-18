@@ -22,6 +22,8 @@ const char* getBoardSpecificPinName(brain_pin_e brainPin) {
 			return "ETB TPS position sensor 2 signal";
 		case Gpio::E1:
 			return "Air conditioner control input";
+		case Gpio::E6:
+			return "Intake manifold geometry control valve";
 		case Gpio::F10:
 			return "Air conditioner pressure sensor (2 level)";
 		case Gpio::F3:

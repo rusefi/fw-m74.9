@@ -8,6 +8,7 @@ Gpio GENERATED_OUTPUTS[] = {
 	Gpio::L9779_OUT_3, // Injector 2
 	Gpio::L9779_OUT_2, // Injector 3
 	Gpio::L9779_OUT_1, // Injector 4
+	Gpio::E6, // Intake manifold geometry control valve
 	Gpio::L9779_OUT_6, // Oxygen sensor 1 heater
 	Gpio::L9779_OUT_5, // EVAP solenoid control
 	Gpio::L9779_OUT_7, // Oxygen sensor 2 heater
@@ -25,6 +26,7 @@ Gpio GENERATED_OUTPUTS[] = {
 // "Injector 2",
 // "Injector 3",
 // "Injector 4",
+// "Intake manifold geometry control valve",
 // "Oxygen sensor 1 heater",
 // "EVAP solenoid control",
 // "Oxygen sensor 2 heater",
