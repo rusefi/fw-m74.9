@@ -7,6 +7,8 @@ pins:
     type: vr
 
   - pin: AA2
+    id: E6
+    class: outputs
     function: Intake manifold geometry control valve
     type: gp_low
 

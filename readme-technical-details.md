@@ -35,6 +35,28 @@ for manual selection with inverted mode. This change does not add dual-switch
 plausibility diagnostics. The clutch has one physical switch; its indication
 does not establish that the pedal has reached the bottom of its travel.
 
+## Intake-runner valve
+
+Connector **AA2 / 1X-A2** is the intake manifold geometry valve output,
+controlled by **PE6** (MCU package pin 5). It is a discrete low-side output:
+PE6 high energizes the valve for the short path; PE6 low turns it off for the
+long path. This output is independent of the L9779 output channels.
+
+Fresh configurations assign **General Purpose PWM channel 1** (`Intake runner`)
+to PE6. Its frequency is **0 Hz** (on/off mode), with an **RPM x TPS** table.
+Every table cell and the sensor-error duty default to **0%**, which turns the
+valve off for the long path. The on/off thresholds are 60% on and 50% off.
+Set the desired operating cells to **100%** to energize the valve for the short
+path. No switching RPM is assumed by the default tune.
+
+The output selector labels PE6 as `Intake manifold geometry control valve`.
+The standard GPPWM controller owns the pin; there is no board-specific direct
+drive or early GPIO override. These are fresh-tune defaults. For an existing
+stored tune, configure GPPWM channel 1 with the settings above, burn the tune
+and restart the ECU to apply the pin and frequency settings. Installing firmware
+does not replace its stored output assignments or table. Verify both valve
+positions and the switching schedule on the vehicle.
+
 ## Windows build with Pixi
 
 With Pixi, Git and Python 3 (available as `python3`) on PATH, run:

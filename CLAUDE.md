@@ -324,3 +324,8 @@ INI; a newly generated INI also has a newly generated firmware signature.
   supports an explicit pacing experiment, not a universal default change or
   proof of adapter queue overflow. Query state before a new upload; never
   replay the ambiguous programming request automatically.
+
+- Intake-runner control must remain a tune-controlled GPPWM output. A fresh
+  default does not migrate an existing stored tune: setting an output pin in
+  defaults alone will not correct an already saved unassigned channel. Such a
+  tune needs its GPPWM assignment, frequency and table updated explicitly.

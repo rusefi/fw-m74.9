@@ -1,6 +1,7 @@
 
 #include "pch.h"
 #include "defaults.h"
+#include "default_tune.h"
 #include "board_overrides.h"
 #include "smart_gpio.h"
 #include "drivers/gpio/l9779.h"
@@ -255,6 +256,7 @@ void setup_custom_board_overrides() {
 	custom_board_StopHardware = stopM749VehicleCan;
 	custom_board_StartHardware = startM749VehicleCan;
 	custom_board_update_dash = updateM749VehicleCan;
+	custom_board_BeforeTuneDefaults = setM749IntakeRunnerDefaults;
 	custom_board_DefaultConfiguration = m74_9_boardDefaultConfiguration;
 	custom_board_ConfigOverrides = m74_9_boardConfigOverrides;
 	custom_board_periodicSlowCallback = m74_9IgnitionGatePeriodic;
