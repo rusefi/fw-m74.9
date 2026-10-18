@@ -92,6 +92,12 @@ static void m74_9_boardDefaultConfiguration() {
 	// ADC3 acquisition supports CLT/PF5 (EFI_ADC_39) and IAT/PF6 (EFI_ADC_32).
 	// Leave defaults unassigned until the sensor curves have been qualified.
 	setM749ThermistorDefaults();
+
+	// Pedal switches use the board input conditioning without MCU pulls.
+	engineConfiguration->brakePedalPin = Gpio::G11;
+	engineConfiguration->brakePedalPinMode = PI_DEFAULT;
+	engineConfiguration->clutchDownPin = Gpio::G13;
+	engineConfiguration->clutchDownPinMode = PI_INVERTED_DEFAULT;
 // todo	engineConfiguration->map.sensor.hwChannel = EFI_ADC_;
 
 	// ?k high side/?k low side = ? ratio divider todo is the value below right?

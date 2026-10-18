@@ -9,6 +9,32 @@ for the AT32F435ZMT7 MCU and L9779 driver. The build entry point is
 
 See https://github.com/rusefi/rusefi/wiki/Custom-Firmware
 
+## Brake and clutch switches
+
+Fresh configurations use PG11 for the brake pedal (`PI_DEFAULT`, active high)
+and PG13 for the clutch switch (`PI_INVERTED_DEFAULT`, active low). These are
+MCU logic levels after the board input conditioning. Existing stored tunes
+keep their assignments and must be configured explicitly after an update.
+
+| Signal | Standard connector position | MCU input | Active MCU level |
+| --- | --- | --- | --- |
+| Brake switch 2 | BC2 / 2X-C2 | PG11, package pin 126 | High |
+| Brake switch 1 | BC3 / 2X-C3 | PG12, package pin 127 | Low |
+| Clutch switch | BB3 / 2X-B3 | PG13, package pin 128 | Low |
+
+The connector-to-MCU ordering above is provisional pending a continuity and
+pedal-state check on the target board. Before use, verify that the brake and
+clutch states change correctly with each pedal. The standard harness supplies
+battery voltage at BC2 when braking, and ignition voltage at BC3 and BB3 with
+the corresponding pedal released. Use the ECU connector and its input circuits;
+MCU pads are logic-level inputs.
+
+Both brake inputs and the clutch input are available in the switch-input pin
+selector. The firmware's single `brakePedalPin` uses PG11; PG12 is available
+for manual selection with inverted mode. This change does not add dual-switch
+plausibility diagnostics. The clutch has one physical switch; its indication
+does not establish that the pedal has reached the bottom of its travel.
+
 ## Windows build with Pixi
 
 With Pixi, Git and Python 3 (available as `python3`) on PATH, run:

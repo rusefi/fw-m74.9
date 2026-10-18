@@ -249,8 +249,10 @@ pins:
     type:
 
   - pin: BB3
+    id: G13
+    class: switch_inputs
     function: Clutch sensor signal
-    type:
+    type: din
 
   - pin: BB4
     function: Pedal position sensor 2 + (+5v)
@@ -263,12 +265,16 @@ pins:
     type:
 
   - pin: BC2
+    id: G11
+    class: switch_inputs
     function: Brake pedal sensor 2
-    type:
+    type: din
 
   - pin: BC3
+    id: G12
+    class: switch_inputs
     function: Brake pedal sensor 1
-    type:
+    type: din
 
   - pin: BC4
     function: Pedal position sensor 1 ground
