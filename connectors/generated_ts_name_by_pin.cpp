@@ -32,6 +32,12 @@ const char* getBoardSpecificPinName(brain_pin_e brainPin) {
 			return "IAT Sensor Input";
 		case Gpio::F8:
 			return "Crank position sensor (pin A)";
+		case Gpio::G11:
+			return "Brake pedal sensor 2";
+		case Gpio::G12:
+			return "Brake pedal sensor 1";
+		case Gpio::G13:
+			return "Clutch sensor signal";
 		case Gpio::L9779_IGN_1:
 			return "Coil 1 (< +2.5v) / Coils 1,4";
 		case Gpio::L9779_IGN_2:
