@@ -51,6 +51,7 @@ public final class M749Panel extends JPanel {
     private M749Monitor.Identification identified;
     private boolean changingChannels;
     private boolean querying;
+    private boolean connectionChecked;
     private volatile boolean uploading;
     private volatile boolean autoSelect = true;
     private volatile String selectedChannel;
@@ -212,6 +213,7 @@ public final class M749Panel extends JPanel {
                 private void edited() {
                     if (changingOptions) return;
                     selectedConnection = null;
+                    connectionChecked = false;
                     selectionRevision++;
                     querying = false;
                     setFirmware(M749FirmwareDetection.Result.UNKNOWN);
@@ -249,6 +251,7 @@ public final class M749Panel extends JPanel {
         }
         if (selectedConnection == null || !selectedConnection.key().equals(next.key())) {
             selectionRevision++;
+            connectionChecked = false;
             querying = false;
             setFirmware(M749FirmwareDetection.Result.UNKNOWN);
             status.setText("");
@@ -362,7 +365,10 @@ public final class M749Panel extends JPanel {
                 && installed != M749FirmwareDetection.Result.RUSEFI);
         transferTransport.setEnabled(idle);
         transferEndpoint.setEnabled(idle && transferTransport.getSelectedIndex() != 0);
-        boolean canTransfer = idle && selectedConnection != null && (!pcan || channel != null && channel.available);
+        // Discovery posts the channel list before it posts the resolved connection.
+        // A populated dropdown alone must not enable a transfer using the old options.
+        boolean canTransfer = idle && connectionChecked && selectedConnection != null
+                && (!pcan || channel != null && channel.available);
         readFlash.setEnabled(canTransfer);
         writeFlash.setEnabled(canTransfer && installed != M749FirmwareDetection.Result.RUSEFI);
     }
@@ -519,6 +525,7 @@ public final class M749Panel extends JPanel {
         if (worker != null) return;
         int current = ++generation;
         logger.info(M749BuildInfo.describe());
+        connectionChecked = false;
         querying = false;
         uploading = false;
         setFirmware(M749FirmwareDetection.Result.UNKNOWN);
@@ -558,6 +565,7 @@ public final class M749Panel extends JPanel {
                         } else if (options.channel == null) transferEndpoint.setText(options.endpoint());
                         selectedConnection = options.copy();
                     } finally { changingOptions = false; changingChannels = false; }
+                    connectionChecked = true;
                     status.setText(String.join("\n", result.summary));
                     identified = result;
                     setFirmware(result.firmware);

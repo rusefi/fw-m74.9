@@ -6,6 +6,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.AbstractList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -63,6 +64,56 @@ class M749UiTransferTest {
             assertTrue(saved.text().contains("backup with spaces.bin"));
             assertTrue(saved.text().contains("PCAN_USBBUS2"));
         } finally { close(panel, backend); }
+    }
+
+    @Test void channelDiscoveryKeepsTransfersDisabledUntilSelectionResolved() throws Exception {
+        CountDownLatch channelsPosted = new CountDownLatch(1);
+        CountDownLatch continueQuery = new CountDownLatch(1);
+        Backend backend = new Backend() {
+            @Override public List<PcanDevice.Channel> scan() {
+                List<PcanDevice.Channel> available = super.scan();
+                return new AbstractList<PcanDevice.Channel>() {
+                    @Override public int size() { return available.size(); }
+                    @Override public PcanDevice.Channel get(int index) { return available.get(index); }
+                    @Override public String toString() {
+                        // The monitor formats discovery status after posting the channel list
+                        // and before posting busy(true) or the resolved connection.
+                        channelsPosted.countDown();
+                        try {
+                            assertTrue(continueQuery.await(5, TimeUnit.SECONDS));
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new AssertionError(e);
+                        }
+                        return available.toString();
+                    }
+                };
+            }
+        };
+        M749Panel panel = open(backend, (parent, read) ->
+                new M749Panel.Selection(Path.of("backup with spaces.bin"), true, true));
+        try {
+            assertTrue(channelsPosted.await(5, TimeUnit.SECONDS));
+            SwingUtilities.invokeAndWait(() -> {
+                PcanDevice.Channel selected = (PcanDevice.Channel)
+                        find(panel, JComboBox.class, "channels").getSelectedItem();
+                assertEquals(TPCANHandle.PCAN_USBBUS2, selected.handle);
+                assertFalse(button(panel, "readFlash").isEnabled());
+                assertFalse(button(panel, "writeFlash").isEnabled());
+                button(panel, "readFlash").doClick();
+            });
+            assertNull(backend.args, "Discovery must finish before a transfer can start");
+            continueQuery.countDown();
+            clickWhenEnabled(panel, "readFlash");
+            assertTrue(backend.entered.await(5, TimeUnit.SECONDS));
+            assertEquals(List.of("--read-flash", "backup with spaces.bin", "--channel", "PCAN_USBBUS2",
+                    "--block-size", "16", "--stmin", "1", "--reset-after", "--resume", "--helper-running"), backend.args);
+            backend.release.countDown();
+            await(() -> label(panel).startsWith("Read complete"));
+        } finally {
+            continueQuery.countDown();
+            close(panel, backend);
+        }
     }
 
     @Test void selectedWriteUsesEachTransportWithoutABundledSrec() throws Exception {
