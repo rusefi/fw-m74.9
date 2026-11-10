@@ -11,7 +11,7 @@
 #define HAL_USE_MMC_SPI FALSE
 #define EFI_FILE_LOGGING FALSE
 
-/* This board has no USB wired out */
-#define EFI_USB_SERIAL              FALSE
+/* USB serial on OTG1, PA11 D- and PA12 D+. */
+#define EFI_USB_SERIAL              TRUE
 
 #include "ext/rusefi/firmware/config/stm32f4ems/efifeatures.h"

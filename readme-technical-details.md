@@ -9,6 +9,26 @@ for the AT32F435ZMT7 MCU and L9779 driver. The build entry point is
 
 See https://github.com/rusefi/rusefi/wiki/Custom-Firmware
 
+## USB serial
+
+The application firmware enables USB OTG1 in device mode with USB serial CDC.
+PA11 is D- and PA12 is D+; both use alternate function 10. OTG2 and VBUS
+sensing are disabled, so PA9 is not required for this connection.
+USB requires physical wiring to these MCU pins and a common ground; this
+configuration does not add a USB connector to the stock ECU. The resident OEM
+loader and the M74.9 firmware upload tools continue to use CAN.
+
+For a connection without VBUS, the AT32 OTG driver must set `GCCFG.VBUSIG`
+(bit 21). This bit has the opposite meaning to the STM32 stepping-2
+`GCCFG.VBDEN` bit, even though AT32 uses the same `DCTL.SDIS` software
+disconnect mechanism. The expected OTG1 `GCCFG` value after USB startup is
+`0x00210000` (PHY enabled, VBUS ignored), at address `0x50000038`.
+`0x00010000` leaves VBUS detection active and can prevent the D+ pull-up
+from announcing the device when PA9 is not connected.
+See [Artery AN0098, sections 1.2 and 3.2](https://arterytek.com/file/download/1376).
+The host-side configuration regression check is `python3 tests/test_at32_usb.py`;
+physical enumeration must also be checked on the ECU.
+
 ## Brake and clutch switches
 
 Fresh configurations use PG11 for the brake pedal (`PI_DEFAULT`, active high)

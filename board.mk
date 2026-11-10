@@ -37,9 +37,14 @@ BOARD_C = $(BOARD_DIR)/m74_9_board.c
 # board.h from this directory
 BOARDINC = $(BOARD_DIR) $(BOARD_DIR)/firmware
 
-#This board has no USB wired out
-DDEFS += -DSTM32_USB_USE_OTG1=FALSE
+# USB OTG1 device connector: PA11 D-, PA12 D+.
+DDEFS += -DSTM32_USB_USE_OTG1=TRUE
 DDEFS += -DSTM32_USB_USE_OTG2=FALSE
+DDEFS += -DEFI_USB_SERIAL_DM=Gpio::A11
+DDEFS += -DEFI_USB_SERIAL_DP=Gpio::A12
+DDEFS += -DEFI_USB_AF=10
+# Device connection uses D-/D+ only, without a PA9 VBUS sense input.
+DDEFS += -DBOARD_OTG_NOVBUSSENS=TRUE
 
 DDEFS += -DBOARD_L9779_COUNT=1
 DDEFS += -DEFI_UDS=TRUE
