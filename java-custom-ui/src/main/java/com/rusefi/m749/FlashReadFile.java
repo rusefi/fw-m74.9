@@ -24,7 +24,20 @@ final class FlashReadFile implements AutoCloseable {
     private int completed;
 
     FlashReadFile(Path output, int address, int length, boolean resume) throws IOException {
-        M749RamHelper.requireRange(address, length);
+        this(output, address, length, resume, false);
+    }
+
+    FlashReadFile(Path output, int address, int length, boolean resume, boolean usd) throws IOException {
+        if (usd) {
+            if (address != M749UsdReader.BASE || length != M749UsdReader.SIZE) {
+                throw new IllegalArgumentException("USD backup must cover exactly 0x1FFFC000..0x1FFFCFFF");
+            }
+        } else {
+            M749RamHelper.requireRange(address, length);
+        }
+        String format = usd ? "M749USD2" : "M749FLASH1";
+        String readerKey = "helper.sha256";
+        String readerId = M749RamHelper.SHA256;
         this.address = address;
         this.length = length;
         Path absolute = output.toAbsolutePath().normalize();
@@ -45,8 +58,8 @@ final class FlashReadFile implements AutoCloseable {
             if (Files.exists(this.output)) { throw new IOException("Output already exists; refusing to overwrite " + this.output); }
             if (resume) {
                 try (InputStream in = Files.newInputStream(checkpoint)) { state.load(in); }
-                require("format", "M749FLASH1");
-                require("helper.sha256", M749RamHelper.SHA256);
+                require("format", format);
+                require(readerKey, readerId);
                 require("address", Integer.toString(address));
                 require("length", Integer.toString(length));
                 try { completed = Integer.parseInt(state.getProperty("completed", "-1")); }
@@ -63,8 +76,8 @@ final class FlashReadFile implements AutoCloseable {
             } else {
                 if (Files.exists(partial) || Files.exists(checkpoint)) { throw new IOException("Partial backup exists; use --resume or a new output filename"); }
                 data = FileChannel.open(partial, CREATE_NEW, READ, WRITE);
-                state.setProperty("format", "M749FLASH1");
-                state.setProperty("helper.sha256", M749RamHelper.SHA256);
+                state.setProperty("format", format);
+                state.setProperty(readerKey, readerId);
                 state.setProperty("address", Integer.toString(address));
                 state.setProperty("length", Integer.toString(length));
                 state.setProperty("verification", "two-identical-reads-per-block");
@@ -136,7 +149,7 @@ final class FlashReadFile implements AutoCloseable {
         state.setProperty("complete", Boolean.toString(complete));
         Path temp = Files.createTempFile(checkpoint.getParent(), ".m749-read-", ".tmp");
         try {
-            try (java.io.OutputStream out = Files.newOutputStream(temp)) { state.store(out, "M74.9 main-flash backup"); }
+            try (java.io.OutputStream out = Files.newOutputStream(temp)) { state.store(out, "M74.9 memory backup"); }
             try (FileChannel file = FileChannel.open(temp, WRITE)) { file.force(true); }
             for (int attempt = 0; ; attempt++) {
                 try {

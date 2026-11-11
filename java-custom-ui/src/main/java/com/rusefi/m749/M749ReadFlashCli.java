@@ -12,7 +12,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
 
-/** Complete main-flash backup through the bundled RAM helper. */
+/** Main-flash and separate USD backups through a single RAM-helper session. */
 public final class M749ReadFlashCli {
     private M749ReadFlashCli() { }
 
@@ -25,7 +25,7 @@ public final class M749ReadFlashCli {
         String pair, immo;
         int chunk = 1024;
         int address = M749RamHelper.BASE, length = M749RamHelper.SIZE;
-        boolean resume, running, reset;
+        boolean resume, running, reset, withUsd, usdOnly;
     }
 
     static Options parse(String[] args) {
@@ -35,10 +35,13 @@ public final class M749ReadFlashCli {
             String option = args[i];
             if (!seen.add(option)) { throw new IllegalArgumentException("Duplicate option " + option); }
             switch (option) {
+                case "--with-usd": o.withUsd = true; continue;
                 case "--resume": o.resume = true; continue;
                 case "--helper-running": o.running = true; continue;
                 case "--reset-after": o.reset = true; continue;
+                case "--read-usd":
                 case "--read-flash":
+                    o.usdOnly = option.equals("--read-usd");
                     if (i + 1 < args.length && !args[i + 1].startsWith("--")) { o.output = Path.of(args[++i]); }
                     continue;
             }
@@ -55,11 +58,16 @@ public final class M749ReadFlashCli {
                 default: throw new IllegalArgumentException("Unknown read option " + option);
             }
         }
-        if (!seen.contains("--read-flash")) throw new IllegalArgumentException("Missing --read-flash action");
+        if (seen.contains("--read-flash") == seen.contains("--read-usd")) {
+            throw new IllegalArgumentException("Choose --read-flash or --read-usd");
+        }
+        if (o.usdOnly && (o.withUsd || seen.contains("--start") || seen.contains("--length"))) {
+            throw new IllegalArgumentException("USD read uses the fixed 0x1FFFC000..0x1FFFCFFF region");
+        }
         o.validate();
         if (o.output == null && o.resume) { throw new IllegalArgumentException("--resume requires the original output filename"); }
         if (o.output == null) {
-            o.output = Path.of("m749-full-" + DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmssSSS'Z'")
+            o.output = Path.of((o.usdOnly ? "m749-usd-" : "m749-full-") + DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmssSSS'Z'")
                     .withZone(ZoneOffset.UTC).format(Instant.now()) + ".bin");
         }
         if (!seen.contains("--length")) { o.length = M749RamHelper.BASE + M749RamHelper.SIZE - o.address; }
@@ -112,22 +120,33 @@ public final class M749ReadFlashCli {
         Options o;
         try { o = parse(args); }
         catch (IllegalArgumentException e) { out.accept(e.getMessage()); usage(out); return 2; }
+        if (o.usdOnly) return readUsd(o, factory, out);
         byte[] helper = M749RamHelper.load();
         M749Immo authorization = o.pair != null ? M749PairFile.load(Path.of(o.pair)).credential() :
                 o.immo == null ? null : M749Immo.load(Path.of(o.immo));
         // Resource, credential and file/resume validation precede all adapter access.
-        try (FlashReadFile file = new FlashReadFile(o.output, o.address, o.length, o.resume)) {
+        try (FlashReadFile file = new FlashReadFile(o.output, o.address, o.length, o.resume);
+             FlashReadFile usd = o.withUsd ? new FlashReadFile(M749UsdReader.outputFor(o.output),
+                     M749UsdReader.BASE, M749UsdReader.SIZE, o.resume, true) : null) {
             out.accept(String.format("Main-flash backup %08X..%08X -> %s", o.address,
                     o.address + o.length - 1, o.output));
             out.accept("Receive flow control: BS=" + o.block + ", STmin=" + o.stmin + " ms; chunk=" + o.chunk);
-            boolean published = false;
+            boolean published = false, helperStarted = false;
             try (RawCanTransport transport = factory.open(o)) {
                 if (authorization != null) { authorization.authorize(transport, out); }
-                M749RamHelper reader = new M749RamHelper(o.client(transport, out), o.stmin);
-                file.identify(reader.start(helper, o.running, out));
+                UdsClient client = o.client(transport, out);
+                M749RamHelper reader = new M749RamHelper(client, o.stmin);
+                String identity = reader.start(helper, o.running, out);
+                helperStarted = true;
+                file.identify(identity);
+                if (usd != null) usd.identify(identity);
                 String hash = M749FlashReader.read(reader, file, o.chunk, out);
                 published = true;
                 out.accept("Backup complete: " + o.output + " SHA-256 " + hash);
+                if (usd != null) {
+                    String usdHash = M749UsdReader.read(reader, usd, o.chunk, out);
+                    out.accept("USD backup complete: " + M749UsdReader.outputFor(o.output) + " SHA-256 " + usdHash);
+                }
                 if (o.reset) {
                     reader.reset();
                     out.accept("Reset acknowledged; application return is not checked");
@@ -136,13 +155,38 @@ public final class M749ReadFlashCli {
                 }
             } catch (IOException | InterruptedException e) {
                 if (published) {
-                    out.accept("Backup is complete. Reset or adapter cleanup failed; the saved binary remains valid.");
+                    out.accept("Backup is complete. The main-flash binary remains valid; a later backup stage or cleanup failed.");
+                    if (o.withUsd) out.accept("Check the USD completion message. Retry an incomplete USD backup with --read-usd \""
+                            + M749UsdReader.outputFor(o.output) + "\" --resume and the same connection options; add --helper-running if the RAM helper is still active.");
+                } else if (!helperStarted) {
+                    out.accept("Read stopped before the RAM helper started; no flash data was read in this attempt.");
                 } else {
                     out.accept("Read stopped. Saved progress remains in the output sidecars; no failed block is certified.");
                     out.accept("No reset is requested after failure. Use --resume and, if the helper is still active, --helper-running.");
                 }
                 throw e;
             }
+        }
+        return 0;
+    }
+
+    private static int readUsd(Options o, TransportFactory factory, Consumer<String> out)
+            throws IOException, InterruptedException {
+        byte[] helper = M749RamHelper.load();
+        M749Immo authorization = o.pair != null ? M749PairFile.load(Path.of(o.pair)).credential() :
+                o.immo == null ? null : M749Immo.load(Path.of(o.immo));
+        try (FlashReadFile file = new FlashReadFile(o.output, M749UsdReader.BASE, M749UsdReader.SIZE, o.resume, true);
+             RawCanTransport transport = factory.open(o)) {
+            if (authorization != null) authorization.authorize(transport, out);
+            UdsClient client = o.client(transport, out);
+            M749RamHelper reader = new M749RamHelper(client, o.stmin);
+            file.identify(reader.start(helper, o.running, out));
+            reader.probe();
+            String hash = M749UsdReader.read(reader, file, o.chunk, out);
+            out.accept("USD backup complete: " + o.output + " SHA-256 " + hash);
+            if (o.reset) reader.reset();
+            out.accept(o.reset ? "Reset acknowledged; application return is not checked" :
+                    "RAM helper remains active; use --helper-running for another read. Application return is not checked.");
         }
         return 0;
     }
@@ -163,7 +207,10 @@ public final class M749ReadFlashCli {
         M749ConnectionOptions.usage(out);
         out.accept("m749-cli --read-flash [OUTPUT.bin] [--slcan PORT|auto | --socketcan IFACE | --channel PCAN_USBBUS1|auto]");
         out.accept("Defaults: timestamped m749-full-*.bin in the current directory, automatic SLCAN scan.");
-        out.accept("  [--resume] [--helper-running] [--reset-after]");
+        out.accept("  [--resume] [--helper-running] [--reset-after] [--with-usd]");
+        out.accept("--with-usd saves OUTPUT.bin.usd.bin through the same RAM helper after main flash.");
+        out.accept("m749-cli --read-usd [OUTPUT.usd.bin] [connection options] [--resume] [--helper-running] [--reset-after]");
+        out.accept("USD is 4096 raw bytes at 1FFFC000..1FFFCFFF; two matching reads per block, --chunk-size 1..4080.");
         out.accept("  [--chunk-size 1..4080] [--block-size 0..255] [--stmin 0..127]");
         out.accept("  [--serial-baud 115200] [--slcan-bus 1..3] [--start 0x08000000] [--length 0x3F0000]");
         out.accept("  [--pair-file ECU.pair | --immo-backup PAIRED_FULLFLASH.bin]");

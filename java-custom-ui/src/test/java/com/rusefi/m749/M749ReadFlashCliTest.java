@@ -122,12 +122,13 @@ class M749ReadFlashCliTest {
 
     /** Classic CAN peer with independent request assembly and finite-block replies. */
     static class WireEcu implements RawCanTransport {
-        final M749RamHelperTest.Ecu ecu = new M749RamHelperTest.Ecu();
+        final M749RamHelperTest.Ecu ecu;
         final Queue<Frame> replies = new ArrayDeque<>();
         byte[] request, response;
         int requestAt, requestSequence, responseAt, responseSequence;
         boolean closed;
-        WireEcu() throws IOException { }
+        WireEcu() throws IOException { this(new M749RamHelperTest.Ecu()); }
+        WireEcu(M749RamHelperTest.Ecu ecu) { this.ecu = ecu; }
         public void sendCan(int id, byte[] frame) throws IOException {
             assertEquals(0x7e0, id);
             int type = (frame[0] & 255) >>> 4;

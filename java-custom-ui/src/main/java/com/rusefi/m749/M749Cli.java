@@ -49,15 +49,18 @@ public final class M749Cli {
     static int execute(String[] args, M749Monitor.Backend backend, UploadAction uploader,
                        ReadAction reader, Consumer<String> out) throws IOException, InterruptedException {
         List<String> arguments = java.util.Arrays.asList(args);
+        if (arguments.stream().anyMatch(M749UsdPatchCli.MODES::contains)) {
+            return M749UsdPatchCli.execute(args, out);
+        }
         if (arguments.contains("--help") || arguments.contains("-h")) {
-            if (arguments.contains("--read-flash")) return M749ReadFlashCli.execute(new String[]{"--read-flash", "--help"}, out);
+            if (arguments.contains("--read-flash") || arguments.contains("--read-usd")) return M749ReadFlashCli.execute(new String[]{"--read-flash", "--help"}, out);
             if (arguments.contains("--identify")) return M749ReadFlashCli.identify(new String[]{"--identify", "--help"}, out);
             if (arguments.contains("--check-target")) return M749TargetCli.execute(new String[]{"--help"}, out);
             usage(out);
             return 0;
         }
         for (String arg : args) {
-            if (arg.equals("--read-flash")) { return M749ReadFlashCli.execute(args, out); }
+            if (arg.equals("--read-flash") || arg.equals("--read-usd")) { return M749ReadFlashCli.execute(args, out); }
             if (arg.equals("--identify")) { return M749ReadFlashCli.identify(args, out); }
             if (arg.equals("--check-target")) { return M749TargetCli.execute(args, out); }
         }
@@ -273,6 +276,11 @@ public final class M749Cli {
         out.accept("       m749-cli --upload FILE --socketcan IFACE [--calibration] [--verify-bytes]");
         out.accept("       m749-cli --check-target FILE [--slcan PORT|auto | --socketcan IFACE | --channel CHANNEL|auto]   programming preflight, no flash writes");
         out.accept("                  [--pair-file ECU.pair | --immo-backup PAIRED_FULLFLASH.bin]");
+        out.accept("       m749-cli --read-usd [OUTPUT.bin] [connection options] [--resume] [--helper-running] [--reset-after]");
+        out.accept("       --read-flash accepts --with-usd to save OUTPUT.bin.usd.bin through the RAM helper");
+        out.accept("       m749-cli --inspect-usd NEW_DIRECTORY [connection options]   inspect/save options for I862 maintenance");
+        out.accept("       m749-cli --patch-usd INSPECTION_DIRECTORY --dry-run | --confirm-usd-erase [connection options]");
+        out.accept("       m749-cli --verify-usd-patch INSPECTION_DIRECTORY [connection options]; add --help for details");
         out.accept("       m749-cli --read-byte 0xADDRESS --channel PCAN_USBBUS1");
         out.accept("       m749-cli --read-pair ECU.pair --channel PCAN_USBBUS1   read/resume 24 indexed bytes");
         out.accept("                  [--pair-file KNOWN.pair | --immo-backup PAIRED_FULLFLASH.bin]   optional read authorization");

@@ -84,13 +84,26 @@ final class UdsClient implements M749Uploader.Connection {
     }
 
     public byte[] exchange(byte[] request, byte[] prefix, long timeout) throws IOException, InterruptedException {
+        return exchange(request, prefix, timeout, FRAME_TIMEOUT);
+    }
+
+    /** A RAM maintenance routine can disable interrupts while computing CRCs. */
+    @Override public byte[] exchangeLongRunning(byte[] request, byte[] prefix, long timeout)
+            throws IOException, InterruptedException {
+        return exchange(request, prefix, timeout, timeout);
+    }
+
+    private byte[] exchange(byte[] request, byte[] prefix, long timeout, long initialResponseTimeout)
+            throws IOException, InterruptedException {
         if (request.length == 0 || request.length > 4095 || prefix.length == 0 || timeout <= 0) {
             throw new IllegalArgumentException("Invalid UDS request/prefix/timeout");
         }
         recent.clear();
-        lastFlowControl = "no ECU flow control received";
+        lastFlowControl = request.length <= 7 ? "single-frame request" : "no ECU flow control received";
         try {
-            return exchangeOnce(request, prefix, timeout);
+            return exchangeOnce(request, prefix, timeout, initialResponseTimeout);
+        } catch (NegativeResponse e) {
+            throw e; // A complete reply arrived; the caller reports the NRC.
         } catch (IOException e) {
             log.accept(String.format("UDS failure: SID %02X, %s; no request replay. Recent transport events: %s",
                     sid, phase, lastFlowControl + " | " + String.join(" | ", recent)));
@@ -98,11 +111,11 @@ final class UdsClient implements M749Uploader.Connection {
         }
     }
 
-    private byte[] exchangeOnce(byte[] request, byte[] prefix, long timeout) throws IOException, InterruptedException {
+    private byte[] exchangeOnce(byte[] request, byte[] prefix, long timeout, long initialResponseTimeout) throws IOException, InterruptedException {
         long deadline = clock.now() + timeout;
         sid = request[0] & 255;
         transmit(request, deadline);
-        long responseDeadline = Math.min(deadline, clock.now() + FRAME_TIMEOUT);
+        long responseDeadline = Math.min(deadline, clock.now() + initialResponseTimeout);
         phase = "awaiting the response";
         while (true) {
             byte[] response = receive(prefix, responseDeadline, deadline);
@@ -116,7 +129,7 @@ final class UdsClient implements M749Uploader.Connection {
                 if ((response[2] & 255) != 0x78) {
                     throw new NegativeResponse(request[0] & 255, response[2] & 255);
                 }
-                responseDeadline = Math.min(deadline, clock.now() + 5_000);
+                responseDeadline = Math.min(deadline, clock.now() + Math.max(5_000, initialResponseTimeout));
                 phase = "awaiting the response after a 7F 78 pending reply";
             } else if (startsWith(response, prefix)) {
                 return response;

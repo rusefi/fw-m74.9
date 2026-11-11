@@ -50,7 +50,7 @@ class M749UiTransferTest {
             clickWhenEnabled(panel, "readFlash");
             assertTrue(backend.entered.await(5, TimeUnit.SECONDS));
             assertEquals(List.of("--read-flash", "backup with spaces.bin", "--channel", "PCAN_USBBUS2",
-                    "--block-size", "16", "--stmin", "1", "--reset-after", "--resume", "--helper-running"), backend.args);
+                    "--block-size", "16", "--stmin", "1", "--with-usd", "--reset-after", "--resume", "--helper-running"), backend.args);
             SwingUtilities.invokeAndWait(() -> {
                 assertFalse(button(panel, "readFlash").isEnabled());
                 assertFalse(button(panel, "writeFlash").isEnabled());
@@ -107,7 +107,7 @@ class M749UiTransferTest {
             clickWhenEnabled(panel, "readFlash");
             assertTrue(backend.entered.await(5, TimeUnit.SECONDS));
             assertEquals(List.of("--read-flash", "backup with spaces.bin", "--channel", "PCAN_USBBUS2",
-                    "--block-size", "16", "--stmin", "1", "--reset-after", "--resume", "--helper-running"), backend.args);
+                    "--block-size", "16", "--stmin", "1", "--with-usd", "--reset-after", "--resume", "--helper-running"), backend.args);
             backend.release.countDown();
             await(() -> label(panel).startsWith("Read complete"));
         } finally {

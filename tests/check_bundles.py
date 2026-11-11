@@ -36,6 +36,8 @@ def main():
                 assert "com/rusefi/m749/M749TabProvider.class" in console.namelist(), "Missing M74.9 UI"
                 providers = console.read("META-INF/services/com.rusefi.ui.plugins.ConsoleTabProvider")
                 assert b"com.rusefi.m749.M749TabProvider" in providers, "M74.9 UI is not registered"
+                assert b"use_canbus_connector=true" in console.read("shared_io.properties"), \
+                    "Console built without board shared_io.resources"
             formats = set()
             for name in archive.namelist():
                 filename = Path(name).name

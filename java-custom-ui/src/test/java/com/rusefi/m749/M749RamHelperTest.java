@@ -112,6 +112,21 @@ class M749RamHelperTest {
         assertArrayEquals(bytes(0x11, 1), ecu.requests.get(ecu.requests.size()-1));
     }
 
+    @Test void residentLoaderSessionRejectionIsExplainedBeforeAnyOtherRequest() throws Exception {
+        Ecu ecu = new Ecu() {
+            public byte[] exchange(byte[] q, byte[] prefix, long timeout) throws IOException {
+                requests.add(q.clone());
+                throw new UdsClient.NegativeResponse(q[0] & 255, 0x11);
+            }
+        };
+        List<String> out = new ArrayList<>();
+        UdsClient.NegativeResponse error = assertThrows(UdsClient.NegativeResponse.class,
+                () -> new M749RamHelper(ecu).start(M749RamHelper.load(), false, out::add));
+        assertEquals(0x11, error.code);
+        assertEquals(1, ecu.requests.size());
+        assertTrue(out.stream().anyMatch(s -> s.startsWith("Session 60 is unavailable (NRC 11)")), out.toString());
+    }
+
     @Test void failedAdmissionStopsBeforeUploadAndBadResourceStopsBeforeRequests() throws Exception {
         Ecu ecu = new Ecu(); ecu.failAt = 1;
         M749RamHelper reader = new M749RamHelper(ecu);

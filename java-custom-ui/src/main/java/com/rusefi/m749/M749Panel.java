@@ -30,6 +30,9 @@ public final class M749Panel extends JPanel {
     private final JComboBox<PcanDevice.Channel> channels = new JComboBox<>();
     private final JButton flash = new JButton("Flash rusEFI");
     private final JButton readFlash = new JButton("Read flash...");
+    private final JButton usdMaintenance = new JButton("USD maintenance...");
+    private final UsdChooser usdChooser;
+    private volatile boolean maintenanceHold;
     private final JButton writeFlash = new JButton("Write firmware...");
     private final JComboBox<String> transferTransport = new JComboBox<>(new String[]{"PCAN", "SLCAN", "SocketCAN"});
     private final JTextField transferEndpoint = new JTextField("auto", 18);
@@ -86,8 +89,31 @@ public final class M749Panel extends JPanel {
         }
     }
 
+    enum UsdAction {
+        INSPECT("Inspect and save options", "--inspect-usd"),
+        APPLY("Apply RAM option patch", "--patch-usd"),
+        VERIFY("Verify applied patch", "--verify-usd-patch");
+        final String label, flag;
+        UsdAction(String label, String flag) { this.label = label; this.flag = flag; }
+        @Override public String toString() { return label; }
+    }
+
+    static final class UsdSelection {
+        final UsdAction action;
+        final Path directory;
+        UsdSelection(UsdAction action, Path directory) { this.action = action; this.directory = directory; }
+    }
+
+    interface UsdChooser { UsdSelection choose(Component parent); }
+
     M749Panel(M749Monitor.Backend backend, M749FirmwareFile.Locator firmwareLocator, TransferChooser transferChooser) {
+        this(backend, firmwareLocator, transferChooser, M749Panel::chooseUsd);
+    }
+
+    M749Panel(M749Monitor.Backend backend, M749FirmwareFile.Locator firmwareLocator,
+              TransferChooser transferChooser, UsdChooser usdChooser) {
         super(new BorderLayout(8, 8));
+        this.usdChooser = usdChooser;
         this.backend = backend;
         this.firmwareLocator = firmwareLocator;
         this.transferChooser = transferChooser;
@@ -153,6 +179,9 @@ public final class M749Panel extends JPanel {
         writeFlash.setName("writeFlash");
         transferRow.add(readFlash);
         transferRow.add(writeFlash);
+        usdMaintenance.setName("usdMaintenance");
+        usdMaintenance.setToolTipText("I862 option backup, explicit RAM option repair, and verification");
+        transferRow.add(usdMaintenance);
         transferRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, transferRow.getPreferredSize().height));
         top.add(transferRow);
         top.add(new JLabel("Read: OEM full backup. Write: rusEFI HEX/SREC or OEM BIN software + calibration."));
@@ -193,6 +222,7 @@ public final class M749Panel extends JPanel {
         });
         flash.addActionListener(event -> flashFirmware());
         readFlash.addActionListener(event -> transferFile(true));
+        usdMaintenance.addActionListener(event -> maintainUsd());
         writeFlash.addActionListener(event -> transferFile(false));
         transferTransport.addActionListener(event -> {
             transferEndpoint.setText(transferTransport.getSelectedIndex() == 2 ? "can0" : "auto");
@@ -263,6 +293,7 @@ public final class M749Panel extends JPanel {
     }
 
     private void queryAgain() {
+        maintenanceHold = false;
         if (worker == null || uploading || querying || selectedConnection == null) return;
         querying = true;
         updateControls();
@@ -370,6 +401,7 @@ public final class M749Panel extends JPanel {
         boolean canTransfer = idle && connectionChecked && selectedConnection != null
                 && (!pcan || channel != null && channel.available);
         readFlash.setEnabled(canTransfer);
+        usdMaintenance.setEnabled(canTransfer);
         writeFlash.setEnabled(canTransfer && installed != M749FirmwareDetection.Result.RUSEFI);
     }
 
@@ -383,6 +415,7 @@ public final class M749Panel extends JPanel {
         if (read) {
             chooser.setSelectedFile(new java.io.File("m749-full-" + java.time.Instant.now().toString().replaceAll("[:.]", "-") + ".bin"));
             JPanel options = new JPanel(new GridLayout(0, 1));
+            options.add(new JLabel("Also saves options to <filename>.usd.bin"));
             options.add(resume);
             options.add(running);
             chooser.setAccessory(options);
@@ -396,6 +429,103 @@ public final class M749Panel extends JPanel {
         return new Selection(path, resume.isSelected(), running.isSelected());
     }
 
+    private static UsdSelection chooseUsd(Component parent) {
+        UsdAction action = (UsdAction) JOptionPane.showInputDialog(parent,
+                "I862 OEM application only. Apply and power-cycle retention tested on one unit.",
+                "USD maintenance", JOptionPane.PLAIN_MESSAGE, null, UsdAction.values(), UsdAction.INSPECT);
+        if (action == null) return null;
+        JFileChooser chooser = new JFileChooser();
+        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        chooser.setDialogTitle(action == UsdAction.INSPECT ? "Choose a folder for a new inspection subfolder" : "Select saved inspection directory");
+        if (chooser.showDialog(parent, action == UsdAction.INSPECT ? "Save inspection here" : "Select") != JFileChooser.APPROVE_OPTION) return null;
+        Path directory = chooser.getSelectedFile().toPath();
+        if (action == UsdAction.INSPECT) {
+            try {
+                directory = newUsdInspectionDirectory(directory);
+            } catch (java.io.IOException e) {
+                JOptionPane.showMessageDialog(parent, e.getMessage(), "Invalid inspection folder", JOptionPane.ERROR_MESSAGE);
+                return null;
+            }
+        }
+        if (action == UsdAction.APPLY) {
+            try {
+                byte[] snapshot = M749UsdPatcher.readInspection(directory);
+                if (java.nio.file.Files.exists(directory.resolve(M749UsdPatcher.ATTEMPT_FILE)))
+                    throw new java.io.IOException("Apply was already attempted. Choose Verify applied patch instead.");
+                String message = String.format("Apply RAM option patch from %s?\nSnapshot CRC: %08X\n"
+                                + "This erases and restores the entire USD area, preserving protection and other options.\n"
+                                + "Keep power connected. Power loss can leave incomplete options.\n"
+                                + "A lost reply must not trigger another apply. Use Verify applied patch to check the outcome.",
+                        directory, M749UsdPatcher.crc(snapshot));
+                if (JOptionPane.showConfirmDialog(parent, message, "Confirm USD erase/restore",
+                        JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION) return null;
+            } catch (java.io.IOException e) {
+                JOptionPane.showMessageDialog(parent, e.getMessage(), "Invalid USD inspection", JOptionPane.ERROR_MESSAGE);
+                return null;
+            }
+        }
+        return new UsdSelection(action, directory);
+    }
+
+    static Path newUsdInspectionDirectory(Path parent) throws java.io.IOException {
+        if (!java.nio.file.Files.isDirectory(parent)) {
+            throw new java.io.IOException("Choose an existing folder to contain the new inspection: " + parent);
+        }
+        return parent.resolve("usd-inspection-" + java.time.Instant.now().toString().replaceAll("[:.]", "-"));
+    }
+
+    private void maintainUsd() {
+        if (!usdMaintenance.isEnabled()) return;
+        UsdSelection selection = usdChooser.choose(this);
+        if (selection == null || worker == null || selectedConnection == null) return;
+        M749ConnectionOptions options = selectedConnection.copy();
+        java.util.ArrayList<String> args = new java.util.ArrayList<>();
+        args.add(selection.action.flag);
+        args.add(selection.directory.toString());
+        if (selection.action == UsdAction.APPLY) args.add("--confirm-usd-erase");
+        args.addAll(options.arguments());
+        uploading = true;
+        maintenanceHold = true;
+        updateControls();
+        activity.setText("USD maintenance in progress - keep ECU power and CAN connected.");
+        status.setText("");
+        int current = generation;
+        Consumer<String> log = operationLog(current, System.nanoTime());
+        worker.execute(() -> {
+            synchronized (backend) {
+                try {
+                    if (generation != current || Thread.currentThread().isInterrupted()) return;
+                    log.accept(M749BuildInfo.describe());
+                    log.accept(selection.action.label + ": " + selection.directory);
+                    log.accept("Connection: " + options.connector() + " " + options.endpoint());
+                    int result = backend.transfer(args.toArray(new String[0]), log);
+                    if (result == 3) {
+                        log.accept("USD apply outcome unconfirmed. Choose Verify applied patch; do not repeat Apply or power-cycle.");
+                        onEdt(current, () -> activity.setText("USD apply unconfirmed - use Verify applied patch"));
+                    } else {
+                        if (result != 0) throw new java.io.IOException("Command returned " + result + "; see Messages");
+                        log.accept("USD maintenance complete - see verification details. Automatic queries paused.");
+                        onEdt(current, () -> activity.setText("USD maintenance complete - see Messages"));
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    log.accept("USD maintenance interrupted; outcome may be unknown. Do not repeat Apply or power-cycle.");
+                    onEdt(current, () -> activity.setText("USD maintenance interrupted - check outcome"));
+                } catch (Exception | LinkageError e) {
+                    logger.error("USD maintenance exception", e);
+                    log.accept("USD maintenance failed: " + e.getMessage());
+                    onEdt(current, () -> activity.setText("USD maintenance failed - see Messages"));
+                } finally {
+                    onEdt(current, () -> {
+                        setFirmware(M749FirmwareDetection.Result.UNKNOWN);
+                        uploading = false;
+                        updateControls();
+                    });
+                }
+            }
+        });
+    }
+
     private void transferFile(boolean read) {
         if (!(read ? readFlash : writeFlash).isEnabled()) return;
         Selection selection = transferChooser.choose(this, read);
@@ -407,6 +537,7 @@ public final class M749Panel extends JPanel {
         if (options == null) return;
         args.addAll(options.arguments());
         if (read) {
+            args.add("--with-usd");
             args.add("--reset-after");
             if (selection.resume) args.add("--resume");
             if (selection.helperRunning) args.add("--helper-running");
@@ -601,7 +732,7 @@ public final class M749Panel extends JPanel {
         synchronized (backend) {
             // addNotify also runs for unselected tabs. Their automatic probes would
             // disconnect the tuning session through M749ConsoleAccess.
-            if ((force || panelShowing) && generation == current && !uploading
+            if ((force || panelShowing && !maintenanceHold) && generation == current && !uploading
                     && !Thread.currentThread().isInterrupted()) {
                 M749ConnectionOptions options = selectedConnection;
                 if (options != null) {

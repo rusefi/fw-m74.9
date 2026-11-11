@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.*;
 class M749UploaderTest {
     static class Ecu implements M749Uploader.Connection {
         final byte[] flash = new byte[0x24F000];
+        final Map<Integer, Integer> ramPreflightMemory = new HashMap<>();
+        final List<byte[]> requests = new ArrayList<>();
         final Map<Integer, byte[]> metadata = new LinkedHashMap<>();
         final List<Integer> erases = new ArrayList<>();
         final List<Integer> counters = new ArrayList<>();
@@ -20,6 +22,10 @@ class M749UploaderTest {
         boolean app;
 
         Ecu() {
+            putRamPreflight(0x1FFFC010, 0x05FA, 2);
+            putRamPreflight(0x1FFFC000, 0xFFFF, 2);
+            putRamPreflight(0xE0042000, 0x70084540, 4);
+            putRamPreflight(0x40023CCC, 0, 4);
             Arrays.fill(flash, (byte) 0xA5);
             Arrays.fill(flash, 0x24E100, 0x24F000, (byte) 0xFF);
             putHex(0x0822DFFC, "94b8b6d7");
@@ -32,6 +38,9 @@ class M749UploaderTest {
             }
         }
 
+        void putRamPreflight(int address, int value, int length) {
+            for (int i = 0; i < length; i++) { ramPreflightMemory.put(address + i, (value >>> (8 * i)) & 255); }
+        }
         void putHex(int address, String hex) {
             for (int i = 0; i < hex.length(); i += 2) { flash[address - 0x08000000 + i / 2] = (byte) Integer.parseInt(hex.substring(i, i + 2), 16); }
         }
@@ -44,6 +53,7 @@ class M749UploaderTest {
         }
         public void pause(long milliseconds) { }
         public byte[] exchange(byte[] q, byte[] prefix, long timeout) throws IOException {
+            requests.add(q.clone());
             if ((q[0] & 255) == failSid) { throw new IOException("Injected service failure"); }
             byte[] result;
             switch (q[0] & 255) {
@@ -70,6 +80,11 @@ class M749UploaderTest {
                         if (address >= M749BootDiagnostic.ADDRESS && address < M749BootDiagnostic.ADDRESS + 64) {
                             assertEquals(1, length);
                             return bytes(0x71, 1, 0xFF, 1, q[14] == 0 ? 0 : 1);
+                        }
+                        if (ramPreflightMemory.containsKey(address)) {
+                            assertEquals(1, length);
+                            int want = (q[13] & 255) << 8 | q[14] & 255;
+                            return bytes(0x71, 1, 0xFF, 1, ramPreflightMemory.get(address) == want ? 0 : 1);
                         }
                         int sum = 0;
                         for (int i = 0; i < length; i++) { sum = (sum + (flash[address - 0x08000000 + i] & 255)) & 65535; }

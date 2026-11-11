@@ -498,6 +498,15 @@ application-session check described under selected-file writes above.
 2. Compare individual loader sentinel bytes and its stored CRC word. Check the
    activation ABI for a calibration update, read the retained domain's CRC
    trailer, and check space for the required loader metadata transaction.
+   Before a software update, read and validate the MCU identity and RAM options.
+   Accept a valid existing 384/448/512 KiB setting, or erased EOPB0=FFFF with
+   access=5AA5 and no SLIB restriction for first-boot RAM setup. Unsupported,
+   protected insufficient, malformed or unreadable settings stop before any
+   erase/download/metadata write or activation reset. The check logs the observed
+   options and does not change them. It also runs for `--check-target` software
+   images; OEM BIN restoration and calibration-only updates do not use this
+   replacement-software RAM gate. Eligibility does not replace the firmware's
+   image CRC, marker or option-write checks at startup.
 3. Erase only the chosen domain, in 4 KiB requests. Software uses two disjoint
    ranges, preserving the calibration gap. Download each range with 34/36/37,
    honoring negotiated block length and starting the counter at zero.
@@ -665,3 +674,13 @@ UDS errors include the current SID/phase, latest ECU flow control and up to 16
 recent frame metadata entries. Adapter BELL also logs bounded recent metadata.
 Firmware contents, security keys and pairing payloads are omitted. The pending
 UDS block address does not identify the exact CAN frame rejected by an adapter.
+
+## USD RAM-option maintenance
+
+The console's **USD maintenance** action and the CLI's `--inspect-usd`,
+`--patch-usd` and `--verify-usd-patch` commands provide separate I862 option
+inspection, explicit apply and verification. Apply requires a complete saved
+inspection and `--confirm-usd-erase`; `--dry-run` validates inputs offline.
+This operation is not performed by normal firmware upload. See the
+[USD maintenance guide](usd-patcher.md) for the exact target restrictions,
+commands, unconfirmed-result handling and hardware qualification limits.

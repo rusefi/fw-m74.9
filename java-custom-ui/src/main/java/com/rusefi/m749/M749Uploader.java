@@ -19,6 +19,9 @@ final class M749Uploader {
     private static final int APPLICATION_READINESS_ATTEMPTS = 60;
     interface Connection {
         byte[] exchange(byte[] request, byte[] prefix, long timeout) throws IOException, InterruptedException;
+        default byte[] exchangeLongRunning(byte[] request, byte[] prefix, long timeout) throws IOException, InterruptedException {
+            return exchange(request, prefix, timeout);
+        }
         void pause(long milliseconds) throws InterruptedException;
     }
 
@@ -58,6 +61,11 @@ final class M749Uploader {
             M749TargetProfile profile = reader.checkProfile();
             out.accept(profile + " loader compatibility sentinels match; authentication accepted");
             image.requireTarget(profile);
+
+            if (image.domain == M749Image.Domain.SOFTWARE) {
+                phase = "checking RAM configuration before application erase";
+                new M749RamPreflight(reader).check(out);
+            }
 
             phase = "activation preflight";
             if (image.domain == M749Image.Domain.CALIBRATION) {

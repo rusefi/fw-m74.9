@@ -210,6 +210,17 @@ library. Missing libraries are reported in Messages with the platform remedy.
 
 The packaged console is `ext/rusefi/console/rusefi_console.jar`. Local bundle
 and CI builds also include the custom module through `RUSEFI_CUSTOM_JAVA_UI_DIR`.
+To rebuild only the console JAR from the repository root:
+
+```sh
+ABSOLUTE_BOARD_DIR="$PWD" bash bin/java-ui.sh :ui:shadowJar
+```
+
+A `:ui:shadowJar` run without `RUSEFI_CUSTOM_JAVA_UI_DIR` (for example a plain
+`./gradlew` in `ext/rusefi` or an IDE without that variable) produces a generic
+console with no **M74.9** tab. Without `ABSOLUTE_BOARD_DIR` its
+`shared_io.properties` has `use_canbus_connector=false`. The manifest of a
+correct build has `Board-Git` and `Rusefi-Git` attributes.
 Build both ZIPs with `bash _compile_bundle.sh`. Windows PCAN DLLs and the macOS
 JNI bridge are included beside the JAR (`tests/check_bundles.py` requires all
 three); the PEAK driver or MacCAN and a compatible Java installation are still

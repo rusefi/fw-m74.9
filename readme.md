@@ -19,7 +19,11 @@ Hardware notes and wiring: https://github.com/rusefi/m74.9
   - an SLCAN serial adapter such as CANable on Linux, macOS or Windows, or
   - a Linux SocketCAN interface for command-line use.
 - Java, version 11 or newer recommended. On Windows the Java installation must match the PCAN
-  driver architecture (64-bit Java for a 64-bit driver).
+  driver architecture (64-bit Java for a 64-bit driver). On Linux the console
+  needs a full (non-headless) Java runtime, for example
+  `sudo apt install openjdk-21-jre`; with only `*-jre-headless` installed the
+  console fails with `java.awt.HeadlessException` even when `DISPLAY` is set.
+  The command-line tools work with a headless runtime.
 - The extracted rusEFI bundle. Run `rusefi_updater.exe` on Windows or
   `rusefi_updater.sh` on Linux/macOS to open the console.
 

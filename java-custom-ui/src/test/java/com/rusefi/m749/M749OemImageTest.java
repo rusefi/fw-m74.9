@@ -198,6 +198,9 @@ class M749OemImageTest {
         for (M749TargetProfile profile : M749TargetProfile.values()) {
             for (int stack : new int[]{0, 0x20020000}) {
                 OemEcu ecu = new OemEcu(profile);
+                // OEM recovery must remain available with protected 128 KiB options.
+                ecu.putRamPreflight(0x1FFFC010, 0x00FF, 2);
+                ecu.putRamPreflight(0x1FFFC000, 0xFFFF, 2);
                 byte[] original = ecu.flash.clone(), data = backup(profile);
                 word(data, 0x1000, stack);
                 updateSoftwareCrc(data, profile);

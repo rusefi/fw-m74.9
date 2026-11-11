@@ -34,6 +34,27 @@ final class M749ChecksumReader {
         return compare(address, 1, candidate);
     }
 
+    // Only stable bytes used by the RAM startup eligibility check. Keep the
+    // public flash reader restricted; never expose arbitrary MMIO reads.
+    boolean ramPreflightByteMatches(int address, int candidate) throws IOException, InterruptedException {
+        if (!((address >= 0x1FFFC000 && address < 0x1FFFC002) ||
+                (address >= 0x1FFFC010 && address < 0x1FFFC012) ||
+                (address >= 0xE0042000 && address < 0xE0042004) ||
+                (address >= 0x40023CCC && address < 0x40023CD0)) ||
+                candidate < 0 || candidate > 255) {
+            throw new IllegalArgumentException("Invalid RAM preflight byte");
+        }
+        return compare(address, 1, candidate);
+    }
+
+    // Fixed USD region for explicit patch verification only.
+    boolean usdPatchByteMatches(int address, int candidate) throws IOException, InterruptedException {
+        if (address < M749UsdReader.BASE || address >= M749UsdReader.BASE + 4096 || candidate < 0 || candidate > 255) {
+            throw new IllegalArgumentException("Invalid USD verification byte");
+        }
+        return compare(address, 1, candidate);
+    }
+
     private boolean compare(int address, int length, int sum) throws IOException, InterruptedException {
         if (Thread.currentThread().isInterrupted()) { throw new InterruptedException(); }
         byte[] q = bytes(0x31, 1, 0xFF, 1, 0x44, address >>> 24, address >>> 16,

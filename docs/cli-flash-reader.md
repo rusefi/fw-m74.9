@@ -1,9 +1,11 @@
-# Complete main-flash backup
+# Main-flash and option-area backup
 
 The M74.9 tab's **Read flash...** button runs this same reader. Select the shared
 Connector and transport settings, choose a destination in the save dialog and watch Messages
 for verified byte counts, percentage, speed and SHA-256. The dialog supports
-`--resume` and `--helper-running`; the UI adds `--reset-after` on successful reads.
+`--resume` and `--helper-running`; the UI adds `--with-usd` and `--reset-after`.
+It saves the main-flash BIN and a separate 4096-byte `<filename>.usd.bin` containing
+the raw option/user-system-data region at `0x1FFFC000..0x1FFFCFFF`. Keep both files.
 Completed backups are never overwritten, even if an existing path is selected.
 This helper requires OEM application support; it is not a rusEFI backup service.
 
@@ -12,7 +14,8 @@ It supports Linux SocketCAN, SLCAN serial adapters on Linux, macOS and Windows, 
 native Windows Java or macOS Java plus MacCAN. The default range is `0x08000000..0x083EFFFF`: 4,128,768
 bytes (4,032 KiB), including both banks, boot code, application, calibration,
 identity and main-flash NVM. This profile requires the corresponding flash
-capacity; it does not include separate user-system-data/option-memory areas.
+capacity. The main-flash BIN format stays unchanged. Add `--with-usd` to the CLI
+to also save the separate option-area image, as the UI does automatically.
 
 The command uploads code to RAM and takes over diagnostic communication. It
 does not issue flash erase/program commands or disable flash protection.
@@ -20,6 +23,56 @@ Application session `60` must be available on the target. A rejected session
 or security response stops the operation. A resident loader in session `02`
 does not provide this bootstrap. Normal application operation stops while the
 RAM helper runs.
+
+## Option-area backup through the RAM helper
+
+```sh
+bash bin/m749-cli.sh --read-flash backup.bin --socketcan can0 --with-usd --reset-after
+```
+
+After publishing `backup.bin`, the reader uses the same running RAM helper's
+`23` memory-read service to save `backup.bin.usd.bin`. There is no intermediate
+reset, resident-loader session change or second authorization. Each USD block
+is read twice and must match before it is saved. The default block size is 1024
+bytes; `--chunk-size` accepts 1 through 4080, so a 4096-byte image always spans
+at least two blocks. Every physical byte is preserved, including complement
+bytes, reserved contents and user data. No values are inferred or normalized.
+No erase, download, programming-metadata write or protection change is requested.
+
+The USD output has its own `.part` and `.properties` files. Progress is saved
+after each matching block. Existing completed files are never overwritten.
+Completion prints a separate USD SHA-256. Until that message appears, the
+combined backup is incomplete even if the main-flash BIN has been published.
+
+If USD reading fails after main flash has completed, retry only USD while the
+helper is still running:
+
+```sh
+bash bin/m749-cli.sh --read-usd backup.bin.usd.bin --socketcan can0 --resume --helper-running --reset-after
+```
+
+Use the same transport. `--helper-running` verifies the running helper against
+the bundled binary before trusting it. If the ECU was reset or power-cycled,
+omit that flag and provide any required authorization credentials to launch the
+helper again through OEM application session 60. A standalone USD read has the
+same application admission requirements as the main-flash reader; it cannot
+bootstrap from resident-loader session 02 alone.
+
+Resume verifies every saved USD byte against the connected ECU before adding
+data. A fresh standalone read uses `--read-usd OUTPUT.bin` without `--resume`.
+It always reads exactly 4096 bytes; custom start addresses and lengths are
+rejected, while `--chunk-size` is supported. USD checkpoints record format
+`M749USD2`, the helper hash, CPU identification and duplicate-read verification.
+Older FF01 `M749USD1` checkpoints are rejected; start with a new output name.
+
+`--reset-after` requests one reset only after all requested images are complete.
+Without it, the RAM helper remains active. A failed read causes no reset.
+Reset acknowledgement does not establish application return. Full physical USD
+export through the helper remains to be validated on an ECU. A live attempt on
+an I862 unit with a failed application upload found resident-loader session 02
+and rejected `10 60` with `7F 10 11`, before any RAM upload. No USD bytes were
+read. Intact option memory does not make the OEM application bootstrap available
+when that application cannot run.
 
 Transport selection, serial settings and flow-control defaults are shared with
 all other hardware commands; see [shared options](cli-uploader.md#shared-transport-options).
@@ -126,7 +179,7 @@ bash bin/m749-cli.sh --read-flash m749-sample.bin --slcan /dev/ttyACM0 \
   --start 0x08000000 --length 128 --chunk-size 128
 ```
 
-The helper remains active after a successful read unless `--reset-after` is
+For a main-flash-only CLI read, the helper remains active unless `--reset-after` is
 specified. After the small read, start the full backup without uploading again:
 
 ```sh
@@ -195,7 +248,9 @@ start address.
 | `--start`, `--length` | Default complete 4032 KiB main-flash range; decimal or `0x` integers |
 | `--resume` | Validate and continue the existing partial backup |
 | `--helper-running` | Verify and use the already-running bundled helper |
-| `--reset-after` | Request reset only after publishing the complete backup |
+| `--with-usd` | Save a separate 4096-byte USD image through the same RAM helper after main flash; enabled by the UI |
+| `--read-usd OUTPUT.bin` | Standalone full USD read/retry through the RAM helper; supports `--resume` and `--helper-running` |
+| `--reset-after` | Request a final reset after publishing all requested backups |
 
 SLCAN initialization sends `C`, `S6`, `O`; CAN is 500 kbit/s. On a rusEFI
 sniffer, `S6` does not change the ECU's physical CAN configuration: configure
@@ -237,7 +292,7 @@ in backup metadata.
 
 `--reset-after` requires `51 01`; application return is not verified. A reset
 failure after publication does not invalidate the saved binary, but the CLI
-returns a failure exit code. Without this option, it leaves the helper active.
+returns a failure exit code. Without this option, both main-flash and USD reads leave the RAM helper active.
 Exit codes are 0 for completion/help, 2 for invalid options and 1 for runtime
 failure. Detailed read help:
 

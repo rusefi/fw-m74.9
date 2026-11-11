@@ -2,6 +2,7 @@
 set -euo pipefail
 board_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 export RUSEFI_CUSTOM_JAVA_UI_DIR="$board_dir/java-custom-ui"
+export ABSOLUTE_BOARD_DIR="$board_dir"
 export META_OUTPUT_ROOT_FOLDER=../../../generated/
 export BUNDLE_SIMULATOR=false
 cd "$board_dir/ext/rusefi/firmware"
