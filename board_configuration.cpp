@@ -64,6 +64,13 @@ static void setupEtb() {
 	engineConfiguration->etb_use_two_wires = false;
 }
 
+static void m74_9_boardDefaultConfigurationGranta() {
+	// Connector B, pin B1 (BB1): L9779 OUT14 sinks the starter relay to GND.
+	// Used on Lada Granta: the starter interlock supplies ground below the cranking RPM threshold.
+	engineConfiguration->starterRelayDisablePin = Gpio::L9779_OUT_14;
+	engineConfiguration->starterRelayDisablePinMode = OM_DEFAULT;
+}
+
 /**
  * @brief   Board-specific configuration defaults.
 
@@ -72,6 +79,10 @@ static void m74_9_boardDefaultConfiguration() {
 	config->ladaCanbusProfile = LadaCanbusProfile::Largus;
 	setInjectorPins();
 	setIgnitionPins();
+
+	if (1) {
+		m74_9_boardDefaultConfigurationGranta();
+	}
 
 	engineConfiguration->cylindersCount = 4;
 	engineConfiguration->firingOrder = FO_1_3_4_2;
@@ -214,6 +225,19 @@ static void m74_9IgnitionGatePeriodic() {
 	l9779_setPowerStage(ignitionOn);
 }
 
+static float m74_9_getAnalogInputDividerCoefficient(adc_channel_e hwChannel) {
+	switch (hwChannel) {
+		case EFI_ADC_6:
+		case EFI_ADC_7:
+			// F2 (Ignition) and H1+H2 (VBatt after main relay) inputs have 100K + 15K dividers
+			// TODO: confirm exact values
+			return (100.0 + 15.0) / 15.0;
+		default:
+			return engineConfiguration->analogInputDividerCoefficient;
+	}
+	return engineConfiguration->analogInputDividerCoefficient;
+}
+
 static Gpio OUTPUTS[] = {
 	Gpio::L9779_OUT_4, // Injector 1
 	Gpio::L9779_OUT_3, // Injector 2
@@ -260,4 +284,5 @@ void setup_custom_board_overrides() {
 	custom_board_DefaultConfiguration = m74_9_boardDefaultConfiguration;
 	custom_board_ConfigOverrides = m74_9_boardConfigOverrides;
 	custom_board_periodicSlowCallback = m74_9IgnitionGatePeriodic;
+	custom_board_getAnalogInputDividerCoefficient = m74_9_getAnalogInputDividerCoefficient;
 }
