@@ -8,6 +8,8 @@ const char* getBoardSpecificPinName(brain_pin_e brainPin) {
 	switch (brainPin) {
 		case Gpio::A1:
 			return "MAF/MAP sensor signal";
+		case Gpio::A6:
+			return "+12v after main relay";
 		case Gpio::B12:
 			return "Vehicle speed sensor input";
 		case Gpio::B9:
@@ -53,7 +55,7 @@ const char* getBoardSpecificPinName(brain_pin_e brainPin) {
 		case Gpio::L9779_OUT_13:
 			return "Fuel pump relay";
 		case Gpio::L9779_OUT_14:
-			return "Secondary starter relay";
+			return "Starter relay ground control";
 		case Gpio::L9779_OUT_15:
 			return "FAN 1 relay";
 		case Gpio::L9779_OUT_16:

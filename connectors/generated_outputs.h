@@ -17,7 +17,7 @@ Gpio GENERATED_OUTPUTS[] = {
 	Gpio::L9779_IGN_2, // Coil 2  (< +2.5v) (not populated)
 	Gpio::L9779_IGN_4, // Coil 4  (< +2.5v) (not populated)
 	Gpio::L9779_OUT_17, // Air compressor control
-	Gpio::L9779_OUT_14, // Secondary starter relay
+	Gpio::L9779_OUT_14, // Starter relay ground control
 	Gpio::L9779_OUT_15, // FAN 1 relay
 	Gpio::L9779_OUT_16, // FAN 2 relay
 	Gpio::L9779_OUT_18, // Unknown out (OUT18)
@@ -35,7 +35,7 @@ Gpio GENERATED_OUTPUTS[] = {
 // "Coil 2  (< +2.5v) (not populated)",
 // "Coil 4  (< +2.5v) (not populated)",
 // "Air compressor control",
-// "Secondary starter relay",
+// "Starter relay ground control",
 // "FAN 1 relay",
 // "FAN 2 relay",
 // "Unknown out (OUT18)",

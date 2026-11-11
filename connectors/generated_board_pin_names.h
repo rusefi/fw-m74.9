@@ -43,6 +43,9 @@
 #define PIN_BC3 G12
 #define PIN_BD1 L9779_OUT_16
 #define PIN_BE4 L9779_OUT_18
-#define PIN_BF2 L9779_PIN_KEY
+#define PIN_BF2_switch_inputs L9779_PIN_KEY
+#define PIN_BF2_analog_inputs EFI_ADC_7
 #define PIN_BF3 F10
 #define PIN_BG1 L9779_OUT_13
+#define PIN_BH1_switch_inputs A6
+#define PIN_BH1_analog_inputs EFI_ADC_6
