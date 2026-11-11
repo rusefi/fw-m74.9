@@ -71,6 +71,9 @@ rusEFI submodule; leave those generated changes unstaged.
   STM32_IRQ_TIM5_PRIORITY setting does not replace that driver's priority.
   The HAL default 7 conflicts with the scheduler's 3, raises a critical startup
   error and prevents CAN initialization even after successful boot activation.
+  TIM6 fast ADC similarly needs STM32_GPT_TIM6_IRQ_PRIORITY set to
+  EFI_IRQ_ADC_PRIORITY; STM32_IRQ_TIM6_PRIORITY alone does not override the
+  GPT driver's default 7. Keep both TIM6 priority settings aligned.
 
 - A running M74.9 rusEFI image can be quiet between diagnostic requests. Older
   installed images answer F1A0..F1A3 but not OEM session/identity DIDs, including

@@ -4,6 +4,10 @@
 
 static_assert(STM32_PWM_TIM5_IRQ_PRIORITY == EFI_IRQ_SCHEDULING_TIMER_PRIORITY,
     "M74.9 TIM5 interrupt priority must match the scheduler contract");
+static_assert(STM32_GPT_TIM6_IRQ_PRIORITY == EFI_IRQ_ADC_PRIORITY,
+    "M74.9 TIM6 GPT interrupt priority must match the fast ADC contract");
+static_assert(STM32_IRQ_TIM6_PRIORITY == EFI_IRQ_ADC_PRIORITY,
+    "M74.9 TIM6 interrupt priority must match the fast ADC contract");
 
 extern volatile uint32_t m749BootIntent;
 
