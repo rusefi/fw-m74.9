@@ -1684,7 +1684,7 @@
 #define show_default_engine_type false
 #define show_tcu_gauges false
 #define show_vvt_output_pin true
-#define SIGNATURE_HASH 433069957
+#define SIGNATURE_HASH 2478860395
 #define SIMULATOR_TUNE_BIN_FILE_NAME "generated/simulator_tune_image.bin"
 #define SIMULATOR_TUNE_BIN_FILE_NAME_PREFIX "generated/simulator_tune_image"
 #define SIMULATOR_TUNE_BIN_FILE_NAME_SUFFIX ".bin"
@@ -2228,7 +2228,7 @@
 #define ts_show_i2c4_pins false
 #define ts_show_iat true
 #define ts_show_idle_hardware true
-#define ts_show_ign_key_analog_input false
+#define ts_show_ign_key_analog_input true
 #define ts_show_ign_key_menu true
 #define ts_show_ign_key_switch false
 #define ts_show_ignition true
@@ -2351,7 +2351,7 @@
 #define ts_show_wbo_canbus_set_index true
 #define ts_show_wbo_canbus_set_type false
 #define ts_show_wot_enrichment true
-#define TS_SIGNATURE "rusEFI main.2026.11.13.re74.9.433069957"
+#define TS_SIGNATURE "rusEFI main.2026.11.13.re74.9.2478860395"
 #define TS_SIMULATE_CAN '>'
 #define TS_SIMULATE_CAN_char >
 #define TS_TEST_COMMAND 't'
