@@ -144,10 +144,9 @@ void M749VehicleCanTransmitter::update() {
             break;
         }
         case 0x5DA:
-            if (!largus) {
-                break;
+            if (largus) {
+                msg[0] = static_cast<uint8_t>(bounded(clt.Value, -40, 215) + 40);
             }
-            msg[0] = static_cast<uint8_t>(bounded(clt.Value, -40, 215) + 40);
             msg[1] = static_cast<uint8_t>(bounded(engine->module<IdleController>().unmock().idleTarget, 0, 2040) / 8);
             msg[4] = static_cast<uint8_t>(bounded(engineConfiguration->rpmHardLimit, 0, 8160) / 32);
             break;
