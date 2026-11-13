@@ -152,9 +152,8 @@ void M749VehicleCanTransmitter::update() {
             msg[4] = static_cast<uint8_t>(bounded(engineConfiguration->rpmHardLimit, 0, 8160) / 32);
             break;
         case 0x65C:
-            if (largus) {
-                msg[0] = static_cast<uint8_t>(bounded(iat.Value, -40, 87) + 40) << 1;
-            }
+            // Intake temperature, bits 7:1 = (IAT+40), -40..87 degC.
+            msg[0] = static_cast<uint8_t>(bounded(iat.Value, -40, 87) + 40) << 1;
             break;
         case 0x1F9:
             msg[0] = (msg[0] & 0x0F) | (m_counter1F9 << 4);
