@@ -2,6 +2,7 @@
 #include "vehicle_can.h"
 #include "can_msg_tx.h"
 #include "idle_thread.h"
+#include "bench_test.h"
 
 namespace {
 struct PeriodicFrame {
@@ -70,6 +71,25 @@ uint16_t indicatedSpeed(float speed) {
     const uint32_t indicated = q6 ? ((q6 * 16712) >> 14) + 125 : 0;
     const uint32_t raw = (indicated * 5) / 32;
     return raw > 4095 ? 4095 : raw;
+}
+
+bool isCheckEngineLampOn() {
+#ifdef MODULE_MIL
+    if (Sensor::getOrZero(SensorType::VehicleSpeed) > 5) {
+        // Do not blink while in move
+        // Constant ON if any (filtered) OBD code is active
+        return engine->module<MILController>()->isError();
+    } else if (getOutputOnTheBenchTest() == &enginePins.checkEnginePin) {
+        // While milbench is driving the MIL pin: it returns isLampOn(), so the bench command shows up on CAN.
+        // 'milbench': bench test drives a plain (non-diagnostic) lamp state
+        return engine->module<MILController>()->isLampOn();
+    } else {
+        // Otherwise: it returns isDiagnosticLampOn(), so the upstream stopped-engine lamp stays off the CAN frame, as before.
+        return engine->module<MILController>()->isDiagnosticLampOn();
+    }
+#else
+    return false;
+#endif
 }
 }
 
@@ -164,6 +184,7 @@ void M749VehicleCanTransmitter::update() {
             break;
         case 0x551:
             msg[1] = static_cast<uint8_t>(bounded(clt.Value, -40, 215) + 40);
+            msg[4] = isCheckEngineLampOn() ? 0x00 : 0x01;
             msg[5] = (msg[5] & 0x0F) | (m_counter551 << 4);
             m_counter551 = (m_counter551 + 1) & 0x0F;
             break;
