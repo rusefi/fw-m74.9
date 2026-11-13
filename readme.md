@@ -237,6 +237,22 @@ own flash and survive later firmware updates. The OEM calibration area is kept
 unchanged; the firmware only uploads a new calibration when you explicitly ask
 for it on the command line.
 
+### USB connection for high-speed logging
+
+An M74.9 ECU running USB-enabled rusEFI firmware can connect directly to a
+computer over USB serial. This can be useful for high-speed logging while
+tuning or investigating engine behavior.
+
+Connect USB D- to PA11, D+ to PA12, and GND to ECU ground. Power the ECU through
+its normal harness; this connection uses D-, D+, and GND only, without USB
+VBUS (5 V). For the locations where the USB wires can be soldered to the board,
+see the [ChipTuner M74.9 soldering reference](https://chiptuner.ru/content/repa1-m749-vaz/).
+
+Select the ECU's USB serial port in TunerStudio to connect and record logs.
+Firmware installation and updates through the M74.9 tools still use CAN.
+See [USB technical details](readme-technical-details.md#usb-serial) for the
+firmware configuration.
+
 ## Troubleshooting
 
 - **PCAN not detected**: install the PEAK driver, use 64-bit Java with the
