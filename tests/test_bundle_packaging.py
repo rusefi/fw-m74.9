@@ -1,6 +1,8 @@
 """Exercise the real ZIP recipes without compiling firmware or Java."""
 from pathlib import Path
 from io import BytesIO
+import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -13,6 +15,31 @@ from check_bundles import bundled_srec
 
 CONFIG_DEFINITION_JAR = (ROOT / "ext/rusefi/java_tools/configuration_definition"
                          "/build/libs/config_definition-all.jar")
+JRE_FILES = {
+    "bin/java.exe": b"fixture java\n",
+    "bin/javaw.exe": b"fixture javaw\n",
+    "bin/server/jvm.dll": b"fixture JVM\n",
+    "release": b'JAVA_VERSION="17.0.21"\nOS_ARCH="x86_64"\nOS_NAME="Windows"\n',
+    "legal/java.base/LICENSE": b"fixture license\n",
+}
+
+
+def windows_jre_fixture(work):
+    """Supply the real JRE preparer with a tiny, checksum-verified offline ZIP."""
+    runtime_dir = "fixture-jre"
+    archive = work / "windows-jre.zip"
+    with zipfile.ZipFile(archive, "w") as output:
+        for name, content in JRE_FILES.items():
+            output.writestr(f"{runtime_dir}/{name}", content)
+    manifest = work / "windows-jre.json"
+    manifest.write_text(json.dumps({
+        "version": "17.0.21",
+        "url": archive.as_uri(),
+        "sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
+        "archive": archive.name,
+        "runtime_dir": runtime_dir,
+    }))
+    return archive, manifest
 
 
 def config_definition_jar():
@@ -41,6 +68,8 @@ class BundlePackagingTest(unittest.TestCase):
             # inputs: this test exercises packaging, not their implementations.
             (work / "misc").symlink_to(repo / "misc", target_is_directory=True)
             (work / "java_console").symlink_to(repo / "java_console", target_is_directory=True)
+            (firmware / "bin").symlink_to(repo / "firmware/bin", target_is_directory=True)
+            jre_archive, jre_manifest = windows_jre_fixture(work)
             for name in ("rusefi_console.jar", "rusefi_ts_plugin_launcher.jar", "rusefi_re74.9.ini"):
                 (work / name).write_text("packaging fixture\n")
             elf = elf_fixture()
@@ -61,8 +90,14 @@ CONSOLE_JAR = ../rusefi_console.jar
 TS_PLUGIN_LAUNCHER_JAR = ../rusefi_ts_plugin_launcher.jar
 INI_FILE = ../rusefi_re74.9.ini
 CONFIG_DEFINITION_JAR = {jar}
+WINDOWS_JRE_ARCHIVE = {jre_archive}
+WINDOWS_JRE_MANIFEST = {jre_manifest}
+WINDOWS_JRE_CACHE = {work / 'jre-cache'}
 include {ROOT / 'board.mk'}
 include {repo / 'firmware/bundle.mk'}
+# Normally supplied by the top-level firmware Makefile's includes.
+.PHONY: .FORCE
+.FORCE:
 """)
             artifacts = work / "artifacts"
             artifacts.mkdir()
@@ -109,6 +144,11 @@ include {repo / 'firmware/bundle.mk'}
                 for dll in ("PCANBasic.dll", "PCANBasic_JNI.dll"):
                     self.assertEqual(archive.read(prefix + "console/" + dll),
                         (repo / "java_console" / dll).read_bytes())
+                if suffix:
+                    self.assertFalse(any(name.startswith("jre/") for name in relative))
+                else:
+                    for name, content in JRE_FILES.items():
+                        self.assertEqual(archive.read(prefix + "jre/" + name), content)
                 self.assertFalse(any(name.startswith(("bin/", "drivers/",
                     "console/STM32_Programmer_CLI/")) for name in relative))
                 self.assertFalse(any(name.endswith((".bin", ".dfu")) for name in relative))
