@@ -24,7 +24,7 @@ float m74_9_getAnalogInputDividerCoefficient(adc_channel_e channel) {
 		case EFI_ADC_7:
 			// F2 (Ignition) and H1+H2 (VBatt after main relay) inputs have 100K + 15K dividers
 			// TODO: confirm exact values
-			return (100.0 + 15.0) / 15.0;
+			return (100.0f + 15.0f) / 15.0f;
 
 		default:
 			return engineConfiguration->analogInputDividerCoefficient;
