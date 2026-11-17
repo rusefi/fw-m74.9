@@ -54,12 +54,28 @@ TEST_F(M749Analog, OtherInputsKeepConfiguredScaling) {
 	EngineTestHelper eth(engine_type_e::TEST_ENGINE);
 	for (float divider : {2.0f, 1.75f}) {
 		engineConfiguration->analogInputDividerCoefficient = divider;
-		for (auto channel : {EFI_ADC_0, EFI_ADC_10, EFI_ADC_11, EFI_ADC_12, EFI_ADC_13}) {
+		for (auto channel : {EFI_ADC_0, EFI_ADC_2, EFI_ADC_3}) {
 			EXPECT_FLOAT_EQ(divider, getAnalogInputDividerCoefficient(channel));
 			EXPECT_FLOAT_EQ(5.0f, custom_board_getThermistorSupplyVoltage.value()(channel));
 		}
 		EXPECT_FLOAT_EQ(1.0f, getAnalogInputDividerCoefficient(EFI_ADC_39));
 		EXPECT_FLOAT_EQ(1.0f, getAnalogInputDividerCoefficient(EFI_ADC_32));
+	}
+}
+
+TEST_F(M749Analog, FixedDividersIgnoreConfiguredScaling) {
+	EngineTestHelper eth(engine_type_e::TEST_ENGINE);
+	for (float divider : {2.0f, 1.75f}) {
+		engineConfiguration->analogInputDividerCoefficient = divider;
+		for (auto channel : {EFI_ADC_1, EFI_ADC_10, EFI_ADC_11, EFI_ADC_12, EFI_ADC_13}) {
+			EXPECT_FLOAT_EQ(1.555f, getAnalogInputDividerCoefficient(channel));
+			EXPECT_FLOAT_EQ(5.0f, custom_board_getThermistorSupplyVoltage.value()(channel));
+		}
+		for (auto channel : {EFI_ADC_6, EFI_ADC_7}) {
+			EXPECT_FLOAT_EQ(115.0f / 15.0f, getAnalogInputDividerCoefficient(channel));
+			EXPECT_FLOAT_EQ(5.0f, custom_board_getThermistorSupplyVoltage.value()(channel));
+		}
+		EXPECT_FLOAT_EQ(1.0f, getAnalogInputDividerCoefficient(EFI_ADC_37));
 	}
 }
 
